@@ -1,7 +1,7 @@
 interface WalletInfoProps {
   balance: number
 }
-
+//12
 export function WalletInfo({ balance }: WalletInfoProps) {
   return (
     <div className="absolute right-4 top-4 z-20 rounded-lg bg-slate-900/70 px-4 py-2 backdrop-blur-md">
