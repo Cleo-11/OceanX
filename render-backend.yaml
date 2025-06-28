@@ -1,0 +1,25 @@
+# Backend deployment config for Render
+services:
+  - type: web
+    name: oceanx-backend
+    env: node
+    plan: starter
+    rootDir: server
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        fromService:
+          type: web
+          name: oceanx-backend
+          property: port
+      - key: FRONTEND_URL
+        value: https://your-vercel-app.vercel.app
+      - key: RPC_URL
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
