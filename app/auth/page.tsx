@@ -44,10 +44,11 @@ export default function AuthPage() {
     setError("")
 
     try {
+      const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || (typeof window !== 'undefined' ? window.location.origin : '');
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
-          redirectTo: `${window.location.origin}/connect-wallet`,
+          redirectTo: `${SITE_URL}/connect-wallet`,
         },
       })
 
@@ -68,12 +69,13 @@ export default function AuthPage() {
 
     try {
       let result
+      const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || (typeof window !== 'undefined' ? window.location.origin : '');
       if (isSignUp) {
         result = await supabase.auth.signUp({
           email,
           password,
           options: {
-            emailRedirectTo: `${window.location.origin}/connect-wallet`,
+            emailRedirectTo: `${SITE_URL}/connect-wallet`,
           },
         })
       } else {
