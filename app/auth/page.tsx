@@ -45,12 +45,14 @@ export default function AuthPage() {
 
     try {
       const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || (typeof window !== 'undefined' ? window.location.origin : '');
+      console.log("[DEBUG] SITE_URL used for redirect:", SITE_URL);
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
           redirectTo: `${SITE_URL}/connect-wallet`,
         },
       })
+      console.log("[DEBUG] Google OAuth redirectTo:", `${SITE_URL}/connect-wallet`);
 
       if (error) {
         throw error
@@ -78,6 +80,7 @@ export default function AuthPage() {
             emailRedirectTo: `${SITE_URL}/connect-wallet`,
           },
         })
+        console.log("[DEBUG] Email signUp emailRedirectTo:", `${SITE_URL}/connect-wallet`);
       } else {
         result = await supabase.auth.signInWithPassword({
           email,
