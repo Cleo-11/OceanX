@@ -8,6 +8,17 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { getSession, getCurrentUser, signOut } from "@/lib/supabase"
 import { supabase } from "@/lib/supabase"
+import {
+  AlertDialog,
+  AlertDialogTrigger,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogFooter,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogAction,
+  AlertDialogCancel,
+} from "@/components/ui/alert-dialog"
 
 declare global {
   interface Window {
@@ -24,6 +35,10 @@ export default function ConnectWalletPage() {
   const [user, setUser] = useState<any>(null)
   const [isLoading, setIsLoading] = useState(false)
   const router = useRouter()
+  const [showTransferDialog, setShowTransferDialog] = useState(false)
+  const [pendingWalletAddress, setPendingWalletAddress] = useState<string>("")
+  const [pendingOldUserId, setPendingOldUserId] = useState<string>("")
+  const [pendingLinking, setPendingLinking] = useState(false)
 
   useEffect(() => {
     checkAuthAndWallet()
@@ -111,7 +126,11 @@ export default function ConnectWalletPage() {
         .single()
 
       if (existingPlayer && existingPlayer.user_id !== user?.id) {
-        throw new Error("This wallet is already linked to another account")
+        setPendingWalletAddress(address)
+        setPendingOldUserId(existingPlayer.user_id)
+        setShowTransferDialog(true)
+        setStep("connect") // Go back to connect step while waiting for confirmation
+        return
       }
 
       // Create or update player record
@@ -144,6 +163,26 @@ export default function ConnectWalletPage() {
       console.error("Error linking wallet:", error)
       setError(error.message || "Failed to link wallet to account")
       setStep("error")
+    }
+  }
+
+  const handleConfirmTransfer = async () => {
+    setPendingLinking(true)
+    setShowTransferDialog(false)
+    try {
+      // Unlink wallet from old user
+      await supabase
+        .from("players")
+        .update({ wallet_address: null })
+        .eq("user_id", pendingOldUserId)
+
+      // Now link to current user
+      await linkWalletToAccount(pendingWalletAddress)
+    } catch (error: any) {
+      setError(error.message || "Failed to transfer wallet")
+      setStep("error")
+    } finally {
+      setPendingLinking(false)
     }
   }
 
@@ -306,6 +345,24 @@ export default function ConnectWalletPage() {
           </div>
         )}
       </div>
+      <AlertDialog open={showTransferDialog} onOpenChange={setShowTransferDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Transfer Wallet?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This wallet is already linked to another account. Do you want to unlink it from the old account and link it to your current account?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setShowTransferDialog(false)}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmTransfer} disabled={pendingLinking}>
+              {pendingLinking ? "Transferring..." : "Yes, Transfer Wallet"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
