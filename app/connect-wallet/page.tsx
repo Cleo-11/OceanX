@@ -56,6 +56,9 @@ export default function ConnectWalletPage() {
       const { user } = await getCurrentUser()
       setUser(user)
 
+      // Debug log for user.id
+      console.log("user.id for wallet lookup (checkAuthAndWallet):", user?.id)
+
       // Check if user already has a wallet connected
       const { data: playerData, error: playerError } = await supabase
         .from("players")
@@ -119,6 +122,8 @@ export default function ConnectWalletPage() {
   const linkWalletToAccount = async (address: string) => {
     try {
       // Check if wallet is already linked to another account
+      // Debug log for user.id
+      console.log("user.id for wallet linking (linkWalletToAccount):", user?.id)
       const { data: existingPlayer, error: checkError } = await supabase
         .from("players")
         .select("user_id, username")
