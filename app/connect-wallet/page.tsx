@@ -170,6 +170,12 @@ export default function ConnectWalletPage() {
     setPendingLinking(true)
     setShowTransferDialog(false)
     try {
+      if (!pendingOldUserId) {
+        setError("Could not determine the previous account for this wallet.")
+        setStep("error")
+        setPendingLinking(false)
+        return
+      }
       // Unlink wallet from old user
       await supabase
         .from("players")
