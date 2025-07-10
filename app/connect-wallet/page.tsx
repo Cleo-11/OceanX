@@ -209,7 +209,30 @@ export default function ConnectWalletPage() {
     router.push("/")
   }
 
+  // Debug: Log all imported UI components to check for undefined
+  console.log({
+    AlertDialog,
+    AlertDialogContent,
+    AlertDialogHeader,
+    AlertDialogFooter,
+    AlertDialogTitle,
+    AlertDialogDescription,
+    AlertDialogAction,
+    AlertDialogCancel,
+    Button,
+    Card,
+    CardContent,
+    Badge,
+    Wallet,
+    CheckCircle,
+    Loader2,
+    AlertCircle,
+    ArrowLeft,
+    Anchor,
+  });
+
   const renderStepContent = () => {
+    console.log("Rendering step:", step)
     switch (step) {
       case "checking":
         return (
