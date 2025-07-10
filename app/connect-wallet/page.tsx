@@ -124,6 +124,13 @@ export default function ConnectWalletPage() {
       // Check if wallet is already linked to another account
       // Debug log for user.id
       console.log("user.id for wallet linking (linkWalletToAccount):", user?.id)
+
+      if (!user?.id) {
+        setError("No user ID found. Cannot link wallet.")
+        setStep("error")
+        return
+      }
+
       const { data: existingPlayer, error: checkError } = await supabase
         .from("players")
         .select("user_id, username")
@@ -140,7 +147,7 @@ export default function ConnectWalletPage() {
 
       // Create or update player record
       const playerData = {
-        user_id: user?.id,
+        user_id: user.id,
         wallet_address: address,
         username: user?.user_metadata?.full_name || user?.email?.split("@")[0] || "Anonymous",
         last_login: new Date().toISOString(),
