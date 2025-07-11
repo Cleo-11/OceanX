@@ -407,7 +407,3 @@ export default function ConnectWalletPage() {
     </div>
   )
 }
-export default function Page() {
-  // Intentionally break the render
-  return undefined;
-}
