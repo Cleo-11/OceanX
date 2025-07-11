@@ -14,7 +14,10 @@ export default function HomePage() {
   const router = useRouter()
 
   useEffect(() => {
-    checkUserStatus()
+    // Delay checkUserStatus to ensure hydration before redirect
+    setTimeout(() => {
+      checkUserStatus()
+    }, 0)
   }, [])
 
   const checkUserStatus = async () => {
@@ -43,11 +46,11 @@ export default function HomePage() {
         if (playerData?.wallet_address) {
           // User has wallet, redirect to game
           setHasWallet(true)
-          router.push("/game")
+          router.replace("/game")
           return
         } else {
           // User authenticated but no wallet, redirect to connect wallet
-          router.push("/connect-wallet")
+          router.replace("/connect-wallet")
           return
         }
       }
