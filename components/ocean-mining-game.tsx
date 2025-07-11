@@ -1172,6 +1172,12 @@ export function OceanMiningGame({
     onFullDisconnect(); // Call parent to fully disconnect and return to landing page
   };
 
+  // Add debug logs for Mine button conditions
+  console.log("[DEBUG] playerPosition:", playerPosition)
+  console.log("[DEBUG] targetNode:", targetNode)
+  console.log("[DEBUG] gameState:", gameState)
+  console.log("[DEBUG] walletConnected:", walletConnected)
+
   return (
     <div className="relative h-full w-full">
       {/* Game Canvas */}
@@ -1286,13 +1292,32 @@ export function OceanMiningGame({
 
         {/* Mine Button - only show when near a resource */}
         {targetNode && (
-          <MineButton
-            onClick={() => handleMine(targetNode)}
-            disabled={!walletConnected || gameState !== "idle"}
-            gameState={gameState}
-            resourceType={targetNode.type}
-            resourceAmount={targetNode.amount}
-          />
+          (() => {
+            // Fix linter: add null check for targetNode before accessing its properties
+            let distanceToNode = 'N/A';
+            if (targetNode && targetNode.position && playerPosition) {
+              distanceToNode = Math.sqrt(
+                Math.pow(targetNode.position.x - playerPosition.x, 2) +
+                Math.pow(targetNode.position.y - playerPosition.y, 2)
+              ).toFixed(2);
+            }
+            console.log("[DEBUG] Rendering MineButton with:", {
+              targetNode,
+              walletConnected,
+              gameState,
+              disabled: !walletConnected || gameState !== "idle",
+              distanceToNode
+            })
+            return (
+              <MineButton
+                onClick={() => handleMine(targetNode)}
+                disabled={!walletConnected || gameState !== "idle"}
+                gameState={gameState}
+                resourceType={targetNode.type}
+                resourceAmount={targetNode.amount}
+              />
+            )
+          })()
         )}
 
         {/* Storage Full Alert */}
