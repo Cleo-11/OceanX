@@ -1291,7 +1291,7 @@ export function OceanMiningGame({
         />
 
         {/* DEBUG: Always show MineButton for debugging UI issues */}
-        <div style={{ position: 'fixed', bottom: 20, left: 20, zIndex: 99999 }}>
+        <div style={{ position: 'fixed', bottom: 20, left: '50%', transform: 'translateX(-50%)', zIndex: 99999 }}>
           <MineButton
             onClick={() => targetNode ? handleMine(targetNode) : undefined}
             disabled={!walletConnected || gameState !== "idle" || !targetNode}
