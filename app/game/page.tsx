@@ -7,7 +7,9 @@ import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { getSession, getCurrentUser, signOut } from "@/lib/supabase"
 import { supabase } from "@/lib/supabase"
-import OceanMiningGame from "@/components/ocean-mining-game"
+import { OceanMiningGame } from "@/components/ocean-mining-game";
+import { AlertDialogContent } from "@/components/ui/alert-dialog";
+import { GameState } from "@/lib/types";
 
 interface PlayerData {
   id: string
@@ -26,6 +28,9 @@ export default function GamePage() {
   const [error, setError] = useState<string>("")
   const [playerData, setPlayerData] = useState<PlayerData | null>(null)
   const [user, setUser] = useState<any>(null)
+  const [walletConnected, setWalletConnected] = useState(true); // Assume true if authenticated
+  const [gameState, setGameState] = useState<GameState>("idle");
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const router = useRouter()
 
   useEffect(() => {
@@ -95,6 +100,10 @@ export default function GamePage() {
     initializeGame()
   }
 
+  const handleFullDisconnect = () => {
+    handleSignOut();
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center">
@@ -150,7 +159,14 @@ export default function GamePage() {
 
   return (
     <div className="min-h-screen bg-slate-900">
-      <OceanMiningGame playerData={playerData} user={user} onSignOut={handleSignOut} />
+      <OceanMiningGame
+        walletConnected={walletConnected}
+        gameState={gameState}
+        setGameState={setGameState}
+        sidebarOpen={sidebarOpen}
+        setSidebarOpen={setSidebarOpen}
+        onFullDisconnect={handleFullDisconnect}
+      />
     </div>
   )
 }
