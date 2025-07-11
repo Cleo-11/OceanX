@@ -1290,35 +1290,16 @@ export function OceanMiningGame({
           onDisconnect={handleDisconnect}
         />
 
-        {/* Mine Button - only show when near a resource */}
-        {targetNode && (
-          (() => {
-            // Fix linter: add null check for targetNode before accessing its properties
-            let distanceToNode = 'N/A';
-            if (targetNode && targetNode.position && playerPosition) {
-              distanceToNode = Math.sqrt(
-                Math.pow(targetNode.position.x - playerPosition.x, 2) +
-                Math.pow(targetNode.position.y - playerPosition.y, 2)
-              ).toFixed(2);
-            }
-            console.log("[DEBUG] Rendering MineButton with:", {
-              targetNode,
-              walletConnected,
-              gameState,
-              disabled: !walletConnected || gameState !== "idle",
-              distanceToNode
-            })
-            return (
-              <MineButton
-                onClick={() => handleMine(targetNode)}
-                disabled={!walletConnected || gameState !== "idle"}
-                gameState={gameState}
-                resourceType={targetNode.type}
-                resourceAmount={targetNode.amount}
-              />
-            )
-          })()
-        )}
+        {/* DEBUG: Always show MineButton for debugging UI issues */}
+        <div style={{ position: 'fixed', bottom: 20, left: 20, zIndex: 99999 }}>
+          <MineButton
+            onClick={() => targetNode ? handleMine(targetNode) : undefined}
+            disabled={!walletConnected || gameState !== "idle" || !targetNode}
+            gameState={gameState}
+            resourceType={targetNode ? targetNode.type : "nickel"}
+            resourceAmount={targetNode ? targetNode.amount : 0}
+          />
+        </div>
 
         {/* Storage Full Alert */}
         {showStorageAlert && <StorageFullAlert percentage={storagePercentage} />}
