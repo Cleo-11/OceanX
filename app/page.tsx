@@ -12,6 +12,8 @@ export default function HomePage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [hasWallet, setHasWallet] = useState(false)
   const router = useRouter()
+  console.log({ Loader2, AlertDialogContent, Wallet, Button });
+
 
   useEffect(() => {
     // Delay checkUserStatus to ensure hydration before redirect

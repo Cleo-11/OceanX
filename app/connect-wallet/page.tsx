@@ -209,23 +209,23 @@ export default function ConnectWalletPage() {
     router.push("/")
   }
 
-  // Debug: Log all imported UI components to check for undefined
+  // Debug: Log all major rendered components
   console.log({
-    AlertDialog,
+    Loader2,
     AlertDialogContent,
+    Wallet,
+    Button,
+    Card,
+    CardContent,
+    Badge,
+    AlertDialog,
     AlertDialogHeader,
     AlertDialogFooter,
     AlertDialogTitle,
     AlertDialogDescription,
     AlertDialogAction,
     AlertDialogCancel,
-    Button,
-    Card,
-    CardContent,
-    Badge,
-    Wallet,
     CheckCircle,
-    Loader2,
     AlertCircle,
     ArrowLeft,
     Anchor,
@@ -237,7 +237,7 @@ export default function ConnectWalletPage() {
       case "checking":
         return (
           <div className="text-center py-8">
-            <Loader2 className="w-12 h-12 text-cyan-400 animate-spin mx-auto mb-4" />
+            {Loader2 && <Loader2 className="w-12 h-12 text-cyan-400 animate-spin mx-auto mb-4" />}
             <h3 className="text-xl font-semibold text-white mb-2">Checking Status</h3>
             <p className="text-slate-400">Verifying your authentication...</p>
           </div>
@@ -246,38 +246,40 @@ export default function ConnectWalletPage() {
       case "connect":
         return (
           <div className="text-center py-8">
-            <Wallet className="w-16 h-16 text-cyan-400 mx-auto mb-6" />
+            {Wallet && <Wallet className="w-16 h-16 text-cyan-400 mx-auto mb-6" />}
             <h3 className="text-2xl font-semibold text-white mb-4">Connect Your Wallet</h3>
             <p className="text-slate-400 mb-6 max-w-md mx-auto">
               Connect your MetaMask wallet to start playing OceanX. Your wallet will be securely linked to your account.
             </p>
-            <Button
-              onClick={connectWallet}
-              disabled={isLoading}
-              className="bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white px-8 py-3 text-lg"
-            >
-              {isLoading ? (
-                <>
-                  <Loader2 className="w-5 h-5 animate-spin mr-2" />
-                  Connecting...
-                </>
-              ) : (
-                <>
-                  <Wallet className="w-5 h-5 mr-2" />
-                  Connect MetaMask
-                </>
-              )}
-            </Button>
+            {Button && (
+              <Button
+                onClick={connectWallet}
+                disabled={isLoading}
+                className="bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white px-8 py-3 text-lg"
+              >
+                {isLoading ? (
+                  <>
+                    {Loader2 && <Loader2 className="w-5 h-5 animate-spin mr-2" />}
+                    Connecting...
+                  </>
+                ) : (
+                  <>
+                    {Wallet && <Wallet className="w-5 h-5 mr-2" />}
+                    Connect MetaMask
+                  </>
+                )}
+              </Button>
+            )}
           </div>
         )
 
       case "linking":
         return (
           <div className="text-center py-8">
-            <Loader2 className="w-12 h-12 text-cyan-400 animate-spin mx-auto mb-4" />
+            {Loader2 && <Loader2 className="w-12 h-12 text-cyan-400 animate-spin mx-auto mb-4" />}
             <h3 className="text-xl font-semibold text-white mb-2">Linking Wallet</h3>
             <p className="text-slate-400 mb-4">Connecting your wallet to your account...</p>
-            {walletAddress && (
+            {walletAddress && Badge && (
               <Badge variant="secondary" className="bg-slate-700 text-slate-300">
                 {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
               </Badge>
@@ -288,10 +290,10 @@ export default function ConnectWalletPage() {
       case "complete":
         return (
           <div className="text-center py-8">
-            <CheckCircle className="w-16 h-16 text-green-400 mx-auto mb-6" />
+            {CheckCircle && <CheckCircle className="w-16 h-16 text-green-400 mx-auto mb-6" />}
             <h3 className="text-2xl font-semibold text-white mb-4">Wallet Connected!</h3>
             <p className="text-slate-400 mb-4">Your wallet has been successfully linked to your account.</p>
-            {walletAddress && (
+            {walletAddress && Badge && (
               <Badge variant="secondary" className="bg-slate-700 text-slate-300 mb-6">
                 {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
               </Badge>
@@ -303,26 +305,30 @@ export default function ConnectWalletPage() {
       case "error":
         return (
           <div className="text-center py-8">
-            <AlertCircle className="w-16 h-16 text-red-400 mx-auto mb-6" />
+            {AlertCircle && <AlertCircle className="w-16 h-16 text-red-400 mx-auto mb-6" />}
             <h3 className="text-2xl font-semibold text-white mb-4">Connection Failed</h3>
             <p className="text-slate-400 mb-6">{error}</p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Button
-                onClick={() => {
-                  setError("")
-                  setStep("connect")
-                }}
-                className="bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white"
-              >
-                Try Again
-              </Button>
-              <Button
-                variant="outline"
-                onClick={handleSignOut}
-                className="border-slate-600 text-slate-300 bg-transparent"
-              >
-                Sign Out
-              </Button>
+              {Button && (
+                <Button
+                  onClick={() => {
+                    setError("")
+                    setStep("connect")
+                  }}
+                  className="bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white"
+                >
+                  Try Again
+                </Button>
+              )}
+              {Button && (
+                <Button
+                  variant="outline"
+                  onClick={handleSignOut}
+                  className="border-slate-600 text-slate-300 bg-transparent"
+                >
+                  Sign Out
+                </Button>
+              )}
             </div>
           </div>
         )
