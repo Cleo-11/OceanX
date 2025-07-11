@@ -6,13 +6,13 @@ import { Loader2 } from "lucide-react"
 import { getSession, getCurrentUser } from "@/lib/supabase"
 import { supabase } from "@/lib/supabase"
 import LandingPage from "@/components/landing-page"
+import { AlertDialogContent } from "@/components/ui/alert-dialog";
 
 export default function HomePage() {
   const [isLoading, setIsLoading] = useState(true)
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [hasWallet, setHasWallet] = useState(false)
   const router = useRouter()
-  console.log({ Loader2, AlertDialogContent, Wallet, Button });
 
 
   useEffect(() => {
