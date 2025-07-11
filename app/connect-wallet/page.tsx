@@ -165,6 +165,12 @@ export default function ConnectWalletPage() {
         throw upsertError
       }
 
+      // Reset pending transfer state
+      setPendingWalletAddress("")
+      setPendingOldUserId("")
+      setShowTransferDialog(false)
+      setPendingLinking(false)
+
       setStep("complete")
 
       // Redirect to game after a short delay
@@ -196,11 +202,16 @@ export default function ConnectWalletPage() {
 
       // Now link to current user
       await linkWalletToAccount(pendingWalletAddress)
+      // After transfer, reset pending state (in case linkWalletToAccount returns early)
+      setPendingWalletAddress("")
+      setPendingOldUserId("")
+      setPendingLinking(false)
+      setShowTransferDialog(false)
     } catch (error: any) {
       setError(error.message || "Failed to transfer wallet")
       setStep("error")
-    } finally {
       setPendingLinking(false)
+      setShowTransferDialog(false)
     }
   }
 
