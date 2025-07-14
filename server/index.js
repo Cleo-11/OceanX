@@ -713,7 +713,8 @@ app.use((req, res) => {
 })
 
 // Start server
-const PORT = process.env.PORT || 5000
+const PORT = process.env.PORT || 5000;
+const PUBLIC_URL = process.env.RENDER_EXTERNAL_URL || `http://localhost:${PORT}`;
 
 // --- SOCKET.IO HANDLERS FOR MULTIPLAYER ---
 io.on("connection", (socket) => {
@@ -807,7 +808,7 @@ server.listen(PORT, "0.0.0.0", () => {
   console.log(`🔗 Network: Sepolia Testnet`)
   console.log(`💾 Database: ${supabase ? "Configured" : "Mock Mode"}`)
   console.log(`🎮 Server ready for connections...`)
-  console.log(`📍 Health check: http://localhost:${PORT}/health`)
+  console.log(`📍 Health check: ${PUBLIC_URL}/health`)
 })
 
 // Graceful shutdown
