@@ -37,3 +37,4 @@ contract OceanResource {
         return nodes[nodeId];
     }
 }
+//
