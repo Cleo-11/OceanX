@@ -6,8 +6,8 @@ import "openzeppelin-contracts/contracts/access/Ownable.sol";
 
 contract OCXToken is ERC20, Ownable {
     constructor() ERC20("OceanX Coin", "OCX") Ownable(msg.sender) {
-        // Optionally mint some initial supply if needed
-        // _mint(msg.sender, 1000 * 1e18);
+        // Mint 1,000,000 OCX tokens (18 decimals) to deployer
+        _mint(msg.sender, 1_000_000 * 1e18);
     }
 
     function mint(address to, uint256 amount) external onlyOwner {

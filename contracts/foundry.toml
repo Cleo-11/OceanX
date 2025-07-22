@@ -2,11 +2,13 @@
 src = "src"
 out = "out"
 libs = ["lib"]
-
+auto_send = true
+dry-run = false
 fs_permissions = [{ access = "read", path = "./.env" }]
 
 [rpc_endpoints]
-sepolia = "${RPC_URL}"
+sepolia = "https://sepolia.infura.io/v3/a52d834f9c2c425f815099e9819a360b"
+
 
 [etherscan]
 sepolia = { key = "${ETHERSCAN_API_KEY}" }

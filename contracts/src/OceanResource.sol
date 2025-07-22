@@ -24,6 +24,13 @@ contract OceanResource {
         gameController = _gameController;
     }
 
+    /// @notice Allows setting the controller once, after deployment
+    function setGameController(address _controller) external {
+        require(gameController == address(0), "GameController already set");
+        require(_controller != address(0), "Invalid controller address");
+        gameController = _controller;
+    }
+
     function spawnResource(ResourceType resourceType, uint256 value) external onlyGameController {
         nodes[nextId] = ResourceNode(nextId, resourceType, value, false);
         nextId++;
@@ -37,4 +44,3 @@ contract OceanResource {
         return nodes[nodeId];
     }
 }
-//
