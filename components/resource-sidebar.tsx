@@ -1,7 +1,7 @@
 "use client"
 
 import type { GameState, PlayerStats, PlayerResources } from "@/lib/types"
-import { ResourceItem } from "./resource-item"
+import { ResourceItem } from "./ResourceItem"
 
 interface ResourceSidebarProps {
   isOpen: boolean
