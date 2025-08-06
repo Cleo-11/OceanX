@@ -149,13 +149,7 @@ class ApiClient {
     })
   }
 
-  // Game session management
-  async joinGame(walletAddress: string, signature: string, message: string): Promise<ApiResponse<GameSession>> {
-    return this.request("/game/join", {
-      method: "POST",
-      body: JSON.stringify({ address: walletAddress, signature, message }),
-    })
-  }
+
 
   // Submarine management
   async getSubmarines(): Promise<ApiResponse<{ submarines: SubmarineData[] }>> {

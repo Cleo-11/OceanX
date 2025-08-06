@@ -157,6 +157,9 @@ export function OceanMiningGame({
   }, [])
 
   // Initialize WebSocket connection when wallet is connected
+// components/ocean-mining-game.tsx
+
+  // Initialize WebSocket connection when wallet is connected
   useEffect(() => {
     if (walletConnected) {
       initializeGame()
@@ -185,37 +188,21 @@ export function OceanMiningGame({
       // Join game session
       const connection = walletManager.getConnection()
       if (connection) {
-        const { message, signature } = createSignaturePayload(connection.address, "join game")
-        const joinResponse = await apiClient.joinGame(connection.address, signature, message)
-        if (joinResponse.success && joinResponse.data) {
-          setSessionId(joinResponse.data.sessionId)
-          wsManager.joinSession(connection.address, joinResponse.data.sessionId)
+        // highlight-start
+        // This is the key change:
+        // Instead of making an HTTP request first, we directly emit the WebSocket event.
+        // The server will then respond with the 'game-state' event, which is handled by handleGameState.
+        wsManager.getSocket()?.emit("join-game", { walletAddress: connection.address });
 
-          // Load player data
-          await loadPlayerData(connection.address)
-
-          // Use server resource nodes if available, otherwise keep the generated ones
-          if (joinResponse.data.resourceNodes && joinResponse.data.resourceNodes.length > 0) {
-            console.log("Using server resource nodes:", joinResponse.data.resourceNodes.length)
-            // Convert server nodes to match our 2D format
-            const convertedNodes = joinResponse.data.resourceNodes.map((node: any) => ({
-              id: node.id,
-              position: { x: node.position.x, y: node.position.y },
-              type: node.type,
-              amount: node.amount,
-              depleted: node.depleted || false,
-              size: node.size || 15,
-            }))
-            setResourceNodes(convertedNodes)
-          }
-        }
+        // Load player data after connecting
+        await loadPlayerData(connection.address)
+        // highlight-end
       }
 
       setConnectionStatus("connected")
     } catch (error) {
       console.error("Failed to initialize game:", error)
       setConnectionStatus("disconnected")
-      // Keep the generated nodes even if connection fails
     }
   }
 

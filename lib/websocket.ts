@@ -100,7 +100,7 @@ export class WebSocketManager {
     if (!this.socket) {
       throw new Error("WebSocket not connected")
     }
-    this.socket.emit("join-session", { walletAddress, sessionId })
+    this.socket.emit("join-game", { walletAddress, sessionId })
   }
 
   sendPlayerMove(position: { x: number; y: number; rotation: number }, walletAddress: string, sessionId: string): void {
