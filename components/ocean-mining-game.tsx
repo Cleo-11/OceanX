@@ -85,7 +85,7 @@ export function OceanMiningGame({
   const [connectionStatus, setConnectionStatus] = useState<"connecting" | "connected" | "disconnected">("disconnected")
 
   // --- AQUATIC FEATURE STATE ---
-  const [aquaticState] = useState(() => {
+  const [aquaticState] = useState(() => {u
     // Sunlight rays
     const sunRays = Array.from({ length: 8 }, (_, i) => ({
       x: Math.random() * window.innerWidth,
@@ -151,10 +151,7 @@ export function OceanMiningGame({
     return { sunRays, seaweed, kelp, coral, fish, bubbles, particles }
   })
 
-  // Generate initial resource nodes immediately when component mounts
-  useEffect(() => {
-    generateInitialResourceNodes()
-  }, [])
+ 
 
   // Initialize WebSocket connection when wallet is connected
 // components/ocean-mining-game.tsx
@@ -206,31 +203,6 @@ export function OceanMiningGame({
     }
   }
 
-  // Generate resource nodes function
-  const generateInitialResourceNodes = () => {
-    const types = ["nickel", "cobalt", "copper", "manganese"] as const
-    const nodes: ResourceNode[] = []
-
-    console.log("🎯 Generating resource nodes...")
-
-    for (let i = 0; i < 30; i++) {
-      const node: ResourceNode = {
-        id: `node-${i}`,
-        position: {
-          x: Math.random() * 1800 + 100, // 100-1900 range
-          y: Math.random() * 1800 + 100,
-        },
-        type: types[Math.floor(Math.random() * types.length)],
-        amount: Math.floor(Math.random() * 15) + 5, // 5-20 resources per node
-        depleted: false,
-        size: Math.random() * 10 + 15, // Size between 15-25 for rendering
-      }
-      nodes.push(node)
-    }
-
-    console.log(`✅ Generated ${nodes.length} resource nodes`)
-    setResourceNodes(nodes)
-  }
 
   const cleanup = () => {
     wsManager.disconnect()
