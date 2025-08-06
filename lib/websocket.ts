@@ -39,10 +39,13 @@ export class WebSocketManager {
 
   // ✅ Fixed: Use process.env directly
   private getServerUrl(): string {
-    return process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000"
+    return process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+    console.log("WebSocket URL being used:", apiUrl.replace(/^http/, "ws"));
+    return apiUrl.replace(/^http/, "ws");
   }
 
   connect(serverUrl?: string): Promise<void> {
+    console.log("Attempting to connect to WebSocket...");
     const url = serverUrl || this.getServerUrl()
     return new Promise((resolve, reject) => {
       try {
