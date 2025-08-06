@@ -367,6 +367,7 @@ io.on("connection", (socket) => {
      * This is the single entry point for a player to enter a world.
      */
     socket.on("join-game", async ({ walletAddress }) => {
+        console.log(`[SERVER] Received 'join-game' from ${walletAddress}`);
         if (!walletAddress) {
             socket.emit("error", { message: "Wallet address is required to join." });
             return;

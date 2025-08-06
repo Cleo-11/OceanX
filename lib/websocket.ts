@@ -103,6 +103,7 @@ export class WebSocketManager {
     if (!this.socket) {
       throw new Error("WebSocket not connected")
     }
+    console.log(`[CLIENT] Emitting 'join-game' with wallet: ${walletAddress}`);
     this.socket.emit("join-game", { walletAddress, sessionId })
   }
 
