@@ -715,6 +715,7 @@ export function OceanMiningGame({
 
     // Draw resource nodes as colored circles
     let visibleNodes = 0
+    if (resourceNodes && resourceNodes.length > 0) {
     resourceNodes.forEach((node) => {
       if (node.depleted) return
 
@@ -784,7 +785,8 @@ export function OceanMiningGame({
           ctx.shadowBlur = 0
         }
       }
-    })
+    }
+  }
 
     // Debug info for resource nodes
     if (resourceNodes.length > 0) {
