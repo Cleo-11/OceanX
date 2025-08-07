@@ -111,6 +111,7 @@ export function SonarRadar({ playerPosition, resourceNodes, otherPlayers, viewpo
       })
 
       // Draw resources
+      if (resourceNodes && resourceNodes.length > 0) {
       resourceNodes.forEach((node) => {
         if (node.depleted) return
 
@@ -144,7 +145,7 @@ export function SonarRadar({ playerPosition, resourceNodes, otherPlayers, viewpo
           }
         }
       })
-
+    }
       animationFrame = requestAnimationFrame(draw)
     }
 
