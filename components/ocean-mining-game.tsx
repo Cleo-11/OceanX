@@ -785,7 +785,7 @@ export function OceanMiningGame({
           ctx.shadowBlur = 0
         }
       }
-    }
+    })
   }
 
     // Debug info for resource nodes
