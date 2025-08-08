@@ -19,6 +19,9 @@ import { canMineResource, getStoragePercentage, getResourceColor } from "@/lib/r
 import type { GameState, ResourceNode, PlayerStats, PlayerResources, OtherPlayer, PlayerPosition } from "@/lib/types"
 import { ShoppingCart } from "lucide-react"
 
+// Add this line with your other useState hooks
+const [connectionStatus, setConnectionStatus] = useState<"disconnected" | "connecting" | "connected">("disconnected");
+
 interface OceanMiningGameProps {
   walletConnected: boolean
   gameState: GameState
@@ -156,16 +159,44 @@ export function OceanMiningGame({
   // Initialize WebSocket connection when wallet is connected
 // components/ocean-mining-game.tsx
 
-  // Initialize WebSocket connection when wallet is connected
-  useEffect(() => {
-    if (walletConnected) {
-      initializeGame()
-    } else {
-      cleanup()
-    }
+ // This hook now manages the entire connection lifecycle
+ useEffect(() => {
+  if (walletConnected) {
+    setConnectionStatus("connecting"); // Set status to connecting
 
-    return () => cleanup()
-  }, [walletConnected])
+    initializeGame(); // This remains the same
+
+    const handleGameState = (state: GameState) => {
+      console.log("Received game state from server.");
+      // Set all your game data from the server's response
+      setPlayerId(state.playerData.walletAddress);
+      setSessionId(state.sessionId);
+      setResourceNodes(state.resourceNodes);
+      setOtherPlayers(state.players.filter((p) => p.walletAddress !== state.playerData.walletAddress));
+      
+      // Once data is loaded, mark the connection as complete
+      setConnectionStatus("connected");
+    };
+
+    const handleError = () => {
+      setConnectionStatus("error");
+    };
+
+    // Set up the listeners
+    wsManager.on("game-state", handleGameState);
+    wsManager.on("error", handleError);
+
+    // Return a cleanup function to remove listeners
+    return () => {
+      wsManager.off("game-state", handleGameState);
+      wsManager.off("error", handleError);
+      cleanup(); // Your existing cleanup function
+    };
+  } else {
+    cleanup();
+    setConnectionStatus("disconnected");
+  }
+}, [walletConnected]); // The dependency array remains the same
 
   const initializeGame = async () => {
     try {
@@ -1140,197 +1171,214 @@ export function OceanMiningGame({
   console.log("[DEBUG] walletConnected:", walletConnected)
 
   return (
-    <div className="relative h-full w-full">
-      {/* Game Canvas */}
-      <canvas ref={canvasRef} className="absolute inset-0" />
-
-      {/* HUD Overlay */}
-      <div className="pointer-events-none absolute inset-0 z-10">
-        {/* Connection Status */}
-        {connectionStatus !== "connected" && walletConnected && (
-          <div className="absolute left-1/2 top-4 -translate-x-1/2 transform rounded-lg bg-slate-900/80 px-4 py-2 text-cyan-400 backdrop-blur-sm">
-            {connectionStatus === "connecting" ? "Connecting to game server..." : "Playing offline"}
-          </div>
-        )}
-
-        {/* Player Stats HUD */}
-        <PlayerHUD stats={playerStats} resources={resources} tier={playerTier} />
-
-        {/* Sonar/Mini-map */}
-        <SonarRadar
-          playerPosition={playerPosition}
-          resourceNodes={resourceNodes}
-          otherPlayers={otherPlayers}
-          viewportOffset={viewportOffset}
-        />
-
-        {/* Wallet Info (when connected) */}
-        {walletConnected && <WalletInfo balance={balance} />}
-        <br />
-        {/* Resource Sidebar Toggle */}
-        <button
-          onClick={() => setSidebarOpen(!sidebarOpen)}
-          className="pointer-events-auto absolute right-4 top-16 z-50 rounded-lg bg-slate-800/80 p-2 text-cyan-400 backdrop-blur-sm transition-all hover:bg-slate-700/80"
-        >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="24"
-            height="24"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M5 8h14M5 12h14M5 16h14" />
-          </svg>
-        </button>
-
-        {/* Submarine Store Button */}
-        <button
-          onClick={() => setShowSubmarineStore(true)}
-          className="pointer-events-auto absolute right-4 top-28 z-50 rounded-lg bg-slate-800/80 p-2 text-cyan-400 backdrop-blur-sm transition-all hover:bg-slate-700/80"
-          disabled={gameState !== "idle"}
-        >
-          <ShoppingCart className="h-6 w-6" />
-        </button>
-
-        {/* Upgrade Button */}
-        <button
-          onClick={() => setShowUpgradeModal(true)}
-          className="pointer-events-auto absolute right-4 top-40 z-50 rounded-lg bg-slate-800/80 p-2 text-cyan-400 backdrop-blur-sm transition-all hover:bg-slate-700/80"
-          disabled={gameState !== "idle"}
-        >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="24"
-            height="24"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="m12 8-9.04 9.06a2.82 2.82 0 1 0 3.98 3.98L16 12" />
-            <circle cx="17" cy="7" r="5" />
-          </svg>
-        </button>
-
-        {/* Daily Reward Button */}
-        <button
-          onClick={handleClaimDailyReward}
-          className="pointer-events-auto absolute right-4 top-52 z-50 rounded-lg bg-slate-800/80 p-2 text-cyan-400 backdrop-blur-sm transition-all hover:bg-slate-700/80"
-          disabled={gameState !== "idle"}
-        >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="24"
-            height="24"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <circle cx="12" cy="12" r="3" />
-            <path d="M12 1v6M12 17v6M4.22 4.22l4.24 4.24M15.54 15.54l4.24 4.24M1 12h6M17 12h6M4.22 19.78l4.24-4.24M15.54 8.46l4.24-4.24" />
-          </svg>
-        </button>
-
-        {/* Resource Sidebar */}
-        <ResourceSidebar
-          isOpen={sidebarOpen}
-          resources={resources}
-          balance={balance}
-          onTradeAll={handleTradeAll}
-          gameState={gameState}
-          playerStats={playerStats}
-          onDisconnect={handleDisconnect}
-        />
-
-        {/* DEBUG: Always show MineButton for debugging UI issues */}
-        <div style={{ position: 'fixed', bottom: 20, left: '50%', transform: 'translateX(-50%)', zIndex: 99999 }}>
-          <MineButton
-            onClick={() => targetNode ? handleMine(targetNode) : undefined}
-            disabled={!walletConnected || gameState !== "idle" || !targetNode}
-            gameState={gameState}
-            resourceType={targetNode ? targetNode.type : "nickel"}
-            resourceAmount={targetNode ? targetNode.amount : 0}
-          />
+    <div className="relative w-screen h-screen bg-black flex items-center justify-center text-white">
+      
+      {/* If we are not fully connected, show a loading/error message */}
+      {connectionStatus !== 'connected' && (
+        <div className="text-center">
+          <h2 className="text-2xl font-bold animate-pulse">
+            {connectionStatus === 'connecting' ? 'Connecting to Game Server...' : 'Connection Error'}
+          </h2>
+          <p className="text-slate-400 mt-2">
+            {connectionStatus === 'connecting' ? 'Please wait...' : 'Could not connect to the server. Please try again later.'}
+          </p>
         </div>
+      )}
 
-        {/* Storage Full Alert */}
-        {showStorageAlert && <StorageFullAlert percentage={storagePercentage} />}
-
-        {/* Energy Depleted Alert */}
-        {showEnergyAlert && <EnergyDepletedAlert energy={playerStats.energy} />}
-
-        {/* Game State Notifications */}
-        {gameState !== "idle" && (
-          <div className="pointer-events-none absolute left-1/2 top-1/4 -translate-x-1/2 transform rounded-lg bg-slate-900/80 px-6 py-3 text-lg font-bold text-cyan-400 backdrop-blur-sm">
-            {gameState === "mining" && "Mining in progress..."}
-            {gameState === "resourceGained" && "Resource acquired!"}
-            {gameState === "trading" && "Trading resource..."}
-            {gameState === "resourceTraded" && "Resource traded successfully!"}
-            {gameState === "upgrading" && "Upgrading submarine..."}
-            {gameState === "upgraded" && "Submarine upgraded successfully!"}
-          </div>
-        )}
-
-        {/* Session Info */}
-        {sessionId && (
-          <div className="absolute bottom-4 left-4 rounded-lg bg-slate-900/70 p-3 text-xs text-slate-300 backdrop-blur-sm">
-            <div className="mb-1 font-bold text-cyan-400">SESSION INFO</div>
-            <div>Session: {sessionId.slice(-8)}</div>
-            <div>Players: {otherPlayers.length + 1}/20</div>
-            <div>Status: {connectionStatus}</div>
-          </div>
-        )}
-
-        {/* No Wallet Connected Overlay */}
-        {!walletConnected && (
-          <div className="absolute inset-0 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm">
-            <div className="rounded-xl bg-slate-800/90 p-8 text-center text-white shadow-2xl shadow-cyan-900/30 transition-all hover:shadow-cyan-900/50">
-              <h2 className="mb-4 text-2xl font-bold text-cyan-400">Connect Wallet to Play</h2>
-              <p className="mb-6 text-slate-300">
-                Connect your Web3 wallet to start mining resources from the ocean floor.
-              </p>
-              <button
-                onClick={() => {}}
-                className="pointer-events-auto rounded-lg bg-gradient-to-r from-teal-500 to-cyan-600 px-6 py-3 font-medium text-white shadow-lg shadow-cyan-900/30 transition-all hover:shadow-cyan-900/50"
+      {/* ✅ ONLY render the game world if the status is "connected" */}
+      {connectionStatus === 'connected' && (
+        <div className="relative h-full w-full">
+          {/* Game Canvas */}
+          <canvas ref={canvasRef} className="absolute inset-0" />
+    
+          {/* HUD Overlay */}
+          <div className="pointer-events-none absolute inset-0 z-10">
+            {/* Connection Status */}
+            {connectionStatus !== "connected" && walletConnected && (
+              <div className="absolute left-1/2 top-4 -translate-x-1/2 transform rounded-lg bg-slate-900/80 px-4 py-2 text-cyan-400 backdrop-blur-sm">
+                {connectionStatus === "connecting" ? "Connecting to game server..." : "Playing offline"}
+              </div>
+            )}
+    
+            {/* Player Stats HUD */}
+            <PlayerHUD stats={playerStats} resources={resources} tier={playerTier} />
+    
+            {/* Sonar/Mini-map */}
+            <SonarRadar
+              playerPosition={playerPosition}
+              resourceNodes={resourceNodes}
+              otherPlayers={otherPlayers}
+              viewportOffset={viewportOffset}
+            />
+    
+            {/* Wallet Info (when connected) */}
+            {walletConnected && <WalletInfo balance={balance} />}
+            <br />
+            {/* Resource Sidebar Toggle */}
+            <button
+              onClick={() => setSidebarOpen(!sidebarOpen)}
+              className="pointer-events-auto absolute right-4 top-16 z-50 rounded-lg bg-slate-800/80 p-2 text-cyan-400 backdrop-blur-sm transition-all hover:bg-slate-700/80"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
               >
-                Connect Wallet
-              </button>
+                <path d="M5 8h14M5 12h14M5 16h14" />
+              </svg>
+            </button>
+    
+            {/* Submarine Store Button */}
+            <button
+              onClick={() => setShowSubmarineStore(true)}
+              className="pointer-events-auto absolute right-4 top-28 z-50 rounded-lg bg-slate-800/80 p-2 text-cyan-400 backdrop-blur-sm transition-all hover:bg-slate-700/80"
+              disabled={gameState !== "idle"}
+            >
+              <ShoppingCart className="h-6 w-6" />
+            </button>
+    
+            {/* Upgrade Button */}
+            <button
+              onClick={() => setShowUpgradeModal(true)}
+              className="pointer-events-auto absolute right-4 top-40 z-50 rounded-lg bg-slate-800/80 p-2 text-cyan-400 backdrop-blur-sm transition-all hover:bg-slate-700/80"
+              disabled={gameState !== "idle"}
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="m12 8-9.04 9.06a2.82 2.82 0 1 0 3.98 3.98L16 12" />
+                <circle cx="17" cy="7" r="5" />
+              </svg>
+            </button>
+    
+            {/* Daily Reward Button */}
+            <button
+              onClick={handleClaimDailyReward}
+              className="pointer-events-auto absolute right-4 top-52 z-50 rounded-lg bg-slate-800/80 p-2 text-cyan-400 backdrop-blur-sm transition-all hover:bg-slate-700/80"
+              disabled={gameState !== "idle"}
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <circle cx="12" cy="12" r="3" />
+                <path d="M12 1v6M12 17v6M4.22 4.22l4.24 4.24M15.54 15.54l4.24 4.24M1 12h6M17 12h6M4.22 19.78l4.24-4.24M15.54 8.46l4.24-4.24" />
+              </svg>
+            </button>
+    
+            {/* Resource Sidebar */}
+            <ResourceSidebar
+              isOpen={sidebarOpen}
+              resources={resources}
+              balance={balance}
+              onTradeAll={handleTradeAll}
+              gameState={gameState}
+              playerStats={playerStats}
+              onDisconnect={handleDisconnect}
+            />
+    
+            {/* DEBUG: Always show MineButton for debugging UI issues */}
+            <div style={{ position: 'fixed', bottom: 20, left: '50%', transform: 'translateX(-50%)', zIndex: 99999 }}>
+              <MineButton
+                onClick={() => targetNode ? handleMine(targetNode) : undefined}
+                disabled={!walletConnected || gameState !== "idle" || !targetNode}
+                gameState={gameState}
+                resourceType={targetNode ? targetNode.type : "nickel"}
+                resourceAmount={targetNode ? targetNode.amount : 0}
+              />
             </div>
+    
+            {/* Storage Full Alert */}
+            {showStorageAlert && <StorageFullAlert percentage={storagePercentage} />}
+    
+            {/* Energy Depleted Alert */}
+            {showEnergyAlert && <EnergyDepletedAlert energy={playerStats.energy} />}
+    
+            {/* Game State Notifications */}
+            {gameState !== "idle" && (
+              <div className="pointer-events-none absolute left-1/2 top-1/4 -translate-x-1/2 transform rounded-lg bg-slate-900/80 px-6 py-3 text-lg font-bold text-cyan-400 backdrop-blur-sm">
+                {gameState === "mining" && "Mining in progress..."}
+                {gameState === "resourceGained" && "Resource acquired!"}
+                {gameState === "trading" && "Trading resource..."}
+                {gameState === "resourceTraded" && "Resource traded successfully!"}
+                {gameState === "upgrading" && "Upgrading submarine..."}
+                {gameState === "upgraded" && "Submarine upgraded successfully!"}
+              </div>
+            )}
+    
+            {/* Session Info */}
+            {sessionId && (
+              <div className="absolute bottom-4 left-4 rounded-lg bg-slate-900/70 p-3 text-xs text-slate-300 backdrop-blur-sm">
+                <div className="mb-1 font-bold text-cyan-400">SESSION INFO</div>
+                <div>Session: {sessionId.slice(-8)}</div>
+                <div>Players: {otherPlayers.length + 1}/20</div>
+                <div>Status: {connectionStatus}</div>
+              </div>
+            )}
+    
+            {/* No Wallet Connected Overlay */}
+            {!walletConnected && (
+              <div className="absolute inset-0 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm">
+                <div className="rounded-xl bg-slate-800/90 p-8 text-center text-white shadow-2xl shadow-cyan-900/30 transition-all hover:shadow-cyan-900/50">
+                  <h2 className="mb-4 text-2xl font-bold text-cyan-400">Connect Wallet to Play</h2>
+                  <p className="mb-6 text-slate-300">
+                    Connect your Web3 wallet to start mining resources from the ocean floor.
+                  </p>
+                  <button
+                    onClick={() => {}}
+                    className="pointer-events-auto rounded-lg bg-gradient-to-r from-teal-500 to-cyan-600 px-6 py-3 font-medium text-white shadow-lg shadow-cyan-900/30 transition-all hover:shadow-cyan-900/50"
+                  >
+                    Connect Wallet
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
-        )}
-      </div>
-
-      {/* Submarine Store */}
-      <SubmarineStore
-        isOpen={showSubmarineStore}
-        onClose={() => setShowSubmarineStore(false)}
-        currentTier={playerTier}
-        resources={resources}
-        balance={balance}
-        onPurchase={handleSubmarinePurchase}
-        gameState={gameState}
-      />
-
-      {/* Upgrade Modal */}
-      {showUpgradeModal && (
-        <UpgradeModal
-          currentTier={playerTier}
-          resources={resources}
-          balance={balance}
-          onUpgrade={handleUpgradeSubmarine}
-          onClose={() => setShowUpgradeModal(false)}
-          gameState={gameState}
-        />
+    
+          {/* Submarine Store */}
+          <SubmarineStore
+            isOpen={showSubmarineStore}
+            onClose={() => setShowSubmarineStore(false)}
+            currentTier={playerTier}
+            resources={resources}
+            balance={balance}
+            onPurchase={handleSubmarinePurchase}
+            gameState={gameState}
+          />
+    
+          {/* Upgrade Modal */}
+          {showUpgradeModal && (
+            <UpgradeModal
+              currentTier={playerTier}
+              resources={resources}
+              balance={balance}
+              onUpgrade={handleUpgradeSubmarine}
+              onClose={() => setShowUpgradeModal(false)}
+              gameState={gameState}
+            />
+          )}
+        </div>
       )}
     </div>
-  )
-}
+  );

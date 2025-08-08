@@ -37,11 +37,9 @@ export class WebSocketManager {
     return WebSocketManager.instance
   }
 
-  // ✅ Fixed: Use process.env directly
+  // ✅ Use env directly for the API base URL
   private getServerUrl(): string {
-    return process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
-    console.log("WebSocket URL being used:", apiUrl.replace(/^http/, "ws"));
-    return apiUrl.replace(/^http/, "ws");
+    return process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000"
   }
 
   connect(serverUrl?: string): Promise<void> {
@@ -55,6 +53,8 @@ export class WebSocketManager {
 
         this.socket.on("connect", () => {
           console.log("Connected to game server")
+          // Re-emit a simpler app-level connect event
+          this.emit("connect")
           resolve()
         })
 
@@ -97,6 +97,10 @@ export class WebSocketManager {
         reject(error)
       }
     })
+  }
+
+  getSocket(): Socket | null {
+    return this.socket
   }
 
   joinSession(walletAddress: string, sessionId: string): void {
