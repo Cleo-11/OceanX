@@ -397,7 +397,7 @@ io.on("connection", (socket) => {
         const player = {
             id: walletAddress,
             socketId: socket.id,
-            position: { x: 0, y: 0, z: 0, rotation: 0 },
+            position: { x: 500, y: 500, z: 0, rotation: 0 },
             resources: { nickel: 0, cobalt: 0, copper: 0, manganese: 0 },
             submarineTier: 0, // Default tier, can be updated from DB
         };
@@ -419,7 +419,7 @@ io.on("connection", (socket) => {
         socket.emit("game-state", {
             sessionId: sessionToJoin.id,
             players: playersArray,
-            resources: resourcesArray,
+            resourceNodes: resourcesArray,
             myPlayerId: walletAddress
         });
 

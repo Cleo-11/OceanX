@@ -195,9 +195,6 @@ export function OceanMiningGame({
         // The server will then respond with the 'game-state' event, which is handled by handleGameState.
         wsManager.getSocket()?.emit("join-game", { walletAddress: connection.address });
 
-        // Load player data after connecting
-         await loadPlayerData(connection.address)
-        // highlight-end
       }
 
       setConnectionStatus("connected")
@@ -254,22 +251,32 @@ export function OceanMiningGame({
     }
   }
 
-  // WebSocket event handlers
-  const handleGameState = (state: any) => {
-    // Integrate initial session/game data if provided by server
-    if (state?.sessionId) setSessionId(state.sessionId)
-    if (Array.isArray(state?.resourceNodes) && state.resourceNodes.length > 0) {
-      setResourceNodes(state.resourceNodes)
-    }
-    // Map players to OtherPlayer shape; filter out self using either id or walletAddress
-    const selfAddr = walletManager.getConnection()?.address
-    const players: any[] = Array.isArray(state?.players) ? state.players : []
-    setOtherPlayers(
-      players.filter((p) => (p?.id ?? p?.walletAddress) !== selfAddr)
-    )
-    // Mark connection established on first valid state
-    if (connectionStatus !== "connected") setConnectionStatus("connected")
+// WebSocket event handlers
+const handleGameState = (state: any) => {
+  // Integrate initial session/game data if provided by server
+  if (state?.sessionId) setSessionId(state.sessionId);
+
+  if (Array.isArray(state?.resourceNodes) && state.resourceNodes.length > 0) {
+    setResourceNodes(state.resourceNodes);
   }
+
+  // Map players to OtherPlayer shape; filter out self
+  const selfAddr = walletManager.getConnection()?.address;
+  const players: any[] = Array.isArray(state?.players) ? state.players : [];
+  setOtherPlayers(
+    players.filter((p) => (p?.id ?? p?.walletAddress) !== selfAddr)
+  );
+
+  // ✅ Load player data after receiving state
+  const playerId = state.myPlayerId || selfAddr;
+  if (playerId) {
+    loadPlayerData(playerId);
+  }
+
+  // Mark connection established on first valid state
+  if (connectionStatus !== "connected") setConnectionStatus("connected");
+};
+
 
   const handlePlayerJoined = (data: any) => {
     setOtherPlayers((prev) => {
@@ -1172,10 +1179,10 @@ export function OceanMiningGame({
       {connectionStatus === 'connected' && (
         <div className="relative h-full w-full">
           {/* Game Canvas */}
-          <canvas ref={canvasRef} className="absolute inset-0" />
+          <canvas ref={canvasRef} className="absolute inset-0 z-0" />
     
           {/* HUD Overlay */}
-          <div className="pointer-events-none absolute inset-0 z-10">
+          <div className="absolute inset-0 z-10">
             {/* Connection Status */}
             {connectionStatus !== "connected" && walletConnected && (
               <div className="absolute left-1/2 top-4 -translate-x-1/2 transform rounded-lg bg-slate-900/80 px-4 py-2 text-cyan-400 backdrop-blur-sm">
@@ -1271,18 +1278,20 @@ export function OceanMiningGame({
             </button>
     
             {/* Resource Sidebar */}
-            <ResourceSidebar
-              isOpen={sidebarOpen}
-              resources={resources}
-              balance={balance}
-              onTradeAll={handleTradeAll}
-              gameState={gameState}
-              playerStats={playerStats}
-              onDisconnect={handleDisconnect}
-            />
+            <div className="pointer-events-auto">
+              <ResourceSidebar
+                isOpen={sidebarOpen}
+                resources={resources}
+                balance={balance}
+                onTradeAll={handleTradeAll}
+                gameState={gameState}
+                playerStats={playerStats}
+                onDisconnect={handleDisconnect}
+              />
+            </div>
     
             {/* DEBUG: Always show MineButton for debugging UI issues */}
-            <div style={{ position: 'fixed', bottom: 20, left: '50%', transform: 'translateX(-50%)', zIndex: 99999 }}>
+            <div className="pointer-events-auto" style={{ position: 'fixed', bottom: 20, left: '50%', transform: 'translateX(-50%)', zIndex: 99999 }}>
               <MineButton
                 onClick={() => targetNode ? handleMine(targetNode) : undefined}
                 disabled={!walletConnected || gameState !== "idle" || !targetNode}
