@@ -1381,4 +1381,4 @@ export function OceanMiningGame({
         </div>
       )}
     </div>
-  );
+  )
