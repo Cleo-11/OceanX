@@ -39,7 +39,10 @@ export class WebSocketManager {
 
   // ✅ Use env directly for the API base URL
   private getServerUrl(): string {
-    return process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000"
+    if(process.env.NODE_ENV === "development") {
+      return "http://localhost:5000";
+    }
+    return process.env.NEXT_PUBLIC_WS_URL || "https://oceanx.onrender.com";
   }
 
   connect(serverUrl?: string): Promise<void> {

@@ -40,7 +40,18 @@ app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
 // Socket.IO setup
 const io = socketIo(server, {
-  cors: corsOptions,
+  cors: {
+    origin: (origin, callback) => {
+      if (!origin || allowedOrigins.some((o) => (typeof o === "string" ? o === origin : o.test(origin)))) {
+        callback(null, true);
+      } else {
+        console.warn("CORS blocked origin:", origin);
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
+    methods: ["GET", "POST", "OPTIONS"],
+    credentials: true,
+  },
   transports: ["websocket", "polling"],
 });
 
