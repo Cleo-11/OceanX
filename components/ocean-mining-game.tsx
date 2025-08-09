@@ -19,8 +19,7 @@ import { canMineResource, getStoragePercentage, getResourceColor } from "@/lib/r
 import type { GameState, ResourceNode, PlayerStats, PlayerResources, OtherPlayer, PlayerPosition } from "@/lib/types"
 import { ShoppingCart } from "lucide-react"
 
-// Add this line with your other useState hooks
-const [connectionStatus, setConnectionStatus] = useState<"disconnected" | "connecting" | "connected">("disconnected");
+// (removed) Top-level hook was incorrectly declared here
 
 interface OceanMiningGameProps {
   walletConnected: boolean
@@ -85,10 +84,10 @@ export function OceanMiningGame({
   const [storagePercentage, setStoragePercentage] = useState(0)
   const [showEnergyAlert, setShowEnergyAlert] = useState(false)
   const [viewportOffset, setViewportOffset] = useState({ x: 0, y: 0 })
-  const [connectionStatus, setConnectionStatus] = useState<"connecting" | "connected" | "disconnected">("disconnected")
+  const [connectionStatus, setConnectionStatus] = useState<"connecting" | "connected" | "disconnected" | "error">("disconnected")
 
   // --- AQUATIC FEATURE STATE ---
-  const [aquaticState] = useState(() => {u
+  const [aquaticState] = useState(() => {
     // Sunlight rays
     const sunRays = Array.from({ length: 8 }, (_, i) => ({
       x: Math.random() * window.innerWidth,
@@ -159,44 +158,18 @@ export function OceanMiningGame({
   // Initialize WebSocket connection when wallet is connected
 // components/ocean-mining-game.tsx
 
- // This hook now manages the entire connection lifecycle
+ // Manage the connection lifecycle
  useEffect(() => {
-  if (walletConnected) {
-    setConnectionStatus("connecting"); // Set status to connecting
-
-    initializeGame(); // This remains the same
-
-    const handleGameState = (state: GameState) => {
-      console.log("Received game state from server.");
-      // Set all your game data from the server's response
-      setPlayerId(state.playerData.walletAddress);
-      setSessionId(state.sessionId);
-      setResourceNodes(state.resourceNodes);
-      setOtherPlayers(state.players.filter((p) => p.walletAddress !== state.playerData.walletAddress));
-      
-      // Once data is loaded, mark the connection as complete
-      setConnectionStatus("connected");
-    };
-
-    const handleError = () => {
-      setConnectionStatus("error");
-    };
-
-    // Set up the listeners
-    wsManager.on("game-state", handleGameState);
-    wsManager.on("error", handleError);
-
-    // Return a cleanup function to remove listeners
-    return () => {
-      wsManager.off("game-state", handleGameState);
-      wsManager.off("error", handleError);
-      cleanup(); // Your existing cleanup function
-    };
-  } else {
-    cleanup();
-    setConnectionStatus("disconnected");
-  }
-}, [walletConnected]); // The dependency array remains the same
+   if (walletConnected) {
+     initializeGame()
+     return () => {
+       cleanup()
+     }
+   } else {
+     cleanup()
+     setConnectionStatus("disconnected")
+   }
+ }, [walletConnected])
 
   const initializeGame = async () => {
     try {
@@ -214,8 +187,8 @@ export function OceanMiningGame({
       wsManager.on("error", handleWebSocketError)
 
       // Join game session
-      const connection = walletManager.getConnection()
-      if (connection) {
+       const connection = walletManager.getConnection()
+       if (connection) {
         // highlight-start
         // This is the key change:
         // Instead of making an HTTP request first, we directly emit the WebSocket event.
@@ -223,14 +196,14 @@ export function OceanMiningGame({
         wsManager.getSocket()?.emit("join-game", { walletAddress: connection.address });
 
         // Load player data after connecting
-        await loadPlayerData(connection.address)
+         await loadPlayerData(connection.address)
         // highlight-end
       }
 
       setConnectionStatus("connected")
     } catch (error) {
       console.error("Failed to initialize game:", error)
-      setConnectionStatus("disconnected")
+      setConnectionStatus("error")
     }
   }
 
@@ -245,7 +218,7 @@ export function OceanMiningGame({
 
   const loadPlayerData = async (walletAddress: string) => {
     try {
-      const { message: balanceMessage, signature: balanceSignature } = createSignaturePayload(
+      const { message: balanceMessage, signature: balanceSignature } = await createSignaturePayload(
         walletAddress,
         "get balance",
       )
@@ -255,7 +228,7 @@ export function OceanMiningGame({
         setBalance(Number.parseFloat(balanceResponse.data.balance))
       }
 
-      const { message: submarineMessage, signature: submarineSignature } = createSignaturePayload(
+      const { message: submarineMessage, signature: submarineSignature } = await createSignaturePayload(
         walletAddress,
         "get submarine",
       )
@@ -264,9 +237,10 @@ export function OceanMiningGame({
       if (submarineResponse.success && submarineResponse.data) {
         const { current: currentSubmarine } = submarineResponse.data
         setPlayerTier(currentSubmarine.id)
+        const subData = getSubmarineByTier(currentSubmarine.id)
         setPlayerStats({
-          ...currentSubmarine,
-          energy: submarineData.baseStats.energy, // Ensure energy is max on load
+          ...subData.baseStats,
+          energy: subData.baseStats.energy,
           capacity: {
             nickel: 0,
             cobalt: 0,
@@ -282,13 +256,19 @@ export function OceanMiningGame({
 
   // WebSocket event handlers
   const handleGameState = (state: any) => {
-    if (state.resourceNodes && state.resourceNodes.length > 0) {
+    // Integrate initial session/game data if provided by server
+    if (state?.sessionId) setSessionId(state.sessionId)
+    if (Array.isArray(state?.resourceNodes) && state.resourceNodes.length > 0) {
       setResourceNodes(state.resourceNodes)
     }
-    // Map players to OtherPlayer shape
+    // Map players to OtherPlayer shape; filter out self using either id or walletAddress
+    const selfAddr = walletManager.getConnection()?.address
+    const players: any[] = Array.isArray(state?.players) ? state.players : []
     setOtherPlayers(
-      (state.players || []).filter((p: any) => p.id !== walletManager.getConnection()?.address)
+      players.filter((p) => (p?.id ?? p?.walletAddress) !== selfAddr)
     )
+    // Mark connection established on first valid state
+    if (connectionStatus !== "connected") setConnectionStatus("connected")
   }
 
   const handlePlayerJoined = (data: any) => {
@@ -408,7 +388,7 @@ export function OceanMiningGame({
           setShowUpgradeModal(true)
           break
         case "i":
-          setSidebarOpen((prev) => !prev)
+          setSidebarOpen(!sidebarOpen)
           break
         case "p":
           setShowSubmarineStore(true)
@@ -520,8 +500,11 @@ export function OceanMiningGame({
     setPlayerPosition(newPosition)
 
     // Send position update to server if connected
-    if (connectionStatus === "connected" && sessionId && walletManager.getConnection()) {
-      wsManager.sendPlayerMove(newPosition, walletManager.getConnection().address, sessionId)
+    if (connectionStatus === "connected" && sessionId) {
+      const connection = walletManager.getConnection()
+      if (connection) {
+        wsManager.sendPlayerMove(newPosition, connection.address, sessionId)
+      }
     }
 
     const canvas = canvasRef.current
@@ -959,7 +942,7 @@ export function OceanMiningGame({
   const totalUsed = resources.nickel + resources.cobalt + resources.copper + resources.manganese;
   const totalCapacity = playerStats.maxCapacity.nickel + playerStats.maxCapacity.cobalt + playerStats.maxCapacity.copper + playerStats.maxCapacity.manganese;
 
-  async function tradeAllResources(resources, maxCapacities) {
+  async function tradeAllResources(resources: PlayerResources, maxCapacities: PlayerStats["maxCapacity"]) {
     const response = await fetch("/daily-trade", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -1034,7 +1017,7 @@ export function OceanMiningGame({
         throw new Error("Wallet not connected")
       }
 
-      const { message, signature } = createSignaturePayload(connection.address, "upgrade submarine")
+      const { message, signature } = await createSignaturePayload(connection.address, "upgrade submarine")
       const upgradeResponse = await apiClient.upgradeSubmarine(connection.address, signature, message)
 
       if (!upgradeResponse.success || !upgradeResponse.data) {
@@ -1078,7 +1061,7 @@ export function OceanMiningGame({
         throw new Error("Wallet not connected")
       }
 
-      const { message, signature } = createSignaturePayload(connection.address, "upgrade submarine")
+      const { message, signature } = await createSignaturePayload(connection.address, "upgrade submarine")
       const upgradeResponse = await apiClient.upgradeSubmarine(connection.address, signature, message)
 
       if (!upgradeResponse.success || !upgradeResponse.data) {
@@ -1116,7 +1099,7 @@ export function OceanMiningGame({
         throw new Error("Wallet not connected")
       }
 
-      const { message, signature } = createSignaturePayload(connection.address, "claim daily reward")
+      const { message, signature } = await createSignaturePayload(connection.address, "claim daily reward")
       const claimResponse = await apiClient.claimDailyReward(connection.address, signature, message)
 
       if (!claimResponse.success) {
@@ -1135,9 +1118,9 @@ export function OceanMiningGame({
     }
   }
 
-  const createSignaturePayload = (address: string, action: string) => {
+  const createSignaturePayload = async (address: string, action: string) => {
     const message = `Sign this message to ${action} with your account ${address}`
-    const signature = walletManager.signMessage(message)
+    const signature = await walletManager.signMessage(message)
 
     return { message, signature }
   }
@@ -1382,3 +1365,4 @@ export function OceanMiningGame({
       )}
     </div>
   )
+}
