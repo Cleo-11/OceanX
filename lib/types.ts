@@ -61,3 +61,72 @@ export interface PlayerPosition {
   y: number
   rotation: number
 }
+
+// Database schema types for Supabase
+export interface Database {
+  public: {
+    Tables: {
+      players: {
+        Row: {
+          id: number
+          wallet_address: string
+          username: string | null
+          submarine_tier: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: number
+          wallet_address: string
+          username?: string | null
+          submarine_tier?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: number
+          wallet_address?: string
+          username?: string | null
+          submarine_tier?: number
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      submarine_tiers: {
+        Row: {
+          id: number
+          name: string
+          description: string
+          cost: number
+          speed: number
+          storage: number
+          mining_power: number
+          hull: number
+          special_ability: string | null
+        }
+        Insert: {
+          id?: number
+          name: string
+          description: string
+          cost: number
+          speed: number
+          storage: number
+          mining_power: number
+          hull: number
+          special_ability?: string | null
+        }
+        Update: {
+          id?: number
+          name?: string
+          description?: string
+          cost?: number
+          speed?: number
+          storage?: number
+          mining_power?: number
+          hull?: number
+          special_ability?: string | null
+        }
+      }
+    }
+  }
+}

@@ -4,27 +4,36 @@ interface ResourceItemProps {
   name: string
   icon: string
   amount: number
-  onTrade: () => void
-  disabled: boolean
+  capacity: number
+  maxCapacity: number
 }
 
-export function ResourceItem({ name, icon, amount, onTrade, disabled }: ResourceItemProps) {
+export function ResourceItem({ name, icon, amount, capacity, maxCapacity }: ResourceItemProps) {
+  const usagePercentage = maxCapacity > 0 ? (capacity / maxCapacity) * 100 : 0
+  
   return (
     <div className="rounded-lg bg-slate-800/50 p-3">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between mb-2">
         <div className="flex items-center space-x-2">
           <span className="text-xl">{icon}</span>
           <span className="text-slate-300">{name}</span>
         </div>
-        <span className="font-mono text-lg text-cyan-400">{amount}</span>
+        <span className="font-mono text-sm text-cyan-400">{amount}</span>
       </div>
-      <button
-        onClick={onTrade}
-        disabled={disabled}
-        className="mt-2 w-full rounded-md bg-gradient-to-r from-teal-600 to-cyan-700 py-1 text-sm font-medium text-white shadow-md shadow-cyan-900/30 transition-all hover:shadow-cyan-900/50 disabled:opacity-50"
-      >
-        Trade
-      </button>
+      <div className="space-y-1">
+        <div className="flex justify-between text-xs text-slate-400">
+          <span>Capacity: {capacity}/{maxCapacity}</span>
+          <span>{Math.round(usagePercentage)}%</span>
+        </div>
+        <div className="h-1.5 w-full rounded-full bg-slate-700">
+          <div
+            className={`h-full rounded-full ${
+              usagePercentage > 90 ? "bg-red-500" : usagePercentage > 70 ? "bg-yellow-500" : "bg-green-500"
+            }`}
+            style={{ width: `${usagePercentage}%` }}
+          />
+        </div>
+      </div>
     </div>
   )
 }

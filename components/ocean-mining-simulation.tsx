@@ -25,6 +25,7 @@ interface OceanMiningSimulationProps {
   setGameState: (state: GameState) => void
   sidebarOpen: boolean
   setSidebarOpen: (open: boolean) => void
+  walletAddress?: string
 }
 
 // Mock data for other players - in a real app, this would come from a multiplayer backend
@@ -61,6 +62,7 @@ export function OceanMiningSimulation({
   setGameState,
   sidebarOpen,
   setSidebarOpen,
+  walletAddress = "",
 }: OceanMiningSimulationProps) {
   // Player position and movement
   const [playerPosition, setPlayerPosition] = useState<[number, number, number]>([0, 2, 0])
@@ -512,6 +514,7 @@ export function OceanMiningSimulation({
           onTradeAll={handleTradeAll}
           gameState={gameState}
           playerStats={playerStats}
+          walletAddress={walletAddress}
         />
 
         {/* Mine Button - only show when near a resource */}
