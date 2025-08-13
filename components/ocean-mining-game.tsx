@@ -191,16 +191,10 @@ export function OceanMiningGame({
       if (connection) {
         // Set wallet address for profile component
         setWalletAddress(connection.address)
-        
-        // highlight-start
-        // This is the key change:
-        // Instead of making an HTTP request first, we directly emit the WebSocket event.
-        // The server will then respond with the 'game-state' event, which is handled by handleGameState.
-        wsManager.joinSession(connection.address, sessionId || "");
-
+        // All players join the same global session
+        wsManager.joinSession(connection.address, "global");
         // Load player data after connecting
         await loadPlayerData(connection.address)
-        // highlight-end
       }
 
       setConnectionStatus("connected")
