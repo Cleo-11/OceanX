@@ -1305,16 +1305,18 @@ export function OceanMiningGame({
           </div>
         </div>
 
-        {/* DEBUG: Always show MineButton for debugging UI issues */}
-        <div style={{ position: 'fixed', bottom: 20, left: '50%', transform: 'translateX(-50%)', zIndex: 99999 }}>
-          <MineButton
-            onClick={() => targetNode ? handleMine(targetNode) : undefined}
-            disabled={!walletConnected || gameState !== "idle" || !targetNode}
-            gameState={gameState}
-            resourceType={targetNode ? targetNode.type : "nickel"}
-            resourceAmount={targetNode ? targetNode.amount : 0}
-          />
-        </div>
+        {/* Show MineButton only when submarine is hovering over a resource node */}
+        {targetNode && !targetNode.depleted && (
+          <div style={{ position: 'fixed', bottom: 20, left: '50%', transform: 'translateX(-50%)', zIndex: 99999 }}>
+            <MineButton
+              onClick={() => handleMine(targetNode)}
+              disabled={!walletConnected || gameState !== "idle"}
+              gameState={gameState}
+              resourceType={targetNode.type}
+              resourceAmount={targetNode.amount}
+            />
+          </div>
+        )}
 
         {/* Storage Full Alert */}
         {showStorageAlert && <StorageFullAlert percentage={storagePercentage} />}
