@@ -1282,25 +1282,28 @@ export function OceanMiningGame({
         </button>
 
 
-        {/* Sidebar Backdrop Overlay */}
-        {sidebarOpen && (
-          <div
-            className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm transition-opacity duration-300"
-            onClick={() => setSidebarOpen(false)}
-            aria-label="Close sidebar overlay"
-          />
-        )}
-        {/* Resource Sidebar */}
-        <ResourceSidebar
-          isOpen={sidebarOpen}
-          resources={resources}
-          balance={balance}
-          onTradeAll={handleTradeAll}
-          gameState={gameState}
-          playerStats={playerStats}
-          walletAddress={walletAddress}
-          onDisconnect={handleDisconnect}
-        />
+        {/* Sidebar and Overlay Container */}
+        <div className="pointer-events-none">
+          {sidebarOpen && (
+            <div
+              className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm transition-opacity duration-300 pointer-events-auto"
+              onClick={() => setSidebarOpen(false)}
+              aria-label="Close sidebar overlay"
+            />
+          )}
+          <div className="pointer-events-auto">
+            <ResourceSidebar
+              isOpen={sidebarOpen}
+              resources={resources}
+              balance={balance}
+              onTradeAll={handleTradeAll}
+              gameState={gameState}
+              playerStats={playerStats}
+              walletAddress={walletAddress}
+              onDisconnect={handleDisconnect}
+            />
+          </div>
+        </div>
 
         {/* DEBUG: Always show MineButton for debugging UI issues */}
         <div style={{ position: 'fixed', bottom: 20, left: '50%', transform: 'translateX(-50%)', zIndex: 99999 }}>
