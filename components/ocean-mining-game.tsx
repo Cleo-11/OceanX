@@ -1281,6 +1281,15 @@ export function OceanMiningGame({
           </svg>
         </button>
 
+
+        {/* Sidebar Backdrop Overlay */}
+        {sidebarOpen && (
+          <div
+            className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm transition-opacity duration-300"
+            onClick={() => setSidebarOpen(false)}
+            aria-label="Close sidebar overlay"
+          />
+        )}
         {/* Resource Sidebar */}
         <ResourceSidebar
           isOpen={sidebarOpen}

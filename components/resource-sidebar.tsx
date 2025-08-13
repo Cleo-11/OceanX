@@ -36,7 +36,7 @@ export function ResourceSidebar({ isOpen, resources, balance, onTradeAll, gameSt
 
   return (
     <div
-      className={`pointer-events-auto absolute right-0 top-0 z-30 h-full w-80 transform bg-slate-900/90 shadow-lg shadow-cyan-900/20 backdrop-blur-md transition-transform duration-300 ${
+      className={`pointer-events-auto fixed right-0 top-0 z-50 h-full w-80 transform bg-slate-900/90 shadow-lg shadow-cyan-900/20 backdrop-blur-md transition-transform duration-300 ${
         isOpen ? "translate-x-0" : "translate-x-full"
       }`}
       style={{ display: 'flex', flexDirection: 'column' }}
