@@ -64,6 +64,14 @@ export function UserProfile({ walletAddress, resources }: UserProfileProps) {
   }, [walletAddress])
 
   const loadProfileData = async () => {
+    if (!walletAddress) {
+      setPlayerData(null);
+      setSubmarineTierData(null);
+      setOcxBalance("0");
+      setError("No wallet address provided.");
+      setIsLoading(false);
+      return;
+    }
     try {
       setIsLoading(true)
       setError("")
