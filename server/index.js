@@ -484,13 +484,31 @@ app.get("/", (req, res) => {
 });
 
 // Health check endpoint
+
 app.get("/health", (req, res) => {
-    res.json({
-        status: "OK",
-        timestamp: new Date().toISOString(),
-        activeSessions: gameSessions.size,
-        totalPlayers: Array.from(gameSessions.values()).reduce((total, session) => total + session.players.size, 0),
-    });
+  res.json({
+    status: "OK",
+    timestamp: new Date().toISOString(),
+    activeSessions: gameSessions.size,
+    totalPlayers: Array.from(gameSessions.values()).reduce((total, session) => total + session.players.size, 0),
+  });
+});
+
+// --- Admin/debug endpoint: List all sessions and their players ---
+app.get("/sessions", (req, res) => {
+  const sessions = Array.from(gameSessions.values()).map(session => ({
+    id: session.id,
+    playerCount: session.players.size,
+    players: Array.from(session.players.values()).map(player => ({
+      id: player.id,
+      socketId: player.socketId,
+      position: player.position,
+      resources: player.resources,
+      submarineTier: player.submarineTier
+    })),
+    resourceNodeCount: session.resourceNodes.size
+  }));
+  res.json({ sessions });
 });
 
 // Start the server
