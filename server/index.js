@@ -366,12 +366,13 @@ io.on("connection", (socket) => {
      * Handles a player's request to join the game.
      * This is the single entry point for a player to enter a world.
      */
-    socket.on("join-game", async ({ walletAddress }) => {
-        console.log(`[SERVER] Received 'join-game' from ${walletAddress}`);
-        if (!walletAddress) {
-            socket.emit("error", { message: "Wallet address is required to join." });
-            return;
-        }
+  socket.on("join-game", async (payload) => {
+    console.log(`[SERVER] Received 'join-game' with payload:`, payload);
+    const { walletAddress, sessionId } = payload || {};
+    if (!walletAddress) {
+      socket.emit("error", { message: "Wallet address is required to join." });
+      return;
+    }
 
         // --- FIXED and more robust session finding logic ---
         let sessionToJoin = Array.from(gameSessions.values()).find(
