@@ -191,10 +191,14 @@ export function OceanMiningGame({
       if (connection) {
         // Set wallet address for profile component
         setWalletAddress(connection.address)
+        // Debug log before joining session
+        console.log("[OceanMiningGame] Calling wsManager.joinSession with:", { address: connection.address, sessionId: "global" });
         // All players join the same global session
         wsManager.joinSession(connection.address, "global");
         // Load player data after connecting
         await loadPlayerData(connection.address)
+      } else {
+        console.warn("[OceanMiningGame] walletManager.getConnection() returned null or undefined");
       }
 
       setConnectionStatus("connected")
