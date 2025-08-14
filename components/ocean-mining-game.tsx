@@ -1169,10 +1169,7 @@ export function OceanMiningGame({
   };
 
   // Add debug logs for Mine button conditions
-  console.log("[DEBUG] playerPosition:", playerPosition)
-  console.log("[DEBUG] targetNode:", targetNode)
-  console.log("[DEBUG] gameState:", gameState)
-  console.log("[DEBUG] walletConnected:", walletConnected)
+
 
   return (
     <div className="relative h-full w-full">

@@ -45,8 +45,9 @@ export class WebSocketManager {
   }
 
   connect(serverUrl?: string): Promise<void> {
-    console.log("Attempting to connect to WebSocket...");
+    console.log("[WS DEBUG] wsManager.connect called");
     const url = serverUrl || this.getServerUrl()
+    console.log("[WS DEBUG] Connecting to:", url);
     return new Promise((resolve, reject) => {
       try {
         this.socket = io(url, {
@@ -54,7 +55,7 @@ export class WebSocketManager {
         })
 
         this.socket.on("connect", () => {
-          console.log("Connected to game server")
+          console.log("[WS DEBUG] Connected to game server");
           resolve()
         })
 
@@ -103,8 +104,8 @@ export class WebSocketManager {
     if (!this.socket) {
       throw new Error("WebSocket not connected")
     }
-    console.log(`[CLIENT] Emitting 'join-game' with wallet: ${walletAddress}`);
-    this.socket.emit("join-game", { walletAddress, sessionId })
+  console.log(`[WS DEBUG] joinSession called with wallet: ${walletAddress}, sessionId: ${sessionId}`);
+  this.socket.emit("join-game", { walletAddress, sessionId })
   }
 
   sendPlayerMove(position: { x: number; y: number; rotation: number }, walletAddress: string, sessionId: string): void {
