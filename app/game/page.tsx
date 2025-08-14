@@ -8,6 +8,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { getSession, getCurrentUser, signOut } from "@/lib/supabase"
 import { supabase } from "@/lib/supabase"
 import { OceanMiningGame } from "@/components/ocean-mining-game";
+import { walletManager } from "@/lib/wallet";
 import { AlertDialogContent } from "@/components/ui/alert-dialog";
 import { GameState } from "@/lib/types";
 
@@ -28,7 +29,8 @@ export default function GamePage() {
   const [error, setError] = useState<string>("")
   const [playerData, setPlayerData] = useState<PlayerData | null>(null)
   const [user, setUser] = useState<any>(null)
-  const [walletConnected, setWalletConnected] = useState(true); // Assume true if authenticated
+  const [walletConnected, setWalletConnected] = useState(false);
+  const [walletPrompt, setWalletPrompt] = useState(false);
   const [gameState, setGameState] = useState<GameState>("idle");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const router = useRouter()
@@ -36,6 +38,20 @@ export default function GamePage() {
   useEffect(() => {
     initializeGame()
   }, [])
+
+  // After playerData is loaded, check wallet connection
+  useEffect(() => {
+    if (playerData && playerData.wallet_address) {
+      const connection = walletManager.getConnection();
+      if (!connection) {
+        setWalletPrompt(true);
+      } else if (connection.address.toLowerCase() !== playerData.wallet_address.toLowerCase()) {
+        setWalletPrompt(true);
+      } else {
+        setWalletConnected(true);
+      }
+    }
+  }, [playerData]);
 
   const initializeGame = async () => {
     try {
@@ -147,6 +163,7 @@ export default function GamePage() {
     )
   }
 
+
   if (!playerData) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center">
@@ -155,6 +172,34 @@ export default function GamePage() {
         </div>
       </div>
     )
+  }
+
+  if (walletPrompt) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-cyan-300 mb-4 text-xl font-bold">Connect your wallet to play</p>
+          <button
+            className="rounded-lg bg-gradient-to-r from-teal-500 to-cyan-600 px-6 py-3 font-medium text-white shadow-lg hover:from-teal-600 hover:to-cyan-700"
+            onClick={async () => {
+              try {
+                const connection = await walletManager.connectWallet();
+                if (connection.address.toLowerCase() !== playerData.wallet_address.toLowerCase()) {
+                  alert("Please connect the wallet you registered with: " + playerData.wallet_address);
+                  return;
+                }
+                setWalletConnected(true);
+                setWalletPrompt(false);
+              } catch (e) {
+                alert("Failed to connect wallet. Please try again.");
+              }
+            }}
+          >
+            Connect Wallet
+          </button>
+        </div>
+      </div>
+    );
   }
 
   return (
