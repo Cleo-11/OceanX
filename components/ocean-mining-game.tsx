@@ -47,21 +47,6 @@ export function OceanMiningGame({
   const [particleBursts, setParticleBursts] = useState<Array<{ x: number, y: number, color: string, particles: Array<{ x: number, y: number, vx: number, vy: number, life: number }> }>>([])
 
   // --- CINEMATIC FEEDBACK UTILS ---
-  const triggerScreenShake = (intensity = 8, duration = 0.3) => {
-    setScreenShake({ active: true, intensity, duration, time: 0 })
-  }
-  const triggerColorGrade = (tint = '#0ea5e9', opacity = 0.18, duration = 0.5) => {
-    setColorGrade({ active: true, tint, opacity, duration, time: 0 })
-  }
-  const triggerParticleBurst = (x: number, y: number, color = '#fbbf24') => {
-    const particles = Array.from({ length: 18 }, () => ({
-      x, y,
-      vx: (Math.random() - 0.5) * 5,
-      vy: (Math.random() - 0.5) * 5,
-      life: 30 + Math.random() * 10
-    }))
-    setParticleBursts((prev) => [...prev, { x, y, color, particles }])
-  }
 
   // Player position and movement
   const [playerPosition, setPlayerPosition] = useState<PlayerPosition>({ x: 500, y: 500, rotation: 0 })
@@ -179,41 +164,37 @@ export function OceanMiningGame({
 
   // Generate initial resource nodes immediately when component mounts
   useEffect(() => {
-    generateInitialResourceNodes()
-      setConnectionStatus("connecting")
-
-      // Connect to WebSocket server
-      await wsManager.connect()
-
-      // Set up WebSocket event listeners
-      wsManager.on("game-state", handleGameState)
-      wsManager.on("player-joined", handlePlayerJoined)
-      wsManager.on("player-left", handlePlayerLeft)
-      wsManager.on("player-moved", handlePlayerMoved)
-      wsManager.on("resource-mined", handleResourceMined)
-      wsManager.on("error", handleWebSocketError)
-
-      // Join game session
-      const connection = walletManager.getConnection()
-      if (connection) {
-        // Set wallet address for profile component
-        setWalletAddress(connection.address)
-        // Debug log before joining session
-        console.log("[OceanMiningGame] Calling wsManager.joinSession with:", { address: connection.address, sessionId: "global" });
-        // All players join the same global session
-        wsManager.joinSession(connection.address, "global");
-        // Load player data after connecting
-        await loadPlayerData(connection.address)
-      } else {
-        console.warn("[OceanMiningGame] walletManager.getConnection() returned null or undefined");
+    generateInitialResourceNodes();
+    const init = async () => {
+      try {
+        setConnectionStatus("connecting");
+        await wsManager.connect();
+        wsManager.on("game-state", handleGameState);
+        wsManager.on("player-joined", handlePlayerJoined);
+        wsManager.on("player-left", handlePlayerLeft);
+        wsManager.on("player-moved", handlePlayerMoved);
+        wsManager.on("resource-mined", handleResourceMined);
+        wsManager.on("error", handleWebSocketError);
+        const connection = walletManager.getConnection();
+        if (connection) {
+          setWalletAddress(connection.address);
+          console.log("[OceanMiningGame] Calling wsManager.joinSession with:", { address: connection.address, sessionId: "global" });
+          wsManager.joinSession(connection.address, "global");
+          await loadPlayerData(connection.address);
+        } else {
+          console.warn("[OceanMiningGame] walletManager.getConnection() returned null or undefined");
+        }
+        setConnectionStatus("connected");
+      } catch (error) {
+        console.error("Failed to initialize game:", error);
+        setConnectionStatus("disconnected");
       }
-
-      setConnectionStatus("connected")
-    } catch (error) {
-      console.error("Failed to initialize game:", error)
-      setConnectionStatus("disconnected")
+    };
+    if (walletConnected) {
+      init();
     }
-  }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [walletConnected]);
 
   // Generate resource nodes function
   const generateInitialResourceNodes = () => {
