@@ -84,8 +84,8 @@ export function PlayerHUD({ stats, resources, tier }: PlayerHUDProps) {
         )}
       </div>
     </motion.div>
+
   )
-  }
 }
 
 interface StatBarProps {
