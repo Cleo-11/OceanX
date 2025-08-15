@@ -99,14 +99,8 @@ export function OceanMiningGame({
   const kelp: Array<any> = []
     // Coral
     // Modern coral, more vibrant and less cluttered
-    const coral = Array.from({ length: 5 }, (_, i) => ({
-      x: Math.random() * window.innerWidth,
-      y: window.innerHeight - 40 - Math.random() * 30,
-      size: 40 + Math.random() * 25,
-      color: ["#38bdf8", "#f472b6", "#fbbf24", "#f87171", "#a21caf"][Math.floor(Math.random() * 5)],
-      type: Math.floor(Math.random() * 2),
-      glow: 0.7 + Math.random() * 0.6,
-    }))
+  // No coral/flower features
+  const coral: Array<any> = []
     // Fish
     const fish = Array.from({ length: 10 }, (_, i) => ({
       x: Math.random() * window.innerWidth,
@@ -574,34 +568,7 @@ export function OceanMiningGame({
   // No kelp
 
     // --- CORAL ---
-    aquaticState.coral.forEach((c) => {
-      ctx.save()
-      ctx.globalAlpha = c.glow * (0.8 + 0.2 * Math.sin(time * 2))
-      ctx.fillStyle = c.color
-      if (c.type === 0) {
-        ctx.beginPath()
-        ctx.arc(c.x, c.y, c.size / 2, 0, Math.PI * 2)
-        ctx.fill()
-        for (let i = 0; i < 5; i++) {
-          const angle = (i / 5) * Math.PI * 2
-          const branchX = c.x + Math.cos(angle) * c.size * 0.3
-          const branchY = c.y + Math.sin(angle) * c.size * 0.3
-          ctx.beginPath()
-          ctx.arc(branchX, branchY, c.size / 4, 0, Math.PI * 2)
-          ctx.fill()
-        }
-      } else if (c.type === 1) {
-        ctx.beginPath()
-        ctx.ellipse(c.x, c.y, c.size / 2, c.size / 3, 0, 0, Math.PI * 2)
-        ctx.fill()
-      } else {
-        ctx.fillRect(c.x - c.size / 6, c.y - c.size, c.size / 3, c.size)
-        ctx.beginPath()
-        ctx.arc(c.x, c.y - c.size, c.size / 6, 0, Math.PI * 2)
-        ctx.fill()
-      }
-      ctx.restore()
-    })
+  // No coral/flower features
 
     // --- FISH ---
     aquaticState.fish.forEach((f) => {
@@ -1120,9 +1087,7 @@ export function OceanMiningGame({
           viewportOffset={viewportOffset}
         />
 
-        {/* Wallet Info (when connected) */}
-        {walletConnected && <WalletInfo balance={balance} />}
-        <br />
+  {/* Wallet info now shown in ResourceSidebar only */}
         {/* Resource Sidebar Toggle */}
         <button
           onClick={() => setSidebarOpen(!sidebarOpen)}
@@ -1215,6 +1180,7 @@ export function OceanMiningGame({
               gameState={gameState}
               playerStats={playerStats}
               walletAddress={walletAddress}
+              walletConnected={walletConnected}
               onDisconnect={handleDisconnect}
             />
           </div>

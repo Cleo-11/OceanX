@@ -15,10 +15,11 @@ interface ResourceSidebarProps {
   gameState: GameState
   playerStats: PlayerStats
   walletAddress: string
+  walletConnected: boolean
   onDisconnect?: () => void
 }
 
-export function ResourceSidebar({ isOpen, resources, balance, onTradeAll, gameState, playerStats, walletAddress, onDisconnect }: ResourceSidebarProps) {
+export function ResourceSidebar({ isOpen, resources, balance, onTradeAll, gameState, playerStats, walletAddress, walletConnected, onDisconnect }: ResourceSidebarProps) {
   const isTrading = gameState === "trading" || gameState === "resourceTraded"
   const isUpgrading = gameState === "upgrading" || gameState === "upgraded"
   const isDisabled = isTrading || isUpgrading
@@ -120,16 +121,18 @@ export function ResourceSidebar({ isOpen, resources, balance, onTradeAll, gameSt
             </div>
           </div>
 
-          {/* Wallet */}
-          <div className="mb-8">
-            <h3 className="mb-3 border-b border-cyan-900/50 pb-1 text-lg font-semibold text-slate-200">Wallet</h3>
-            <div className="rounded-lg bg-slate-800/50 p-4">
-              <div className="flex items-center justify-between">
-                <span className="text-slate-300">OCE Balance:</span>
-                <span className="font-mono text-lg font-bold text-cyan-400">{balance.toLocaleString()}</span>
+          {/* Wallet (only if connected) */}
+          {walletConnected && (
+            <div className="mb-8">
+              <h3 className="mb-3 border-b border-cyan-900/50 pb-1 text-lg font-semibold text-slate-200">Wallet</h3>
+              <div className="rounded-lg bg-slate-800/50 p-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-300">OCE Balance:</span>
+                  <span className="font-mono text-lg font-bold text-cyan-400">{balance.toLocaleString()}</span>
+                </div>
               </div>
             </div>
-          </div>
+          )}
 
           {/* Market Prices */}
           <div>
