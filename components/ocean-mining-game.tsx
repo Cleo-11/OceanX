@@ -88,38 +88,24 @@ export function OceanMiningGame({
   // --- AQUATIC FEATURE STATE ---
   const [aquaticState] = useState(() => {
     // Sunlight rays
-    const sunRays = Array.from({ length: 8 }, (_, i) => ({
+    const sunRays = Array.from({ length: 6 }, (_, i) => ({
       x: Math.random() * window.innerWidth,
-      width: 60 + Math.random() * 40,
-      opacity: 0.12 + Math.random() * 0.08,
-      speed: 0.5 + Math.random() * 0.5,
+      width: 80 + Math.random() * 60,
+      opacity: 0.10 + Math.random() * 0.10,
+      speed: 0.4 + Math.random() * 0.4,
     }))
-    // Seaweed
-    const seaweed = Array.from({ length: 8 }, (_, i) => ({
-      x: Math.random() * window.innerWidth,
-      height: 80 + Math.random() * 60,
-      segments: 8 + Math.floor(Math.random() * 4),
-      swaySpeed: 0.5 + Math.random() * 0.5,
-      swayAmount: 0.2 + Math.random() * 0.2,
-      color: ["#14532d", "#166534", "#22c55e"][Math.floor(Math.random() * 3)],
-    }))
-    // Kelp
-    const kelp = Array.from({ length: 5 }, (_, i) => ({
-      x: Math.random() * window.innerWidth,
-      height: 120 + Math.random() * 80,
-      segments: 10 + Math.floor(Math.random() * 4),
-      swaySpeed: 0.3 + Math.random() * 0.3,
-      swayAmount: 0.15 + Math.random() * 0.15,
-      color: ["#a3e635", "#65a30d", "#4d7c0f"][Math.floor(Math.random() * 3)],
-    }))
+    // No kelp, seaweed, or bubbles for a cleaner look
+  const seaweed: Array<any> = []
+  const kelp: Array<any> = []
     // Coral
-    const coral = Array.from({ length: 7 }, (_, i) => ({
+    // Modern coral, more vibrant and less cluttered
+    const coral = Array.from({ length: 5 }, (_, i) => ({
       x: Math.random() * window.innerWidth,
-      y: window.innerHeight - 30 - Math.random() * 40,
-      size: 30 + Math.random() * 20,
-      color: ["#f472b6", "#fbbf24", "#f87171", "#facc15"][Math.floor(Math.random() * 4)],
-      type: Math.floor(Math.random() * 3),
-      glow: 0.5 + Math.random() * 0.5,
+      y: window.innerHeight - 40 - Math.random() * 30,
+      size: 40 + Math.random() * 25,
+      color: ["#38bdf8", "#f472b6", "#fbbf24", "#f87171", "#a21caf"][Math.floor(Math.random() * 5)],
+      type: Math.floor(Math.random() * 2),
+      glow: 0.7 + Math.random() * 0.6,
     }))
     // Fish
     const fish = Array.from({ length: 10 }, (_, i) => ({
@@ -131,15 +117,8 @@ export function OceanMiningGame({
       opacity: 0.5 + Math.random() * 0.5,
       swimOffset: Math.random() * Math.PI * 2,
     }))
-    // Bubbles
-    const bubbles = Array.from({ length: 18 }, (_, i) => ({
-      x: Math.random() * window.innerWidth,
-      y: Math.random() * window.innerHeight,
-      size: 6 + Math.random() * 8,
-      speed: 0.5 + Math.random() * 0.7,
-      opacity: 0.3 + Math.random() * 0.5,
-      wobble: Math.random() * 2,
-    }))
+  // No bubbles
+  const bubbles: Array<any> = []
     // Water particles
     const particles = Array.from({ length: 30 }, (_, i) => ({
       x: Math.random() * window.innerWidth,
@@ -149,7 +128,7 @@ export function OceanMiningGame({
       opacity: 0.2 + Math.random() * 0.3,
       life: 100,
     }))
-    return { sunRays, seaweed, kelp, coral, fish, bubbles, particles }
+  return { sunRays, seaweed, kelp, coral, fish, bubbles, particles }
   })
 
   // Generate initial resource nodes immediately when component mounts
@@ -565,74 +544,34 @@ export function OceanMiningGame({
     const time = Date.now() / 1000
 
     // --- OCEAN GRADIENT BACKGROUND ---
-    const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height)
-    gradient.addColorStop(0, "#0f172a") // Deep ocean blue
-    gradient.addColorStop(0.3, "#1e293b")
-    gradient.addColorStop(0.6, "#334155")
-    gradient.addColorStop(1, "#475569") // Lighter blue at bottom
-    ctx.fillStyle = gradient
-    ctx.fillRect(0, 0, canvas.width, canvas.height)
+  // Modern ocean gradient
+  const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height)
+  gradient.addColorStop(0, "#0f172a")
+  gradient.addColorStop(0.2, "#164e63")
+  gradient.addColorStop(0.5, "#2563eb")
+  gradient.addColorStop(0.8, "#38bdf8")
+  gradient.addColorStop(1, "#a5f3fc")
+  ctx.fillStyle = gradient
+  ctx.fillRect(0, 0, canvas.width, canvas.height)
 
     // --- SUNLIGHT RAYS ---
     aquaticState.sunRays.forEach((ray) => {
       ctx.save()
-      ctx.globalAlpha = ray.opacity * (0.8 + 0.2 * Math.sin(time * ray.speed))
+      ctx.globalAlpha = ray.opacity * (0.7 + 0.3 * Math.sin(time * ray.speed))
       const rayGradient = ctx.createLinearGradient(ray.x, 0, ray.x, canvas.height)
-      rayGradient.addColorStop(0, "rgba(255, 255, 200, 0.3)")
-      rayGradient.addColorStop(0.5, "rgba(255, 255, 200, 0.1)")
-      rayGradient.addColorStop(1, "rgba(255, 255, 200, 0)")
+      rayGradient.addColorStop(0, "rgba(255, 255, 255, 0.18)")
+      rayGradient.addColorStop(0.5, "rgba(255, 255, 255, 0.07)")
+      rayGradient.addColorStop(1, "rgba(255, 255, 255, 0)")
       ctx.fillStyle = rayGradient
       ctx.fillRect(ray.x - ray.width / 2, 0, ray.width, canvas.height)
       ctx.restore()
     })
 
     // --- SEAWEED ---
-    aquaticState.seaweed.forEach((weed) => {
-      ctx.save()
-      ctx.strokeStyle = weed.color
-      ctx.lineWidth = 3
-      ctx.lineCap = "round"
-      const baseX = weed.x
-      const baseY = canvas.height
-      for (let i = 0; i < weed.segments; i++) {
-        const segmentHeight = weed.height / weed.segments
-        const y1 = baseY - i * segmentHeight
-        const y2 = baseY - (i + 1) * segmentHeight
-        const sway1 = Math.sin(time * weed.swaySpeed + i * 0.5) * weed.swayAmount * i
-        const sway2 = Math.sin(time * weed.swaySpeed + (i + 1) * 0.5) * weed.swayAmount * (i + 1)
-        const x1 = baseX + sway1 * 20
-        const x2 = baseX + sway2 * 20
-        ctx.beginPath()
-        ctx.moveTo(x1, y1)
-        ctx.lineTo(x2, y2)
-        ctx.stroke()
-      }
-      ctx.restore()
-    })
+  // No seaweed
 
     // --- KELP ---
-    aquaticState.kelp.forEach((k) => {
-      ctx.save()
-      ctx.strokeStyle = k.color
-      ctx.lineWidth = 5
-      ctx.lineCap = "round"
-      const baseX = k.x
-      const baseY = canvas.height
-      for (let i = 0; i < k.segments; i++) {
-        const segmentHeight = k.height / k.segments
-        const y1 = baseY - i * segmentHeight
-        const y2 = baseY - (i + 1) * segmentHeight
-        const sway1 = Math.sin(time * k.swaySpeed + i * 0.3) * k.swayAmount * i
-        const sway2 = Math.sin(time * k.swaySpeed + (i + 1) * 0.3) * k.swayAmount * (i + 1)
-        const x1 = baseX + sway1 * 30
-        const x2 = baseX + sway2 * 30
-        ctx.beginPath()
-        ctx.moveTo(x1, y1)
-        ctx.lineTo(x2, y2)
-        ctx.stroke()
-      }
-      ctx.restore()
-    })
+  // No kelp
 
     // --- CORAL ---
     aquaticState.coral.forEach((c) => {
@@ -693,26 +632,7 @@ export function OceanMiningGame({
     })
 
     // --- BUBBLES ---
-    aquaticState.bubbles.forEach((bubble) => {
-      bubble.y -= bubble.speed
-      bubble.x += Math.sin(time * bubble.wobble + bubble.y * 0.01) * 0.5
-      if (bubble.y < -bubble.size) {
-        bubble.y = canvas.height + bubble.size
-        bubble.x = Math.random() * canvas.width
-      }
-      ctx.save()
-      ctx.globalAlpha = bubble.opacity
-      ctx.fillStyle = "rgba(173, 216, 230, 0.6)"
-      ctx.beginPath()
-      ctx.arc(bubble.x, bubble.y, bubble.size, 0, Math.PI * 2)
-      ctx.fill()
-      ctx.globalAlpha = bubble.opacity * 0.8
-      ctx.fillStyle = "rgba(255, 255, 255, 0.8)"
-      ctx.beginPath()
-      ctx.arc(bubble.x - bubble.size * 0.3, bubble.y - bubble.size * 0.3, bubble.size * 0.3, 0, Math.PI * 2)
-      ctx.fill()
-      ctx.restore()
-    })
+  // No bubbles
 
     // --- WATER PARTICLES ---
     aquaticState.particles.forEach((particle) => {
