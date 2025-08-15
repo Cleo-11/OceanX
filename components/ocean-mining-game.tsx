@@ -1281,15 +1281,17 @@ export function OceanMiningGame({
         {/* Player Stats HUD */}
         <PlayerHUD stats={playerStats} resources={resources} tier={playerTier} />
 
-        {/* Sonar/Mini-map */}
-        <SonarRadar
-          playerPosition={playerPosition}
-          resourceNodes={resourceNodes}
-          otherPlayers={otherPlayers}
-          viewportOffset={viewportOffset}
-        />
+        {/* Sonar/Mini-map at bottom left */}
+        <div className="absolute left-4 bottom-4 z-20">
+          <SonarRadar
+            playerPosition={playerPosition}
+            resourceNodes={resourceNodes}
+            otherPlayers={otherPlayers}
+            viewportOffset={viewportOffset}
+          />
+        </div>
 
-  {/* Wallet info now shown in ResourceSidebar only */}
+        {/* Wallet info now shown in ResourceSidebar only */}
         {/* Resource Sidebar Toggle */}
         <button
           onClick={() => setSidebarOpen(!sidebarOpen)}
