@@ -102,14 +102,10 @@ export function OceanMiningGame({
       opacity: 0.10 + Math.random() * 0.10,
       speed: 0.4 + Math.random() * 0.4,
     }))
-    // No kelp, seaweed, or bubbles for a cleaner look
-  const seaweed: Array<any> = []
-  const kelp: Array<any> = []
-    // Coral
-    // Modern coral, more vibrant and less cluttered
-  // No coral/flower features
-  const coral: Array<any> = []
-    // Fish
+    // No kelp, seaweed, bubbles, or coral/flowers
+    const seaweed: Array<any> = []
+    const kelp: Array<any> = []
+    const coral: Array<any> = []
     const fish = Array.from({ length: 10 }, (_, i) => ({
       x: Math.random() * window.innerWidth,
       y: 100 + Math.random() * (window.innerHeight - 200),
@@ -119,38 +115,7 @@ export function OceanMiningGame({
       opacity: 0.5 + Math.random() * 0.5,
       swimOffset: Math.random() * Math.PI * 2,
     }))
-    // Ambient: debris
-    const debris = Array.from({ length: 12 }, (_, i) => ({
-      x: Math.random() * window.innerWidth,
-      y: Math.random() * window.innerHeight,
-      size: 6 + Math.random() * 10,
-      speedY: 0.1 + Math.random() * 0.2,
-      sway: Math.random() * Math.PI * 2,
-      swaySpeed: 0.2 + Math.random() * 0.2,
-      opacity: 0.15 + Math.random() * 0.15,
-    }))
-    // Ambient: jellyfish
-    const jellyfish = Array.from({ length: 4 }, (_, i) => ({
-      x: Math.random() * window.innerWidth,
-      y: Math.random() * window.innerHeight,
-      size: 28 + Math.random() * 18,
-      speedY: 0.08 + Math.random() * 0.12,
-      floatPhase: Math.random() * Math.PI * 2,
-      opacity: 0.18 + Math.random() * 0.12,
-    }))
-    // Ambient: whale silhouette
-    const whale = {
-      x: Math.random() * window.innerWidth,
-      y: 120 + Math.random() * 200,
-      size: 180 + Math.random() * 60,
-      speedX: 0.08 + Math.random() * 0.08,
-      opacity: 0.10 + Math.random() * 0.08,
-      direction: Math.random() > 0.5 ? 1 : -1,
-      phase: Math.random() * Math.PI * 2,
-    }
-  // No bubbles
-  const bubbles: Array<any> = []
-    // Water particles
+    const bubbles: Array<any> = []
     const particles = Array.from({ length: 30 }, (_, i) => ({
       x: Math.random() * window.innerWidth,
       y: Math.random() * window.innerHeight,
@@ -159,7 +124,7 @@ export function OceanMiningGame({
       opacity: 0.2 + Math.random() * 0.3,
       life: 100,
     }))
-  return { sunRays, seaweed, kelp, coral, fish, bubbles, particles, debris, jellyfish, whale }
+    return { sunRays, seaweed, kelp, coral, fish, bubbles, particles }
   })
 
   // Generate initial resource nodes immediately when component mounts
@@ -687,71 +652,6 @@ export function OceanMiningGame({
       ctx.restore()
       ctx.restore()
     })
-    // --- AMBIENT DEBRIS ---
-    aquaticState.debris.forEach((d) => {
-      d.y += d.speedY
-      d.x += Math.sin(time * d.swaySpeed + d.sway) * 0.2
-      if (d.y > canvas.height + d.size) {
-        d.y = -d.size
-        d.x = Math.random() * canvas.width
-      }
-      ctx.save()
-      ctx.globalAlpha = d.opacity
-      ctx.fillStyle = '#64748b88'
-      ctx.beginPath()
-      ctx.ellipse(d.x, d.y, d.size * 0.7, d.size * 0.3, d.sway, 0, Math.PI * 2)
-      ctx.fill()
-      ctx.restore()
-    })
-    // --- AMBIENT JELLYFISH ---
-    aquaticState.jellyfish.forEach((j) => {
-      j.y += j.speedY
-      if (j.y > canvas.height + j.size) {
-        j.y = -j.size
-        j.x = Math.random() * canvas.width
-      }
-      ctx.save()
-      ctx.globalAlpha = j.opacity
-      ctx.beginPath()
-      ctx.arc(j.x, j.y, j.size * 0.5, Math.PI, Math.PI * 2)
-      ctx.lineTo(j.x + j.size * 0.5, j.y)
-      ctx.arc(j.x, j.y, j.size * 0.5, 0, Math.PI)
-      ctx.closePath()
-      ctx.fillStyle = '#a5f3fc44'
-      ctx.fill()
-      // Tentacles
-      ctx.strokeStyle = '#a5f3fc33'
-      ctx.lineWidth = 1.2
-      for (let t = -2; t <= 2; t++) {
-        ctx.beginPath()
-        ctx.moveTo(j.x + t * j.size * 0.15, j.y)
-        ctx.bezierCurveTo(
-          j.x + t * j.size * 0.15,
-          j.y + j.size * 0.2,
-          j.x + t * j.size * 0.12 + Math.sin(time * 2 + t) * 2,
-          j.y + j.size * 0.7,
-          j.x + t * j.size * 0.1,
-          j.y + j.size * 0.95
-        )
-        ctx.stroke()
-      }
-      ctx.restore()
-    })
-    // --- AMBIENT WHALE SILHOUETTE ---
-    const w = aquaticState.whale
-    w.x += w.speedX * w.direction
-    if ((w.direction > 0 && w.x > canvas.width + w.size) || (w.direction < 0 && w.x < -w.size)) {
-      w.x = w.direction > 0 ? -w.size : canvas.width + w.size
-      w.y = 120 + Math.random() * 200
-    }
-    ctx.save()
-    ctx.globalAlpha = w.opacity
-    ctx.fillStyle = '#334155'
-    ctx.beginPath()
-    ctx.ellipse(w.x, w.y, w.size, w.size * 0.22, 0, 0, Math.PI * 2)
-    ctx.ellipse(w.x + w.size * 0.3 * w.direction, w.y + w.size * 0.1, w.size * 0.18, w.size * 0.08, 0, 0, Math.PI * 2)
-    ctx.ellipse(w.x - w.size * 0.25 * w.direction, w.y + w.size * 0.08, w.size * 0.13, w.size * 0.06, 0, 0, Math.PI * 2)
-    ctx.restore()
 
     // --- BUBBLES ---
   // No bubbles
