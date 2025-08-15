@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react"
 import { PlayerHUD } from "./player-hud"
+import { Compass } from "./compass"
 import { SonarRadar } from "./sonar-radar"
 import { ResourceSidebar } from "./resource-sidebar"
 import { SubmarineStore } from "./submarine-store"
@@ -39,6 +40,28 @@ export function OceanMiningGame({
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const gameLoopRef = useRef<number>(0)
   const lastTimeRef = useRef<number>(0)
+
+  // --- CINEMATIC FEEDBACK STATE ---
+  const [screenShake, setScreenShake] = useState<{ active: boolean; intensity: number; duration: number; time: number }>({ active: false, intensity: 0, duration: 0, time: 0 })
+  const [colorGrade, setColorGrade] = useState<{ active: boolean; tint: string; opacity: number; duration: number; time: number }>({ active: false, tint: '#0ea5e9', opacity: 0.0, duration: 0, time: 0 })
+  const [particleBursts, setParticleBursts] = useState<Array<{ x: number, y: number, color: string, particles: Array<{ x: number, y: number, vx: number, vy: number, life: number }> }>>([])
+
+  // --- CINEMATIC FEEDBACK UTILS ---
+  const triggerScreenShake = (intensity = 8, duration = 0.3) => {
+    setScreenShake({ active: true, intensity, duration, time: 0 })
+  }
+  const triggerColorGrade = (tint = '#0ea5e9', opacity = 0.18, duration = 0.5) => {
+    setColorGrade({ active: true, tint, opacity, duration, time: 0 })
+  }
+  const triggerParticleBurst = (x: number, y: number, color = '#fbbf24') => {
+    const particles = Array.from({ length: 18 }, () => ({
+      x, y,
+      vx: (Math.random() - 0.5) * 5,
+      vy: (Math.random() - 0.5) * 5,
+      life: 30 + Math.random() * 10
+    }))
+    setParticleBursts((prev) => [...prev, { x, y, color, particles }])
+  }
 
   // Player position and movement
   const [playerPosition, setPlayerPosition] = useState<PlayerPosition>({ x: 500, y: 500, rotation: 0 })
@@ -111,6 +134,35 @@ export function OceanMiningGame({
       opacity: 0.5 + Math.random() * 0.5,
       swimOffset: Math.random() * Math.PI * 2,
     }))
+    // Ambient: debris
+    const debris = Array.from({ length: 12 }, (_, i) => ({
+      x: Math.random() * window.innerWidth,
+      y: Math.random() * window.innerHeight,
+      size: 6 + Math.random() * 10,
+      speedY: 0.1 + Math.random() * 0.2,
+      sway: Math.random() * Math.PI * 2,
+      swaySpeed: 0.2 + Math.random() * 0.2,
+      opacity: 0.15 + Math.random() * 0.15,
+    }))
+    // Ambient: jellyfish
+    const jellyfish = Array.from({ length: 4 }, (_, i) => ({
+      x: Math.random() * window.innerWidth,
+      y: Math.random() * window.innerHeight,
+      size: 28 + Math.random() * 18,
+      speedY: 0.08 + Math.random() * 0.12,
+      floatPhase: Math.random() * Math.PI * 2,
+      opacity: 0.18 + Math.random() * 0.12,
+    }))
+    // Ambient: whale silhouette
+    const whale = {
+      x: Math.random() * window.innerWidth,
+      y: 120 + Math.random() * 200,
+      size: 180 + Math.random() * 60,
+      speedX: 0.08 + Math.random() * 0.08,
+      opacity: 0.10 + Math.random() * 0.08,
+      direction: Math.random() > 0.5 ? 1 : -1,
+      phase: Math.random() * Math.PI * 2,
+    }
   // No bubbles
   const bubbles: Array<any> = []
     // Water particles
@@ -122,30 +174,12 @@ export function OceanMiningGame({
       opacity: 0.2 + Math.random() * 0.3,
       life: 100,
     }))
-  return { sunRays, seaweed, kelp, coral, fish, bubbles, particles }
+  return { sunRays, seaweed, kelp, coral, fish, bubbles, particles, debris, jellyfish, whale }
   })
 
   // Generate initial resource nodes immediately when component mounts
   useEffect(() => {
     generateInitialResourceNodes()
-  }, [])
-
-  // Initialize WebSocket connection when wallet is connected
-// components/ocean-mining-game.tsx
-
-  // Initialize WebSocket connection when wallet is connected
-  useEffect(() => {
-    if (walletConnected) {
-      initializeGame()
-    } else {
-      cleanup()
-    }
-
-    return () => cleanup()
-  }, [walletConnected])
-
-  const initializeGame = async () => {
-    try {
       setConnectionStatus("connecting")
 
       // Connect to WebSocket server
@@ -530,14 +564,50 @@ export function OceanMiningGame({
     setTargetNode(nearbyNode || null)
   }
 
+  // --- CINEMATIC FEEDBACK UTILS ---
+  const triggerScreenShake = (intensity = 8, duration = 0.3) => {
+    setScreenShake({ active: true, intensity, duration, time: 0 })
+  }
+  const triggerColorGrade = (tint = '#0ea5e9', opacity = 0.18, duration = 0.5) => {
+    setColorGrade({ active: true, tint, opacity, duration, time: 0 })
+  }
+  const triggerParticleBurst = (x: number, y: number, color = '#fbbf24') => {
+    const particles = Array.from({ length: 18 }, () => ({
+      x, y,
+      vx: (Math.random() - 0.5) * 5,
+      vy: (Math.random() - 0.5) * 5,
+      life: 30 + Math.random() * 10
+    }))
+    setParticleBursts((prev) => [...prev, { x, y, color, particles }])
+  }
+
   const renderGame = () => {
+
     const canvas = canvasRef.current
     if (!canvas) return
     const ctx = canvas.getContext("2d")
     if (!ctx) return
     const time = Date.now() / 1000
 
-    // --- OCEAN GRADIENT BACKGROUND ---
+    // --- SCREEN SHAKE ---
+    let shakeX = 0, shakeY = 0
+    if (screenShake.active) {
+      const shake = screenShake.intensity * Math.sin(screenShake.time * 40 + Math.random() * 10)
+      shakeX = shake * (Math.random() - 0.5)
+      shakeY = shake * (Math.random() - 0.5)
+      // Use functional update to avoid stale closure
+      setScreenShake((prev) => {
+        const newTime = prev.time + 0.016
+        if (newTime > prev.duration) {
+          return { ...prev, active: false, intensity: 0, duration: 0, time: 0 }
+        }
+        return { ...prev, time: newTime }
+      })
+    }
+    ctx.save()
+    ctx.translate(shakeX, shakeY)
+
+  // --- OCEAN GRADIENT BACKGROUND ---
   // Modern ocean gradient
   const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height)
   gradient.addColorStop(0, "#0f172a")
@@ -547,6 +617,45 @@ export function OceanMiningGame({
   gradient.addColorStop(1, "#a5f3fc")
   ctx.fillStyle = gradient
   ctx.fillRect(0, 0, canvas.width, canvas.height)
+    // --- PARTICLE BURSTS ---
+    setParticleBursts((prev: typeof particleBursts) => prev.map((burst) => {
+      burst.particles.forEach((p: typeof burst.particles[0]) => {
+        p.x += p.vx
+        p.y += p.vy
+        p.life -= 1
+      })
+      burst.particles = burst.particles.filter((p: typeof burst.particles[0]) => p.life > 0)
+      return burst
+    }).filter((b) => b.particles.length > 0))
+    particleBursts.forEach((burst) => {
+      burst.particles.forEach((p) => {
+        ctx.save()
+        ctx.globalAlpha = Math.max(0, p.life / 30)
+        ctx.fillStyle = burst.color
+        ctx.beginPath()
+        ctx.arc(p.x, p.y, 3, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.restore()
+      })
+    })
+    ctx.restore() // end screen shake
+    // --- COLOR GRADING OVERLAY ---
+    if (colorGrade.active) {
+      ctx.save()
+      ctx.globalAlpha = colorGrade.opacity
+      ctx.fillStyle = colorGrade.tint
+      ctx.fillRect(0, 0, canvas.width, canvas.height)
+      ctx.restore()
+      setColorGrade((prev) => {
+        const newTime = prev.time + 0.016
+        if (newTime > prev.duration) {
+          return { ...prev, active: false, opacity: 0, duration: 0, time: 0 }
+        }
+        return { ...prev, time: newTime }
+      })
+    }
+  // Example: trigger effects on mining (replace with actual event hooks)
+  // useEffect(() => { triggerScreenShake(); triggerColorGrade(); triggerParticleBurst(300, 300); }, [])
 
     // --- SUNLIGHT RAYS ---
     aquaticState.sunRays.forEach((ray) => {
@@ -597,6 +706,71 @@ export function OceanMiningGame({
       ctx.restore()
       ctx.restore()
     })
+    // --- AMBIENT DEBRIS ---
+    aquaticState.debris.forEach((d) => {
+      d.y += d.speedY
+      d.x += Math.sin(time * d.swaySpeed + d.sway) * 0.2
+      if (d.y > canvas.height + d.size) {
+        d.y = -d.size
+        d.x = Math.random() * canvas.width
+      }
+      ctx.save()
+      ctx.globalAlpha = d.opacity
+      ctx.fillStyle = '#64748b88'
+      ctx.beginPath()
+      ctx.ellipse(d.x, d.y, d.size * 0.7, d.size * 0.3, d.sway, 0, Math.PI * 2)
+      ctx.fill()
+      ctx.restore()
+    })
+    // --- AMBIENT JELLYFISH ---
+    aquaticState.jellyfish.forEach((j) => {
+      j.y += j.speedY
+      if (j.y > canvas.height + j.size) {
+        j.y = -j.size
+        j.x = Math.random() * canvas.width
+      }
+      ctx.save()
+      ctx.globalAlpha = j.opacity
+      ctx.beginPath()
+      ctx.arc(j.x, j.y, j.size * 0.5, Math.PI, Math.PI * 2)
+      ctx.lineTo(j.x + j.size * 0.5, j.y)
+      ctx.arc(j.x, j.y, j.size * 0.5, 0, Math.PI)
+      ctx.closePath()
+      ctx.fillStyle = '#a5f3fc44'
+      ctx.fill()
+      // Tentacles
+      ctx.strokeStyle = '#a5f3fc33'
+      ctx.lineWidth = 1.2
+      for (let t = -2; t <= 2; t++) {
+        ctx.beginPath()
+        ctx.moveTo(j.x + t * j.size * 0.15, j.y)
+        ctx.bezierCurveTo(
+          j.x + t * j.size * 0.15,
+          j.y + j.size * 0.2,
+          j.x + t * j.size * 0.12 + Math.sin(time * 2 + t) * 2,
+          j.y + j.size * 0.7,
+          j.x + t * j.size * 0.1,
+          j.y + j.size * 0.95
+        )
+        ctx.stroke()
+      }
+      ctx.restore()
+    })
+    // --- AMBIENT WHALE SILHOUETTE ---
+    const w = aquaticState.whale
+    w.x += w.speedX * w.direction
+    if ((w.direction > 0 && w.x > canvas.width + w.size) || (w.direction < 0 && w.x < -w.size)) {
+      w.x = w.direction > 0 ? -w.size : canvas.width + w.size
+      w.y = 120 + Math.random() * 200
+    }
+    ctx.save()
+    ctx.globalAlpha = w.opacity
+    ctx.fillStyle = '#334155'
+    ctx.beginPath()
+    ctx.ellipse(w.x, w.y, w.size, w.size * 0.22, 0, 0, Math.PI * 2)
+    ctx.ellipse(w.x + w.size * 0.3 * w.direction, w.y + w.size * 0.1, w.size * 0.18, w.size * 0.08, 0, 0, Math.PI * 2)
+    ctx.ellipse(w.x - w.size * 0.25 * w.direction, w.y + w.size * 0.08, w.size * 0.13, w.size * 0.06, 0, 0, Math.PI * 2)
+    ctx.restore()
 
     // --- BUBBLES ---
   // No bubbles
@@ -644,74 +818,7 @@ export function OceanMiningGame({
     // Draw resource nodes as colored circles
     let visibleNodes = 0
     resourceNodes.forEach((node) => {
-      if (node.depleted) return
-
-      const screenX = node.position.x - viewportOffset.x
-      const screenY = node.position.y - viewportOffset.y
-
-      // Only render nodes that are visible on screen
-      if (screenX > -100 && screenX < canvas.width + 100 && screenY > -100 && screenY < canvas.height + 100) {
-        visibleNodes++
-        const resourceColor = getResourceColor(node.type)
-        const nodeSize = node.size || 20
-
-        // Draw outer glow
-        const gradient = ctx.createRadialGradient(screenX, screenY, 0, screenX, screenY, nodeSize * 1.5)
-        gradient.addColorStop(0, resourceColor + "80")
-        gradient.addColorStop(0.7, resourceColor + "40")
-        gradient.addColorStop(1, resourceColor + "00")
-        ctx.fillStyle = gradient
-        ctx.beginPath()
-        ctx.arc(screenX, screenY, nodeSize * 1.5, 0, Math.PI * 2)
-        ctx.fill()
-
-        // Draw main resource node circle
-        ctx.fillStyle = resourceColor
-        ctx.beginPath()
-        ctx.arc(screenX, screenY, nodeSize, 0, Math.PI * 2)
-        ctx.fill()
-
-        // Add subtle pulsing effect
-        const pulseSize = nodeSize + Math.sin(Date.now() / 1000) * 2
-        ctx.strokeStyle = resourceColor + "AA"
-        ctx.lineWidth = 2
-        ctx.beginPath()
-        ctx.arc(screenX, screenY, pulseSize, 0, Math.PI * 2)
-        ctx.stroke()
-
-        // Draw resource type indicator
-        ctx.fillStyle = "#ffffff"
-        ctx.font = "bold 14px Arial"
-        ctx.textAlign = "center"
-        ctx.shadowColor = "#000000"
-        ctx.shadowBlur = 2
-        ctx.fillText(getResourceEmoji(node.type), screenX, screenY + 4)
-        ctx.shadowBlur = 0
-
-        // Highlight target node
-        if (targetNode && node.id === targetNode.id) {
-          ctx.strokeStyle = "#ffffff"
-          ctx.lineWidth = 3
-          ctx.setLineDash([5, 5])
-          ctx.beginPath()
-          ctx.arc(screenX, screenY, nodeSize + 8, 0, Math.PI * 2)
-          ctx.stroke()
-          ctx.setLineDash([])
-
-          // Show resource info
-          ctx.fillStyle = "#ffffff"
-          ctx.font = "bold 12px Arial"
-          ctx.textAlign = "center"
-          ctx.shadowColor = "#000000"
-          ctx.shadowBlur = 2
-          ctx.fillText(
-            `${node.type.charAt(0).toUpperCase() + node.type.slice(1)} (${node.amount})`,
-            screenX,
-            screenY - nodeSize - 15,
-          )
-          ctx.shadowBlur = 0
-        }
-      }
+      drawResourceNode(ctx, node, viewportOffset, targetNode)
     })
 
     // Debug info for resource nodes
@@ -727,7 +834,7 @@ export function OceanMiningGame({
       const screenY = player.position.y - viewportOffset.y
 
       if (screenX > -50 && screenX < canvas.width + 50 && screenY > -50 && screenY < canvas.height + 50) {
-        drawSubmarine(ctx, screenX, screenY, player.rotation || 0, "#22d3ee")
+  drawSubmarine(ctx, screenX, screenY, player.rotation || 0, "#22d3ee", 1, false)
 
         ctx.fillStyle = "#ffffff"
         ctx.font = "12px Arial"
@@ -739,7 +846,7 @@ export function OceanMiningGame({
     // Draw player submarine
     const screenX = playerPosition.x - viewportOffset.x
     const screenY = playerPosition.y - viewportOffset.y
-    drawSubmarine(ctx, screenX, screenY, playerPosition.rotation, submarineData.color)
+  drawSubmarine(ctx, screenX, screenY, playerPosition.rotation, submarineData.color, playerTier, movementKeys.forward)
 
     // Draw bubbles if moving
     if (movementKeys.forward || movementKeys.backward) {
@@ -756,36 +863,150 @@ export function OceanMiningGame({
     }
   }
 
-  const drawSubmarine = (ctx: CanvasRenderingContext2D, x: number, y: number, rotation: number, color: string) => {
+  // Modular submarine drawing with shadow, highlight, and engine glow
+  const drawSubmarine = (ctx: CanvasRenderingContext2D, x: number, y: number, rotation: number, color: string, tier: number, movingForward: boolean) => {
     ctx.save()
     ctx.translate(x, y)
     ctx.rotate(rotation)
-
-    // Draw submarine body
-    ctx.fillStyle = color
+    // Drop shadow
+    ctx.globalAlpha = 0.25
+    ctx.beginPath()
+    ctx.ellipse(8, 18, 32, 12, 0, 0, Math.PI * 2)
+    ctx.fillStyle = '#000'
+    ctx.filter = 'blur(4px)'
+    ctx.fill()
+    ctx.filter = 'none'
+    ctx.globalAlpha = 1
+    // Sub body (color by tier)
+    let subColor: string | CanvasGradient = color
+    if (tier >= 3) {
+      const grad = ctx.createLinearGradient(-30, 0, 30, 0)
+      grad.addColorStop(0, '#38bdf8')
+      grad.addColorStop(1, '#fbbf24')
+      subColor = grad
+    }
+    if (tier >= 5) subColor = '#a21caf'
+    ctx.fillStyle = subColor
     ctx.beginPath()
     ctx.ellipse(0, 0, 30, 15, 0, 0, Math.PI * 2)
     ctx.fill()
-
-    // Draw submarine conning tower
-    ctx.fillStyle = color
+    // Highlight
+    ctx.globalAlpha = 0.18
+    ctx.beginPath()
+    ctx.ellipse(0, -8, 22, 6, 0, 0, Math.PI * 2)
+    ctx.fillStyle = '#fff'
+    ctx.fill()
+    ctx.globalAlpha = 1
+    // Engine glow if moving forward
+    if (movingForward) {
+      ctx.save()
+      ctx.globalAlpha = 0.45 + 0.15 * Math.sin(Date.now() / 120)
+      ctx.beginPath()
+      ctx.ellipse(-32, 0, 16, 8, 0, 0, Math.PI * 2)
+      ctx.fillStyle = tier >= 3 ? '#fbbf24' : '#22d3ee'
+      ctx.shadowColor = ctx.fillStyle
+      ctx.shadowBlur = 16
+      ctx.fill()
+      ctx.restore()
+    }
+    // Conning tower
+    ctx.fillStyle = typeof subColor === 'string' ? subColor : '#38bdf8'
     ctx.beginPath()
     ctx.ellipse(0, -10, 10, 5, 0, 0, Math.PI)
     ctx.fill()
-
-    // Draw viewport
+    // Viewport
     ctx.fillStyle = "#7dd3fc"
     ctx.beginPath()
     ctx.arc(15, 0, 5, 0, Math.PI * 2)
     ctx.fill()
-
-    // Draw propeller
+    // Propeller
     ctx.fillStyle = "#475569"
     ctx.beginPath()
     ctx.ellipse(-25, 0, 5, 10, 0, 0, Math.PI * 2)
     ctx.fill()
-
     ctx.restore()
+  }
+
+  // Modular resource node drawing with glow, shading, and info
+  const drawResourceNode = (
+    ctx: CanvasRenderingContext2D,
+    node: ResourceNode,
+    viewportOffset: { x: number; y: number },
+    targetNode: ResourceNode | null
+  ) => {
+    if (node.depleted) return
+    const screenX = node.position.x - viewportOffset.x
+    const screenY = node.position.y - viewportOffset.y
+    // Only render nodes that are visible on screen
+    if (screenX > -100 && screenX < ctx.canvas.width + 100 && screenY > -100 && screenY < ctx.canvas.height + 100) {
+      const resourceColor = getResourceColor(node.type)
+      const nodeSize = node.size || 20
+      // HSL shifting glow
+      const hue = (Date.now() / 30 + node.position.x) % 360
+      ctx.save()
+      ctx.globalAlpha = 0.7
+      const grad = ctx.createRadialGradient(screenX, screenY, nodeSize * 0.5, screenX, screenY, nodeSize * 1.2)
+      grad.addColorStop(0, `hsl(${hue}, 90%, 70%)`)
+      grad.addColorStop(1, `hsl(${hue}, 90%, 40%, 0)`)
+      ctx.beginPath()
+      ctx.arc(screenX, screenY, nodeSize * 1.2, 0, Math.PI * 2)
+      ctx.fillStyle = grad
+      ctx.fill()
+      // 3D shading
+      const lightAngle = Math.sin(Date.now() / 1200)
+      const grad2 = ctx.createRadialGradient(
+        screenX + nodeSize * 0.3 * lightAngle,
+        screenY - nodeSize * 0.3 * lightAngle,
+        nodeSize * 0.2,
+        screenX,
+        screenY,
+        nodeSize
+      )
+      grad2.addColorStop(0, `hsl(${hue}, 100%, 90%)`)
+      grad2.addColorStop(1, `hsl(${hue}, 80%, 40%)`)
+      ctx.beginPath()
+      ctx.arc(screenX, screenY, nodeSize, 0, Math.PI * 2)
+      ctx.fillStyle = grad2
+      ctx.fill()
+      ctx.restore()
+      // Add subtle pulsing effect
+      const pulseSize = nodeSize + Math.sin(Date.now() / 1000) * 2
+      ctx.strokeStyle = resourceColor + "AA"
+      ctx.lineWidth = 2
+      ctx.beginPath()
+      ctx.arc(screenX, screenY, pulseSize, 0, Math.PI * 2)
+      ctx.stroke()
+      // Draw resource type indicator
+      ctx.fillStyle = "#ffffff"
+      ctx.font = "bold 14px Arial"
+      ctx.textAlign = "center"
+      ctx.shadowColor = "#000000"
+      ctx.shadowBlur = 2
+      ctx.fillText(getResourceEmoji(node.type), screenX, screenY + 4)
+      ctx.shadowBlur = 0
+      // Highlight target node
+      if (targetNode && node.id === targetNode.id) {
+        ctx.strokeStyle = "#ffffff"
+        ctx.lineWidth = 3
+        ctx.setLineDash([5, 5])
+        ctx.beginPath()
+        ctx.arc(screenX, screenY, nodeSize + 8, 0, Math.PI * 2)
+        ctx.stroke()
+        ctx.setLineDash([])
+        // Show resource info
+        ctx.fillStyle = "#ffffff"
+        ctx.font = "bold 12px Arial"
+        ctx.textAlign = "center"
+        ctx.shadowColor = "#000000"
+        ctx.shadowBlur = 2
+        ctx.fillText(
+          `${node.type.charAt(0).toUpperCase() + node.type.slice(1)} (${node.amount})`,
+          screenX,
+          screenY - nodeSize - 15,
+        )
+        ctx.shadowBlur = 0
+      }
+    }
   }
 
   const handleMine = async (node: ResourceNode) => {
@@ -1162,7 +1383,10 @@ export function OceanMiningGame({
         </button>
 
 
-        {/* Sidebar and Overlay Container */}
+  {/* Compass above minimap */}
+  <Compass heading={playerPosition.rotation} />
+
+  {/* Sidebar and Overlay Container */}
         <div className="pointer-events-none">
           {sidebarOpen && (
             <div

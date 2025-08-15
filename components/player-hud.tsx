@@ -1,24 +1,33 @@
 import type { PlayerStats, PlayerResources } from "@/lib/types"
 import { getSubmarineByTier } from "@/lib/submarine-tiers"
+import { motion } from "framer-motion"
 
 interface PlayerHUDProps {
-  stats: PlayerStats
-  resources: PlayerResources
-  tier: number
+  stats: PlayerStats;
+  resources: PlayerResources;
+  tier: number;
 }
 
 export function PlayerHUD({ stats, resources, tier }: PlayerHUDProps) {
-  const submarineData = getSubmarineByTier(tier)
-
+  const submarineData = getSubmarineByTier(tier);
   return (
-    <div className="absolute left-4 top-4 z-20 rounded-lg bg-slate-900/70 p-4 backdrop-blur-md">
+    <motion.div
+      className="absolute left-4 top-4 z-20 rounded-2xl bg-gradient-to-br from-slate-900/70 to-cyan-900/60 p-6 shadow-xl backdrop-blur-lg border border-cyan-400/20"
+      initial={{ opacity: 0, y: -20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.6, type: "spring" }}
+      style={{ boxShadow: "0 4px 32px 0 #22d3ee33, 0 1.5px 8px 0 #38bdf822" }}
+    >
       <div className="mb-2 flex items-center justify-between">
-        <h2 className="text-lg font-bold text-cyan-400">SUBMARINE STATUS</h2>
-        <div className="rounded-full bg-slate-800 px-2 py-0.5 text-xs font-bold text-cyan-400">
+        <h2 className="text-lg font-bold text-cyan-400 drop-shadow">SUBMARINE STATUS</h2>
+        <motion.div
+          className="rounded-full bg-slate-800/80 px-2 py-0.5 text-xs font-bold text-cyan-400 shadow-cyan-400/30 shadow"
+          whileHover={{ scale: 1.08, rotate: 2 }}
+          whileTap={{ scale: 0.95, rotate: -2 }}
+        >
           TIER {tier}: {submarineData.name}
-        </div>
+        </motion.div>
       </div>
-
       <div className="space-y-2">
         <StatBar 
           label="ENERGY" 
@@ -27,8 +36,7 @@ export function PlayerHUD({ stats, resources, tier }: PlayerHUDProps) {
           color={stats.energy <= 0 ? "bg-red-500" : stats.energy <= 20 ? "bg-orange-500" : "bg-yellow-500"} 
           pulse={stats.energy <= 0}
         />
-
-        <div className="mt-4 border-t border-slate-700 pt-2">
+        <div className="mt-4 border-t border-cyan-400/20 pt-2">
           <h3 className="mb-2 text-sm font-bold text-cyan-400">CARGO</h3>
           <div className="grid grid-cols-2 gap-2">
             <ResourceBar
@@ -57,30 +65,27 @@ export function PlayerHUD({ stats, resources, tier }: PlayerHUDProps) {
             />
           </div>
         </div>
-
-        <div className="flex items-center justify-between">
+        <motion.div className="flex items-center justify-between" whileHover={{ scale: 1.04 }}>
           <span className="text-sm text-slate-300">DEPTH</span>
           <span className="font-mono text-sm text-cyan-400">{stats.depth}m</span>
-        </div>
-
-        <div className="flex items-center justify-between">
+        </motion.div>
+        <motion.div className="flex items-center justify-between" whileHover={{ scale: 1.04 }}>
           <span className="text-sm text-slate-300">SPEED</span>
           <span className="font-mono text-sm text-cyan-400">x{stats.speed.toFixed(1)}</span>
-        </div>
-
-        <div className="flex items-center justify-between">
+        </motion.div>
+        <motion.div className="flex items-center justify-between" whileHover={{ scale: 1.04 }}>
           <span className="text-sm text-slate-300">MINING RATE</span>
           <span className="font-mono text-sm text-cyan-400">x{stats.miningRate.toFixed(1)}</span>
-        </div>
-
+        </motion.div>
         {submarineData.specialAbility && (
-          <div className="mt-2 rounded-md bg-cyan-900/30 p-2 text-xs text-cyan-300">
+          <motion.div className="mt-2 rounded-md bg-cyan-900/30 p-2 text-xs text-cyan-300" whileHover={{ scale: 1.05 }}>
             <span className="font-bold">SPECIAL:</span> {submarineData.specialAbility}
-          </div>
+          </motion.div>
         )}
       </div>
-    </div>
+    </motion.div>
   )
+  }
 }
 
 interface StatBarProps {

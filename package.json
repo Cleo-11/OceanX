@@ -55,6 +55,7 @@
     "expo-file-system": "latest",
     "expo-gl": "latest",
     "express": "latest",
+    "framer-motion": "^12.23.12",
     "http": "latest",
     "input-otp": "latest",
     "lucide-react": "^0.454.0",
