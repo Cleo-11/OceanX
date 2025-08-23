@@ -1,33 +1,50 @@
+// script/Deploy.s.sol
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import "forge-std/Script.sol";
-import "../src/OCXToken.sol";
+import {Script, console} from "forge-std/Script.sol";
+import {OCXToken} from "../src/OCXToken.sol";
+import {OceanGameController} from "../src/OceanGameController.sol";
+import {OceanResource} from "../src/OceanResource.sol";
 
-contract DeployOCX is Script {
+contract Deploy is Script {
     function run() external {
-        // Load your deployer private key from .env
+        // --- 1. Load Environment Variables ---
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
+        address backendSignerAddress = vm.envAddress("BACKEND_SIGNER_ADDRESS");
 
+        if (backendSignerAddress == address(0)) {
+            revert("BACKEND_SIGNER_ADDRESS is not set in .env file");
+        }
+
+        console.log("Deployer Address:", vm.addr(deployerPrivateKey));
+        console.log("Backend Signer Address:", backendSignerAddress);
+        console.log("--------------------------------------");
+
+        // --- 2. Start Broadcasting Transactions ---
         vm.startBroadcast(deployerPrivateKey);
 
-        // -----------------------------
-        // Set these before deploying!
-        // -----------------------------
+        // --- 3. Deploy Contracts ---
 
-        // Backend signer (address used to sign claim authorizations off-chain)
-        address signer = 0xYourBackendSignerAddress;
+        console.log("Deploying OCXToken...");
+        OCXToken ocxToken = new OCXToken(vm.addr(deployerPrivateKey), backendSignerAddress);
+        // CORRECTED LINE:
+        console.log(unicode"✅ OCXToken deployed to:", address(ocxToken));
 
-        // Contract owner (your EOA for now, can renounce later)
-        address owner = 0xYourDeployerWallet;
+        console.log("Deploying OceanGameController...");
+        OceanGameController gameController = new OceanGameController(backendSignerAddress);
+        // CORRECTED LINE:
+        console.log(unicode"✅ OceanGameController deployed to:", address(gameController));
 
-        // Deploy OCX Token
-        OCXToken token = new OCXToken(owner, signer);
+        console.log("Deploying OceanResource...");
+        OceanResource oceanResource = new OceanResource(address(gameController));
+        // CORRECTED LINE:
+        console.log(unicode"✅ OceanResource deployed to:", address(oceanResource));
 
-        console2.log("✅ OCXToken deployed at:", address(token));
-        console2.log("   Owner:    ", owner);
-        console2.log("   Signer:   ", signer);
-
+        // --- 4. Stop Broadcasting ---
         vm.stopBroadcast();
+        
+        // CORRECTED LINE:
+        console.log(unicode"\nDeployment complete! 🎉");
     }
 }

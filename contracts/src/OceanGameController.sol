@@ -1,40 +1,47 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import "./OCXToken.sol";
-import "./OceanResource.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
-contract OceanGameController {
-    OCXToken public token;
-    OceanResource public resource;
+contract OceanGameController is Ownable {
+    // This line attaches the ECDSA library functions to the bytes32 type
+    using ECDSA for bytes32;
 
-    mapping(uint256 => bool) public jackpotClaimed;
+    // Address of your backend signer
+    address public backendSigner;
 
-    event JackpotMined(address indexed player, uint256 nodeId, uint256 reward);
+    // Example: track player mining rewards
+    mapping(address => uint256) public rewards;
 
-    constructor(address tokenAddress) {
-        token = OCXToken(tokenAddress);
-        resource = new OceanResource(address(this));
+    event RewardClaimed(address indexed player, uint256 amount);
+
+    constructor(address _backendSigner) Ownable(msg.sender) {
+        backendSigner = _backendSigner;
     }
 
-    function mineJackpot(uint256 nodeId) external {
-        require(!jackpotClaimed[nodeId], "Already mined");
-
-        OceanResource.ResourceNode memory node = resource.getNode(nodeId);
-        require(node.resourceType == OceanResource.ResourceType.Jackpot, "Not jackpot");
-        require(!node.mined, "Already mined");
-
-        // Example fixed cargo fill amount
-        uint256 rewardAmount = 1000 * 1e18;
-
-        jackpotClaimed[nodeId] = true;
-        resource.markMined(nodeId);
-
-        token.mint(msg.sender, rewardAmount);
-        emit JackpotMined(msg.sender, nodeId, rewardAmount);
+    /// @notice Update signer if you rotate backend keys
+    function updateBackendSigner(address _newSigner) external onlyOwner {
+        backendSigner = _newSigner;
     }
 
-    function spawnJackpot(uint256 value) external {
-        resource.spawnResource(OceanResource.ResourceType.Jackpot, value);
+    /// @notice Claim reward if valid backend signature provided
+    function claimReward(uint256 amount, uint256 nonce, bytes memory signature) external {
+        // Construct the message hash
+        bytes32 messageHash = keccak256(abi.encodePacked(msg.sender, amount, nonce, address(this)));
+        bytes32 ethSignedMessageHash = messageHash.toEthSignedMessageHash();
+
+        // Recover signer
+        address recoveredSigner = ethSignedMessageHash.recover(signature);
+        require(recoveredSigner == backendSigner, "Invalid signature");
+
+        // Update player rewards
+        rewards[msg.sender] += amount;
+        emit RewardClaimed(msg.sender, amount);
+    }
+
+    /// @notice View player rewards
+    function getReward(address player) external view returns (uint256) {
+        return rewards[player];
     }
 }

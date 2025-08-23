@@ -2,7 +2,27 @@ const express = require("express");
 const http = require("http");
 const socketIo = require("socket.io");
 const cors = require("cors");
-const { ethers } = require("ethers");
+// Ethers and contract claim logic moved to claimService.mjs
+// Import claim service (ESM import workaround for .mjs in CJS)
+let claimService;
+import('file://' + __dirname + '/claimService.mjs').then(mod => { claimService = mod; });
+// Endpoint to claim tokens (trigger contract claim)
+app.post("/claim", async (req, res) => {
+  try {
+    const { userAddress, amount, signature } = req.body;
+    if (!userAddress || !amount || !signature) {
+      return res.status(400).json({ error: "Missing parameters" });
+    }
+    if (!claimService) {
+      return res.status(503).json({ error: "Claim service not ready" });
+    }
+    const txHash = await claimService.claimTokens(userAddress, amount, signature);
+    res.json({ success: true, txHash });
+  } catch (err) {
+    console.error("Claim error:", err);
+    res.status(500).json({ error: err.message || "Internal error" });
+  }
+});
 const { createClient } = require("@supabase/supabase-js");
 require("dotenv").config();
 
