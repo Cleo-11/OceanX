@@ -6,23 +6,7 @@ const cors = require("cors");
 // Import claim service (ESM import workaround for .mjs in CJS)
 let claimService;
 import('file://' + __dirname + '/claimService.mjs').then(mod => { claimService = mod; });
-// Endpoint to claim tokens (trigger contract claim)
-app.post("/claim", async (req, res) => {
-  try {
-    const { userAddress, amount, signature } = req.body;
-    if (!userAddress || !amount || !signature) {
-      return res.status(400).json({ error: "Missing parameters" });
-    }
-    if (!claimService) {
-      return res.status(503).json({ error: "Claim service not ready" });
-    }
-    const txHash = await claimService.claimTokens(userAddress, amount, signature);
-    res.json({ success: true, txHash });
-  } catch (err) {
-    console.error("Claim error:", err);
-    res.status(500).json({ error: err.message || "Internal error" });
-  }
-});
+
 const { createClient } = require("@supabase/supabase-js");
 require("dotenv").config();
 
@@ -346,7 +330,6 @@ const SUBMARINE_TIERS = [
   },
 ];
 
-
 // Game state management
 const gameSessions = new Map(); // Map<sessionId, { id, players: Map<walletAddress, playerData>, resourceNodes }>
 const MAX_PLAYERS_PER_SESSION = 20;
@@ -386,52 +369,105 @@ io.on("connection", (socket) => {
      * Handles a player's request to join the game.
      * This is the single entry point for a player to enter a world.
      */
-  socket.on("join-game", async (payload) => {
-    console.log(`[SERVER] Received 'join-game' with payload:`, payload);
-    const { walletAddress, sessionId } = payload || {};
-    if (!walletAddress) {
-      socket.emit("error", { message: "Wallet address is required to join." });
-      return;
-    }
-
-        // --- FIXED and more robust session finding logic ---
-        let sessionToJoin = Array.from(gameSessions.values()).find(
-            session => session.players.size < MAX_PLAYERS_PER_SESSION
-        );
-
-        // If no session is available, create a new one
-        if (!sessionToJoin) {
-            const newSessionId = `session-${Date.now()}`;
-            const resourceNodes = generateInitialResourceNodes();
-            sessionToJoin = {
-                id: newSessionId,
-                players: new Map(),
-                resourceNodes: new Map(resourceNodes.map((node) => [node.id, node])),
-            };
-            gameSessions.set(newSessionId, sessionToJoin);
-            console.log(`🆕 Created new game session: ${newSessionId}`);
-        } else {
-            console.log(`✅ Found available session: ${sessionToJoin.id}`);
+    socket.on("join-game", async (payload) => {
+        console.log(`[SERVER] Received 'join-game' with payload:`, payload);
+        const { walletAddress, sessionId } = payload || {};
+        
+        if (!walletAddress) {
+            socket.emit("error", { message: "Wallet address is required to join." });
+            return;
         }
 
-        // Add player to the session
+        // Check if player is already in a session
+        if (socket.walletAddress && socket.sessionId) {
+            console.log(`Player ${walletAddress} already in session ${socket.sessionId}`);
+            const currentSession = gameSessions.get(socket.sessionId);
+            if (currentSession) {
+                // Send current game state
+                const playersArray = Array.from(currentSession.players.values());
+                const resourcesArray = Array.from(currentSession.resourceNodes.values());
+                
+                socket.emit("game-state", {
+                    sessionId: currentSession.id,
+                    players: playersArray,
+                    resources: resourcesArray,
+                    myPlayerId: walletAddress
+                });
+                return;
+            }
+        }
+
+        let sessionToJoin;
+
+        // If a specific sessionId is provided and exists, try to join it
+        if (sessionId && gameSessions.has(sessionId)) {
+            const requestedSession = gameSessions.get(sessionId);
+            if (requestedSession.players.size < MAX_PLAYERS_PER_SESSION) {
+                sessionToJoin = requestedSession;
+                console.log(`Joining requested session: ${sessionId}`);
+            } else {
+                console.log(`Requested session ${sessionId} is full, finding alternative`);
+            }
+        }
+
+        // If no specific session or requested session is full, find or create one
+        if (!sessionToJoin) {
+            // Sort sessions by player count to prefer filling existing sessions
+            const availableSessions = Array.from(gameSessions.values())
+                .filter(session => session.players.size < MAX_PLAYERS_PER_SESSION)
+                .sort((a, b) => b.players.size - a.players.size); // Prefer sessions with more players
+
+            if (availableSessions.length > 0) {
+                sessionToJoin = availableSessions[0];
+                console.log(`✅ Found available session: ${sessionToJoin.id} with ${sessionToJoin.players.size} players`);
+            } else {
+                // Create new session
+                const newSessionId = `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+                const resourceNodes = generateInitialResourceNodes();
+                sessionToJoin = {
+                    id: newSessionId,
+                    players: new Map(),
+                    resourceNodes: new Map(resourceNodes.map((node) => [node.id, node])),
+                    createdAt: Date.now()
+                };
+                gameSessions.set(newSessionId, sessionToJoin);
+                console.log(`🆕 Created new game session: ${newSessionId}`);
+            }
+        }
+
+        // Remove player from any existing session first
+        if (socket.sessionId) {
+            const oldSession = gameSessions.get(socket.sessionId);
+            if (oldSession && oldSession.players.has(walletAddress)) {
+                oldSession.players.delete(walletAddress);
+                socket.leave(socket.sessionId);
+                socket.to(socket.sessionId).emit("player-left", { id: walletAddress });
+                console.log(`Removed player ${walletAddress} from old session ${socket.sessionId}`);
+            }
+        }
+
+        // Create player object
         const player = {
             id: walletAddress,
             socketId: socket.id,
             position: { x: 0, y: 0, z: 0, rotation: 0 },
             resources: { nickel: 0, cobalt: 0, copper: 0, manganese: 0 },
             submarineTier: 0, // Default tier, can be updated from DB
+            joinedAt: Date.now()
         };
+
+        // Add player to the session
         sessionToJoin.players.set(walletAddress, player);
 
-        // Store session and player info directly on the socket for efficient lookup on disconnect
+        // Store session and player info on socket
         socket.walletAddress = walletAddress;
         socket.sessionId = sessionToJoin.id;
 
-        // Have the socket join the session's "room"
+        // Join the socket room
         socket.join(sessionToJoin.id);
 
         console.log(`➕ Player ${walletAddress} joined session ${sessionToJoin.id}. Total players: ${sessionToJoin.players.size}`);
+        console.log(`Current players in session:`, Array.from(sessionToJoin.players.keys()));
 
         // Send the complete game state to the newly joined player
         const playersArray = Array.from(sessionToJoin.players.values());
@@ -446,51 +482,82 @@ io.on("connection", (socket) => {
 
         // Notify all other players in the room that a new player has joined
         socket.to(sessionToJoin.id).emit("player-joined", player);
+        
+        console.log(`📤 Sent game-state to ${walletAddress} with ${playersArray.length} players and ${resourcesArray.length} resources`);
     });
 
     /**
-     * Handles player movement updates.
+     * Enhanced player movement handler with better validation.
      */
     socket.on("player-move", (data) => {
         const { sessionId, walletAddress, position } = data;
-        if (!sessionId || !walletAddress || !position) return;
-
-        const session = gameSessions.get(sessionId);
-        const player = session?.players.get(walletAddress);
-
-        if (player) {
-            player.position = position;
-            // Broadcast the movement to other players in the same session
-            socket.to(sessionId).emit("player-moved", {
-                id: walletAddress,
-                position: player.position,
-            });
+        
+        // Validate all required fields
+        if (!sessionId || !walletAddress || !position) {
+            console.log(`❌ Invalid player-move data:`, data);
+            return;
         }
+
+        // Use socket's stored sessionId if available for consistency
+        const actualSessionId = socket.sessionId || sessionId;
+        const session = gameSessions.get(actualSessionId);
+        
+        if (!session) {
+            console.log(`❌ Session not found: ${actualSessionId}`);
+            socket.emit("error", { message: "Session not found" });
+            return;
+        }
+        
+        const player = session.players.get(walletAddress);
+        if (!player) {
+            console.log(`❌ Player not found in session: ${walletAddress}`);
+            socket.emit("error", { message: "Player not found in session" });
+            return;
+        }
+
+        // Update player position
+        player.position = position;
+        
+        // Broadcast to other players in the same session
+        const moveData = {
+            id: walletAddress,
+            position: player.position,
+            timestamp: Date.now()
+        };
+        
+        socket.to(actualSessionId).emit("player-moved", moveData);
+        
+        // Optional: Log movement for debugging (uncomment if needed)
+        // console.log(`🚶 Player ${walletAddress} moved in session ${actualSessionId}:`, position);
     });
 
     /**
-     * Handles player disconnection efficiently.
+     * Enhanced disconnect handler with better cleanup.
      */
     socket.on("disconnect", () => {
         console.log(`🔌 Socket disconnected: ${socket.id}`);
 
-        // Retrieve session and player info directly from the socket object
         const { walletAddress, sessionId } = socket;
 
         if (walletAddress && sessionId) {
             const session = gameSessions.get(sessionId);
-            if (session) {
+            if (session && session.players.has(walletAddress)) {
                 // Remove player from the session
                 session.players.delete(walletAddress);
-                console.log(`➖ Player ${walletAddress} left session ${sessionId}. Total players: ${session.players.size}`);
+                console.log(`➖ Player ${walletAddress} left session ${sessionId}. Remaining players: ${session.players.size}`);
+                console.log(`Remaining players:`, Array.from(session.players.keys()));
 
                 // Notify remaining players
-                io.to(sessionId).emit("player-left", { id: walletAddress });
+                io.to(sessionId).emit("player-left", { 
+                    id: walletAddress,
+                    timestamp: Date.now()
+                });
 
-                // If the session is empty, delete it
+                // If the session is empty, mark for cleanup but don't delete immediately
+                // This allows for reconnections within a short timeframe
                 if (session.players.size === 0) {
-                    gameSessions.delete(sessionId);
-                    console.log(`🗑️ Deleted empty session: ${sessionId}`);
+                    session.emptyAt = Date.now();
+                    console.log(`📝 Session ${sessionId} is now empty, marked for cleanup`);
                 }
             }
         }
@@ -505,32 +572,97 @@ app.get("/", (req, res) => {
 });
 
 // Health check endpoint
-
 app.get("/health", (req, res) => {
-  res.json({
-    status: "OK",
-    timestamp: new Date().toISOString(),
-    activeSessions: gameSessions.size,
-    totalPlayers: Array.from(gameSessions.values()).reduce((total, session) => total + session.players.size, 0),
-  });
+    res.json({
+        status: "OK",
+        timestamp: new Date().toISOString(),
+        activeSessions: gameSessions.size,
+        totalPlayers: Array.from(gameSessions.values()).reduce((total, session) => total + session.players.size, 0),
+    });
 });
 
-// --- Admin/debug endpoint: List all sessions and their players ---
+// Enhanced sessions endpoint with more details
 app.get("/sessions", (req, res) => {
-  const sessions = Array.from(gameSessions.values()).map(session => ({
-    id: session.id,
-    playerCount: session.players.size,
-    players: Array.from(session.players.values()).map(player => ({
-      id: player.id,
-      socketId: player.socketId,
-      position: player.position,
-      resources: player.resources,
-      submarineTier: player.submarineTier
-    })),
-    resourceNodeCount: session.resourceNodes.size
-  }));
-  res.json({ sessions });
+    const sessions = Array.from(gameSessions.values()).map(session => ({
+        id: session.id,
+        playerCount: session.players.size,
+        createdAt: session.createdAt,
+        players: Array.from(session.players.values()).map(player => ({
+            id: player.id,
+            socketId: player.socketId,
+            position: player.position,
+            resources: player.resources,
+            submarineTier: player.submarineTier,
+            joinedAt: player.joinedAt
+        })),
+        resourceNodeCount: session.resourceNodes.size
+    }));
+    
+    res.json({ 
+        sessions,
+        totalSessions: gameSessions.size,
+        totalPlayers: Array.from(gameSessions.values()).reduce((total, session) => total + session.players.size, 0)
+    });
 });
+
+// New endpoint to get specific session details
+app.get("/sessions/:sessionId", (req, res) => {
+    const session = gameSessions.get(req.params.sessionId);
+    if (!session) {
+        return res.status(404).json({ error: "Session not found" });
+    }
+    
+    res.json({
+        id: session.id,
+        playerCount: session.players.size,
+        createdAt: session.createdAt,
+        players: Array.from(session.players.values()),
+        resourceNodes: Array.from(session.resourceNodes.values())
+    });
+});
+
+// Endpoint to claim tokens (trigger contract claim)
+app.post("/claim", async (req, res) => {
+    try {
+        const { userAddress, amount, signature } = req.body;
+        if (!userAddress || !amount || !signature) {
+            return res.status(400).json({ error: "Missing parameters" });
+        }
+        if (!claimService) {
+            return res.status(503).json({ error: "Claim service not ready" });
+        }
+        const txHash = await claimService.claimTokens(userAddress, amount, signature);
+        res.json({ success: true, txHash });
+    } catch (err) {
+        console.error("Claim error:", err);
+        res.status(500).json({ error: err.message || "Internal error" });
+    }
+});
+
+// Add periodic session cleanup to prevent memory leaks
+setInterval(() => {
+    const now = Date.now();
+    const SESSION_TIMEOUT = 30 * 60 * 1000; // 30 minutes
+    
+    for (const [sessionId, session] of gameSessions.entries()) {
+        // Remove sessions that are old and empty
+        if (session.players.size === 0 && session.emptyAt && (now - session.emptyAt) > 5 * 60 * 1000) { // 5 minutes after becoming empty
+            gameSessions.delete(sessionId);
+            console.log(`🧹 Cleaned up old empty session: ${sessionId}`);
+        }
+        
+        // Remove players who haven't been active (optional - uncomment if needed)
+        
+        for (const [walletAddress, player] of session.players.entries()) {
+            if (player.joinedAt && (now - player.joinedAt) > SESSION_TIMEOUT * 2) {
+                session.players.delete(walletAddress);
+                io.to(sessionId).emit("player-left", { id: walletAddress });
+                console.log(`🧹 Removed inactive player: ${walletAddress} from session: ${sessionId}`);
+            }
+        }
+        
+    }
+}, 5 * 60 * 1000); // Run every 5 minutes
 
 // Start the server
 const PORT = process.env.PORT || 5000;
