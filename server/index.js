@@ -2,11 +2,6 @@ const express = require("express");
 const http = require("http");
 const socketIo = require("socket.io");
 const cors = require("cors");
-// Ethers and contract claim logic moved to claimService.mjs
-// Import claim service (ESM import workaround for .mjs in CJS)
-let claimService;
-import('file://' + __dirname + '/claimService.mjs').then(mod => { claimService = mod; });
-
 const { createClient } = require("@supabase/supabase-js");
 require("dotenv").config();
 
@@ -59,6 +54,15 @@ try {
   }
 } catch (error) {
   console.error("❌ Failed to initialize Supabase:", error);
+}
+
+// Initialize claim service
+let claimService = null;
+try {
+  claimService = require('./claimService');
+  console.log("✅ Claim service loaded");
+} catch (error) {
+  console.error("⚠️ Claim service not available:", error.message);
 }
 
 // Submarine tiers (UPDATED with the detailed structure)
@@ -578,6 +582,7 @@ app.get("/health", (req, res) => {
         timestamp: new Date().toISOString(),
         activeSessions: gameSessions.size,
         totalPlayers: Array.from(gameSessions.values()).reduce((total, session) => total + session.players.size, 0),
+        claimServiceAvailable: !!claimService,
     });
 });
 
@@ -629,7 +634,7 @@ app.post("/claim", async (req, res) => {
             return res.status(400).json({ error: "Missing parameters" });
         }
         if (!claimService) {
-            return res.status(503).json({ error: "Claim service not ready" });
+            return res.status(503).json({ error: "Claim service not available" });
         }
         const txHash = await claimService.claimTokens(userAddress, amount, signature);
         res.json({ success: true, txHash });
@@ -652,7 +657,7 @@ setInterval(() => {
         }
         
         // Remove players who haven't been active (optional - uncomment if needed)
-        
+        /*
         for (const [walletAddress, player] of session.players.entries()) {
             if (player.joinedAt && (now - player.joinedAt) > SESSION_TIMEOUT * 2) {
                 session.players.delete(walletAddress);
@@ -660,7 +665,7 @@ setInterval(() => {
                 console.log(`🧹 Removed inactive player: ${walletAddress} from session: ${sessionId}`);
             }
         }
-        
+        */
     }
 }, 5 * 60 * 1000); // Run every 5 minutes
 
