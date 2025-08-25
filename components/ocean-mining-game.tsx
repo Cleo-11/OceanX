@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react"
 import { PlayerHUD } from "./player-hud"
-import { Compass } from "./compass"
+// import { Compass } from "./compass"
 import { SonarRadar } from "./sonar-radar"
 import { ResourceSidebar } from "./resource-sidebar"
 import { SubmarineStore } from "./submarine-store"
@@ -1266,8 +1266,7 @@ export function OceanMiningGame({
         </button>
 
 
-  {/* Compass above minimap */}
-  <Compass heading={playerPosition.rotation} />
+  {/* Compass removed */}
 
   {/* Sidebar and Overlay Container */}
         <div className="pointer-events-none">
