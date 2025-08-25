@@ -165,13 +165,13 @@ importers:
         specifier: latest
         version: 0.4.6(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       react:
-        specifier: ^18
+        specifier: ^18.3.1
         version: 18.3.1
       react-day-picker:
         specifier: latest
         version: 9.8.1(react@18.3.1)
       react-dom:
-        specifier: ^18
+        specifier: ^18.3.1
         version: 18.3.1(react@18.3.1)
       react-hook-form:
         specifier: latest
@@ -214,10 +214,10 @@ importers:
         specifier: ^22
         version: 22.17.1
       '@types/react':
-        specifier: ^18
+        specifier: ^18.3.1
         version: 18.3.23
       '@types/react-dom':
-        specifier: ^18
+        specifier: ^18.3.1
         version: 18.3.7(@types/react@18.3.23)
       postcss:
         specifier: ^8.5
@@ -6504,9 +6504,7 @@ snapshots:
       metro-runtime: 0.83.1
     transitivePeerDependencies:
       - '@babel/core'
-      - bufferutil
       - supports-color
-      - utf-8-validate
 
   '@react-native/normalize-colors@0.79.5': {}
 
