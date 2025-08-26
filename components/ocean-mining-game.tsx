@@ -19,6 +19,7 @@ import { getSubmarineByTier } from "@/lib/submarine-tiers"
 import { canMineResource, getStoragePercentage, getResourceColor } from "@/lib/resource-utils"
 import type { GameState, ResourceNode, PlayerStats, PlayerResources, OtherPlayer, PlayerPosition } from "@/lib/types"
 import { ShoppingCart } from "lucide-react"
+import { ScubaDiverGuide } from "./ScubaDiverGuide"
 
 interface OceanMiningGameProps {
   walletConnected: boolean
@@ -92,6 +93,7 @@ export function OceanMiningGame({
   const [showEnergyAlert, setShowEnergyAlert] = useState(false)
   const [viewportOffset, setViewportOffset] = useState({ x: 0, y: 0 })
   const [connectionStatus, setConnectionStatus] = useState<"connecting" | "connected" | "disconnected">("disconnected")
+  const [showGuide, setShowGuide] = useState(true);
 
   // --- AQUATIC FEATURE STATE ---
   const [aquaticState] = useState(() => {
@@ -1165,105 +1167,109 @@ export function OceanMiningGame({
 
 
   return (
-    <div className="relative h-full w-full">
-      {/* Game Canvas */}
-      <canvas ref={canvasRef} className="absolute inset-0" />
+    <>
+      {showGuide && (
+        <ScubaDiverGuide onFinish={() => setShowGuide(false)} />
+      )}
+      <div className="relative h-full w-full">
+        {/* Game Canvas */}
+        <canvas ref={canvasRef} className="absolute inset-0" />
 
-      {/* HUD Overlay */}
-      <div className="pointer-events-none absolute inset-0 z-10">
-        {/* Connection Status */}
-        {connectionStatus !== "connected" && walletConnected && (
-          <div className="absolute left-1/2 top-4 -translate-x-1/2 transform rounded-lg bg-slate-900/80 px-4 py-2 text-cyan-400 backdrop-blur-sm">
-            {connectionStatus === "connecting" ? "Connecting to game server..." : "Playing offline"}
+        {/* HUD Overlay */}
+        <div className="pointer-events-none absolute inset-0 z-10">
+          {/* Connection Status */}
+          {connectionStatus !== "connected" && walletConnected && (
+            <div className="absolute left-1/2 top-4 -translate-x-1/2 transform rounded-lg bg-slate-900/80 px-4 py-2 text-cyan-400 backdrop-blur-sm">
+              {connectionStatus === "connecting" ? "Connecting to game server..." : "Playing offline"}
+            </div>
+          )}
+
+          {/* Player Stats HUD */}
+          <PlayerHUD stats={playerStats} resources={resources} tier={playerTier} />
+
+          {/* Sonar/Mini-map at bottom left */}
+          <div className="absolute left-4 bottom-4 z-20">
+            <SonarRadar
+              playerPosition={playerPosition}
+              resourceNodes={resourceNodes}
+              otherPlayers={otherPlayers}
+              viewportOffset={viewportOffset}
+            />
           </div>
-        )}
 
-        {/* Player Stats HUD */}
-        <PlayerHUD stats={playerStats} resources={resources} tier={playerTier} />
-
-        {/* Sonar/Mini-map at bottom left */}
-        <div className="absolute left-4 bottom-4 z-20">
-          <SonarRadar
-            playerPosition={playerPosition}
-            resourceNodes={resourceNodes}
-            otherPlayers={otherPlayers}
-            viewportOffset={viewportOffset}
-          />
-        </div>
-
-        {/* Wallet info now shown in ResourceSidebar only */}
-        {/* Resource Sidebar Toggle */}
-        <button
-          onClick={() => setSidebarOpen(!sidebarOpen)}
-          className="pointer-events-auto absolute right-4 top-16 z-50 rounded-lg bg-slate-800/80 p-2 text-cyan-400 backdrop-blur-sm transition-all hover:bg-slate-700/80"
-        >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="24"
-            height="24"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
+          {/* Wallet info now shown in ResourceSidebar only */}
+          {/* Resource Sidebar Toggle */}
+          <button
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+            className="pointer-events-auto absolute right-4 top-16 z-50 rounded-lg bg-slate-800/80 p-2 text-cyan-400 backdrop-blur-sm transition-all hover:bg-slate-700/80"
           >
-            <path d="M5 8h14M5 12h14M5 16h14" />
-          </svg>
-        </button>
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M5 8h14M5 12h14M5 16h14" />
+            </svg>
+          </button>
 
-        {/* Submarine Store Button */}
-        <button
-          onClick={() => setShowSubmarineStore(true)}
-          className="pointer-events-auto absolute right-4 top-28 z-50 rounded-lg bg-slate-800/80 p-2 text-cyan-400 backdrop-blur-sm transition-all hover:bg-slate-700/80"
-          disabled={gameState !== "idle"}
-        >
-          <ShoppingCart className="h-6 w-6" />
-        </button>
-
-        {/* Upgrade Button */}
-        <button
-          onClick={() => setShowUpgradeModal(true)}
-          className="pointer-events-auto absolute right-4 top-40 z-50 rounded-lg bg-slate-800/80 p-2 text-cyan-400 backdrop-blur-sm transition-all hover:bg-slate-700/80"
-          disabled={gameState !== "idle"}
-        >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="24"
-            height="24"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
+          {/* Submarine Store Button */}
+          <button
+            onClick={() => setShowSubmarineStore(true)}
+            className="pointer-events-auto absolute right-4 top-28 z-50 rounded-lg bg-slate-800/80 p-2 text-cyan-400 backdrop-blur-sm transition-all hover:bg-slate-700/80"
+            disabled={gameState !== "idle"}
           >
-            <path d="m12 8-9.04 9.06a2.82 2.82 0 1 0 3.98 3.98L16 12" />
-            <circle cx="17" cy="7" r="5" />
-          </svg>
-        </button>
+            <ShoppingCart className="h-6 w-6" />
+          </button>
 
-        {/* Daily Reward Button */}
-        <button
-          onClick={handleClaimDailyReward}
-          className="pointer-events-auto absolute right-4 top-52 z-50 rounded-lg bg-slate-800/80 p-2 text-cyan-400 backdrop-blur-sm transition-all hover:bg-slate-700/80"
-          disabled={gameState !== "idle"}
-        >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="24"
-            height="24"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
+          {/* Upgrade Button */}
+          <button
+            onClick={() => setShowUpgradeModal(true)}
+            className="pointer-events-auto absolute right-4 top-40 z-50 rounded-lg bg-slate-800/80 p-2 text-cyan-400 backdrop-blur-sm transition-all hover:bg-slate-700/80"
+            disabled={gameState !== "idle"}
           >
-            <circle cx="12" cy="12" r="3" />
-            <path d="M12 1v6M12 17v6M4.22 4.22l4.24 4.24M15.54 15.54l4.24 4.24M1 12h6M17 12h6M4.22 19.78l4.24-4.24M15.54 8.46l4.24-4.24" />
-          </svg>
-        </button>
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="m12 8-9.04 9.06a2.82 2.82 0 1 0 3.98 3.98L16 12" />
+              <circle cx="17" cy="7" r="5" />
+            </svg>
+          </button>
+
+          {/* Daily Reward Button */}
+          <button
+            onClick={handleClaimDailyReward}
+            className="pointer-events-auto absolute right-4 top-52 z-50 rounded-lg bg-slate-800/80 p-2 text-cyan-400 backdrop-blur-sm transition-all hover:bg-slate-700/80"
+            disabled={gameState !== "idle"}
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <circle cx="12" cy="12" r="3" />
+              <path d="M12 1v6M12 17v6M4.22 4.22l4.24 4.24M15.54 15.54l4.24 4.24M1 12h6M17 12h6M4.22 19.78l4.24-4.24M15.54 8.46l4.24-4.24" />
+            </svg>
+          </button>
 
 
   {/* Compass removed */}
@@ -1375,6 +1381,7 @@ export function OceanMiningGame({
         />
       )}
     </div>
+  </>
   )
 }
 
