@@ -76,16 +76,29 @@ export function UserProfile({ walletAddress, resources }: UserProfileProps) {
       setIsLoading(true)
       setError("")
 
-      // Load player data from Supabase
+
+      // Debug: log wallet address being queried
+      console.log("Querying player profile for wallet address:", walletAddress)
+
+      // Load player data from Supabase (case-insensitive)
       const { data: player, error: playerError } = await supabase
         .from("players")
         .select("*")
-        .eq("wallet_address", walletAddress)
+        .ilike("wallet_address", walletAddress)
         .single()
 
       if (playerError) {
         console.error("Error loading player data:", playerError)
-        setError("Failed to load player data")
+        setError("Failed to load player data. Please check if your wallet is registered.")
+        return
+      }
+
+      if (!player) {
+        setError("No player found for this wallet address.")
+        setPlayerData(null)
+        setSubmarineTierData(null)
+        setOcxBalance("0")
+        setIsLoading(false)
         return
       }
 

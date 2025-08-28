@@ -1227,27 +1227,7 @@ export function OceanMiningGame({
             <ShoppingCart className="h-6 w-6" />
           </button>
 
-          {/* Upgrade Button */}
-          <button
-            onClick={() => setShowUpgradeModal(true)}
-            className="pointer-events-auto absolute right-4 top-40 z-50 rounded-lg bg-slate-800/80 p-2 text-cyan-400 backdrop-blur-sm transition-all hover:bg-slate-700/80"
-            disabled={gameState !== "idle"}
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="24"
-              height="24"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="m12 8-9.04 9.06a2.82 2.82 0 1 0 3.98 3.98L16 12" />
-              <circle cx="17" cy="7" r="5" />
-            </svg>
-          </button>
+          {/* Upgrade Button removed: Upgrades now only via Submarine Store */}
 
           {/* Daily Reward Button */}
           <button
