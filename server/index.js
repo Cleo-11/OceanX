@@ -1,3 +1,81 @@
+// --- PLAYER API ENDPOINTS ---
+// Get player OCX token balance
+
+app.post("/player/balance", async (req, res) => {
+  const { address } = req.body;
+  if (!address) {
+    return res.status(400).json({ error: "Missing address" });
+  }
+  if (!supabase) {
+    return res.status(500).json({ error: "Supabase not initialized" });
+  }
+  try {
+    // Query the players table for the wallet address (case-insensitive)
+    const { data: player, error } = await supabase
+      .from("players")
+      .select("total_ocx_earned")
+      .ilike("wallet_address", address)
+      .single();
+    if (error || !player) {
+      return res.status(404).json({ error: "Player not found" });
+    }
+    // Return OCX balance as string (assuming total_ocx_earned is numeric)
+    res.json({ balance: player.total_ocx_earned.toString(), symbol: "OCX", network: "mainnet" });
+  } catch (err) {
+    console.error("/player/balance error:", err);
+    res.status(500).json({ error: "Failed to fetch player balance" });
+  }
+});
+
+// Get player submarine info
+
+app.post("/player/submarine", async (req, res) => {
+  const { address } = req.body;
+  if (!address) {
+    return res.status(400).json({ error: "Missing address" });
+  }
+  if (!supabase) {
+    return res.status(500).json({ error: "Supabase not initialized" });
+  }
+  try {
+    // Query the players table for the wallet address (case-insensitive)
+    const { data: player, error } = await supabase
+      .from("players")
+      .select("submarine_tier")
+      .ilike("wallet_address", address)
+      .single();
+    if (error || !player) {
+      return res.status(404).json({ error: "Player not found" });
+    }
+    // Query the submarine_tiers table for the current tier
+    const { data: sub, error: subError } = await supabase
+      .from("submarine_tiers")
+      .select("id, tier, name, description, max_nickel, max_cobalt, max_copper, max_manganese, health, energy, speed, mining_rate, depth_limit, color, special_ability")
+      .eq("tier", player.submarine_tier)
+      .single();
+    if (subError || !sub) {
+      return res.status(404).json({ error: "Submarine tier not found" });
+    }
+    // Return the submarine info in the expected format
+    res.json({
+      current: {
+        id: sub.id,
+        tier: sub.tier,
+        name: sub.name,
+        description: sub.description,
+        storage: sub.max_nickel, // or sum of all max_* fields if needed
+        speed: sub.speed,
+        miningPower: sub.mining_rate,
+        color: sub.color,
+        specialAbility: sub.special_ability,
+      },
+      canUpgrade: true, // You can add logic to determine this
+    });
+  } catch (err) {
+    console.error("/player/submarine error:", err);
+    res.status(500).json({ error: "Failed to fetch submarine info" });
+  }
+});
 const express = require("express");
 const http = require("http");
 const socketIo = require("socket.io");
