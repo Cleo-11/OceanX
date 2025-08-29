@@ -1,4 +1,19 @@
 // ...existing code...
+
+const express = require("express");
+const http = require("http");
+const socketIo = require("socket.io");
+const cors = require("cors");
+const { createClient } = require("@supabase/supabase-js");
+require("dotenv").config();
+
+const app = express();
+const server = http.createServer(app);
+
+console.log("🌊 Starting OceanX Backend Server...");
+console.log("Environment:", process.env.NODE_ENV || "development");
+console.log("Port:", process.env.PORT || 5000);
+
 // --- PLAYER API ENDPOINTS ---
 // Get player OCX token balance
 app.post("/player/balance", async (req, res) => {
@@ -75,19 +90,6 @@ app.post("/player/submarine", async (req, res) => {
     res.status(500).json({ error: "Failed to fetch submarine info" });
   }
 });
-const express = require("express");
-const http = require("http");
-const socketIo = require("socket.io");
-const cors = require("cors");
-const { createClient } = require("@supabase/supabase-js");
-require("dotenv").config();
-
-const app = express();
-const server = http.createServer(app);
-
-console.log("🌊 Starting OceanX Backend Server...");
-console.log("Environment:", process.env.NODE_ENV || "development");
-console.log("Port:", process.env.PORT || 5000);
 
 // CORS configuration
 const allowedOrigins = [
