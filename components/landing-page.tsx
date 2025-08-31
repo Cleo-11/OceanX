@@ -4,11 +4,30 @@ import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { 
-  Anchor, Waves, Gem, Zap, Users, ArrowRight, Play, 
+import {
+  Anchor, Waves, Gem, Zap, Users, ArrowRight, Play,
   UserPlus, LogIn, Compass, ShipWheel, Sparkles,
-  BarChart3, Radar, Wrench, GithubIcon, TwitterIcon, DiscordIcon
+  BarChart3, Radar, Wrench, Twitter
 } from "lucide-react"
+
+// Discord SVG Icon Component
+function DiscordIcon(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      width={props.width || 20}
+      height={props.height || 20}
+      {...props}
+    >
+      <path
+        d="M20.317 4.369A19.791 19.791 0 0 0 16.885 3.2a.077.077 0 0 0-.082.038c-.357.63-.755 1.453-1.037 2.104a18.524 18.524 0 0 0-5.53 0 12.683 12.683 0 0 0-1.05-2.104.077.077 0 0 0-.082-.038A19.736 19.736 0 0 0 3.684 4.369a.07.07 0 0 0-.032.027C.533 9.09-.32 13.579.099 18.021a.082.082 0 0 0 .031.056c2.128 1.565 4.195 2.507 6.228 3.13a.077.077 0 0 0 .084-.027c.48-.66.908-1.356 1.273-2.084a.076.076 0 0 0-.041-.104c-.676-.256-1.32-.568-1.934-.936a.077.077 0 0 1-.008-.127c.13-.098.26-.2.384-.304a.074.074 0 0 1 .077-.01c4.06 1.855 8.447 1.855 12.47 0a.073.073 0 0 1 .078.009c.124.104.254.206.384.304a.077.077 0 0 1-.006.127 12.298 12.298 0 0 1-1.936.936.076.076 0 0 0-.04.105c.366.727.794 1.423 1.272 2.083a.076.076 0 0 0 .084.028c2.034-.623 4.102-1.565 6.23-3.13a.077.077 0 0 0 .03-.055c.5-5.177-.838-9.637-3.548-13.625a.061.061 0 0 0-.03-.028ZM8.02 15.331c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.418 2.157-2.418 1.21 0 2.175 1.094 2.157 2.418 0 1.334-.955 2.419-2.157 2.419Zm7.974 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.418 2.157-2.418 1.21 0 2.175 1.094 2.157 2.418 0 1.334-.947 2.419-2.157 2.419Z"
+        fill="currentColor"
+      />
+    </svg>
+  );
+}
 import { useRouter } from "next/navigation"
 import Image from "next/image"
 
@@ -386,13 +405,10 @@ export default function LandingPage() {
               </p>
               <div className="flex space-x-4">
                 <a href="#" className="text-slate-400 hover:text-cyan-400 transition-colors duration-300">
-                  <TwitterIcon className="w-5 h-5" />
+                  <Twitter className="w-5 h-5" />
                 </a>
                 <a href="#" className="text-slate-400 hover:text-cyan-400 transition-colors duration-300">
                   <DiscordIcon className="w-5 h-5" />
-                </a>
-                <a href="#" className="text-slate-400 hover:text-cyan-400 transition-colors duration-300">
-                  <GithubIcon className="w-5 h-5" />
                 </a>
               </div>
             </div>
