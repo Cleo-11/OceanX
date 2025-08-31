@@ -122,6 +122,7 @@ export function UserProfile({ walletAddress, resources }: UserProfileProps) {
       // Load OCX token balance from blockchain
       try {
         const balance = await ContractManager.getTokenBalance(walletAddress)
+        console.log("[DEBUG] Wallet Address:", walletAddress, "Raw OCX Balance:", balance);
         setOcxBalance(balance)
       } catch (balanceError) {
         console.error("Error loading OCX balance:", balanceError)
