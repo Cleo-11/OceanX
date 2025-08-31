@@ -31,14 +31,51 @@ export function SonarRadar({ playerPosition, resourceNodes, otherPlayers, viewpo
       // Clear canvas
       ctx.clearRect(0, 0, canvas.width, canvas.height)
 
-      // Draw radar background
-      ctx.fillStyle = "rgba(0, 20, 40, 0.7)"
-      ctx.beginPath()
-      ctx.arc(100, 100, 95, 0, Math.PI * 2)
-      ctx.fill()
+      // Draw radar background with hexagon pattern (blockchain-inspired)
+      const drawHexagonPattern = () => {
+        const size = 15; // Size of each hexagon
+        ctx.strokeStyle = "rgba(14, 165, 233, 0.15)";
+        ctx.lineWidth = 0.5;
+        
+        for(let x = 0; x < canvas.width + size; x += size * 1.5) {
+          for(let y = 0; y < canvas.height + size; y += size * Math.sqrt(3)) {
+            const offset = (Math.floor(y / (size * Math.sqrt(3))) % 2) * (size * 0.75);
+            ctx.beginPath();
+            for(let i = 0; i < 6; i++) {
+              const angle = (i * Math.PI) / 3;
+              const xPos = x + offset + size * Math.cos(angle);
+              const yPos = y + size * Math.sin(angle);
+              if(i === 0) {
+                ctx.moveTo(xPos, yPos);
+              } else {
+                ctx.lineTo(xPos, yPos);
+              }
+            }
+            ctx.closePath();
+            ctx.stroke();
+          }
+        }
+      };
+      
+      // Draw main radar background
+      ctx.fillStyle = "rgba(0, 20, 40, 0.85)";
+      ctx.beginPath();
+      ctx.arc(100, 100, 95, 0, Math.PI * 2);
+      ctx.fill();
+      
+      // Clip to radar area for hexagon pattern
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(100, 100, 95, 0, Math.PI * 2);
+      ctx.clip();
+      
+      // Draw hexagon pattern inside radar (blockchain-inspired)
+      drawHexagonPattern();
+      
+      ctx.restore();
 
       // Draw radar grid
-      ctx.strokeStyle = "rgba(14, 165, 233, 0.3)"
+      ctx.strokeStyle = "rgba(14, 165, 233, 0.4)"
       ctx.lineWidth = 1
 
       // Draw concentric circles
@@ -46,24 +83,68 @@ export function SonarRadar({ playerPosition, resourceNodes, otherPlayers, viewpo
         ctx.beginPath()
         ctx.arc(100, 100, i * 30, 0, Math.PI * 2)
         ctx.stroke()
+        
+        // Add distance markers (blockchain-inspired)
+        ctx.fillStyle = "rgba(14, 165, 233, 0.7)";
+        ctx.font = "8px monospace";
+        ctx.fillText(`${i*100}m`, 105, 100 - i * 30 + 4);
       }
 
-      // Draw crosshairs
+      // Draw digital-looking crosshairs (blockchain-inspired)
       ctx.beginPath()
+      
+      // Dashed lines for crosshairs
+      ctx.setLineDash([4, 2]);
       ctx.moveTo(100, 5)
       ctx.lineTo(100, 195)
       ctx.moveTo(5, 100)
       ctx.lineTo(195, 100)
       ctx.stroke()
+      ctx.setLineDash([]);
+      
+      // Hexagon center marker (blockchain-inspired)
+      ctx.strokeStyle = "rgba(14, 165, 233, 0.8)";
+      ctx.beginPath();
+      for(let i = 0; i < 6; i++) {
+        const angle = (i * Math.PI) / 3;
+        const x = 100 + 8 * Math.cos(angle);
+        const y = 100 + 8 * Math.sin(angle);
+        if(i === 0) {
+          ctx.moveTo(x, y);
+        } else {
+          ctx.lineTo(x, y);
+        }
+      }
+      ctx.closePath();
+      ctx.stroke();
 
-      // Draw radar sweep
+      // Draw radar sweep with data particles (blockchain-inspired)
       const sweepAngle = (Date.now() / 1000) % (Math.PI * 2)
-      ctx.fillStyle = "rgba(94, 234, 212, 0.6)"
+      
+      // Main sweep
+      const gradient = ctx.createRadialGradient(100, 100, 0, 100, 100, 95);
+      gradient.addColorStop(0, "rgba(56, 189, 248, 0.9)");
+      gradient.addColorStop(1, "rgba(56, 189, 248, 0.1)");
+      
+      ctx.fillStyle = gradient;
       ctx.beginPath()
       ctx.moveTo(100, 100)
       ctx.arc(100, 100, 95, sweepAngle - 0.3, sweepAngle)
       ctx.lineTo(100, 100)
       ctx.fill()
+      
+      // Add data particles along sweep line (blockchain-inspired)
+      ctx.fillStyle = "rgba(255, 255, 255, 0.8)";
+      for (let r = 10; r < 95; r += 10) {
+        if (Math.random() > 0.7) {
+          const particleX = 100 + Math.cos(sweepAngle) * r;
+          const particleY = 100 + Math.sin(sweepAngle) * r;
+          const size = Math.random() * 2 + 1;
+          ctx.beginPath();
+          ctx.arc(particleX, particleY, size, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
 
       // Map coordinates from world space to radar space
       const mapToRadar = (worldX: number, worldY: number): [number, number] => {

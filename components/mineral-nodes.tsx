@@ -50,33 +50,67 @@ function MineralNode({ node, isTarget, setHoveredNode, gameState }: MineralNodeP
   useFrame((state, delta) => {
     if (meshRef.current) {
       // Gentle floating motion
-      meshRef.current.position.y = node.position[1] + Math.sin(state.clock.elapsedTime + node.position[0]) * 0.1
+      meshRef.current.position.y = node.position.y + Math.sin(state.clock.elapsedTime + node.position.x) * 0.1
 
       // Rotation
       meshRef.current.rotation.y += delta * 0.2
     }
 
-    if (glowRef.current) {
+    if (glowRef.current && glowRef.current.material) {
       // Pulsing glow
       const scale = 1.2 + Math.sin(state.clock.elapsedTime * 2) * 0.1
       glowRef.current.scale.set(scale, scale, scale)
 
       // Highlight when mining or targeted
-      if (gameState === "mining" && isTarget) {
-        glowRef.current.material.opacity = 0.6 + Math.sin(state.clock.elapsedTime * 10) * 0.4
-      } else if (isTarget) {
-        glowRef.current.material.opacity = 0.5 + Math.sin(state.clock.elapsedTime * 3) * 0.2
-      } else {
-        glowRef.current.material.opacity = 0.3
+      const material = Array.isArray(glowRef.current.material) 
+        ? glowRef.current.material[0] 
+        : glowRef.current.material;
+        
+      if (material && 'opacity' in material) {
+        if (gameState === "mining" && isTarget) {
+          material.opacity = 0.6 + Math.sin(state.clock.elapsedTime * 10) * 0.4;
+        } else if (isTarget) {
+          material.opacity = 0.5 + Math.sin(state.clock.elapsedTime * 3) * 0.2;
+        } else {
+          material.opacity = 0.3;
+        }
       }
     }
   })
 
+  // Determine the geometry based on the resource type
+  const getNodeGeometry = () => {
+    switch(node.type) {
+      case 'nickel':
+        return <icosahedronGeometry args={[0.5, 1]} />
+      case 'cobalt':
+        return <dodecahedronGeometry args={[0.5, 0]} />
+      case 'copper':
+        return <octahedronGeometry args={[0.5, 0]} />
+      case 'manganese':
+        return <tetrahedronGeometry args={[0.6, 0]} />
+      default:
+        return <octahedronGeometry args={[0.5, 0]} />
+    }
+  }
+  
+  // More dynamic appearance based on resource amount
+  const scale = 0.8 + (node.amount / 20) * 0.5 // Scale between 0.8-1.3 based on amount
+  
   return (
-    <group position={node.position}>
-      {/* Mineral crystal */}
+    <group position={[node.position.x, node.position.y, 0]}>
+      {/* Resource value indicator (blockchain-inspired hexagon ring) */}
+      {isTarget && (
+        <mesh rotation={[Math.PI / 2, 0, 0]} position={[0, -0.6, 0]}>
+          <ringGeometry args={[0.7, 0.8, 6]} />
+          <meshBasicMaterial color="#ffffff" transparent opacity={0.7} />
+        </mesh>
+      )}
+      
+      {/* Mineral crystal with blockchain-inspired geometry */}
       <mesh
         ref={meshRef}
+        scale={[scale, scale, scale]}
         onPointerOver={() => {
           setHovered(true)
           setHoveredNode(nodeName)
@@ -87,15 +121,24 @@ function MineralNode({ node, isTarget, setHoveredNode, gameState }: MineralNodeP
         }}
         castShadow
       >
-        <octahedronGeometry args={[0.5, 0]} />
+        {getNodeGeometry()}
         <meshStandardMaterial
           color={color}
           roughness={0.2}
           metalness={0.8}
           emissive={color}
-          emissiveIntensity={hovered || isTarget ? 0.5 : 0.2}
+          emissiveIntensity={hovered || isTarget ? 0.7 : 0.3}
+          wireframe={isTarget && gameState === "mining"} // Wireframe effect during mining
         />
       </mesh>
+      
+      {/* Data lines effect (blockchain-inspired) */}
+      {(isTarget || hovered) && (
+        <mesh rotation={[0, Math.PI / 3, 0]}>
+          <torusGeometry args={[0.8, 0.02, 16, 6]} />
+          <meshBasicMaterial color={color} transparent opacity={0.4} />
+        </mesh>
+      )}
 
       {/* Glow effect */}
       <mesh ref={glowRef} position={[0, 0, 0]}>
