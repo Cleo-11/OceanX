@@ -49,7 +49,7 @@
     "date-fns": "4.1.0",
     "dotenv": "latest",
     "embla-carousel-react": "latest",
-    "ethers": "latest",
+    "ethers": "^6.15.0",
     "expo": "latest",
     "expo-asset": "latest",
     "expo-file-system": "latest",

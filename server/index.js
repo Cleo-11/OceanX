@@ -7,6 +7,9 @@ const cors = require("cors");
 const { createClient } = require("@supabase/supabase-js");
 require("dotenv").config();
 
+// Add body parser middleware
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 const app = express();
 const server = http.createServer(app);
 

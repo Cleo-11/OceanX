@@ -5,7 +5,7 @@ const path = require("path");
 // Load game ABI
 let gameAbi;
 try {
-  const gameAbiPath = path.join(__dirname, "../contracts/artifacts/OceanGameController.json");
+  const gameAbiPath = path.join(__dirname, "./abis/OceanGameController.json");
   if (fs.existsSync(gameAbiPath)) {
     const gameAbiData = fs.readFileSync(gameAbiPath, "utf8");
     gameAbi = JSON.parse(gameAbiData);
