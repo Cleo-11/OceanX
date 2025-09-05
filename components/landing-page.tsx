@@ -1,8 +1,6 @@
 "use client"
 
-import { useState, useEffect, Suspense } from "react"
-import { Canvas } from '@react-three/fiber'
-import { Submarine } from './submarine'
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -39,7 +37,17 @@ function AnimatedFish({ color = "cyan", size = "sm", delay = 0, className = "" }
     md: "w-8 h-4",
     lg: "w-12 h-6"
   };
-  
+  // Map color prop to explicit Tailwind classes
+  const colorMap = {
+    cyan: ['bg-cyan-500/40', 'bg-cyan-400/70', 'bg-cyan-300/40'],
+    blue: ['bg-blue-500/40', 'bg-blue-400/70', 'bg-blue-300/40'],
+    teal: ['bg-teal-500/40', 'bg-teal-400/70', 'bg-teal-300/40'],
+    green: ['bg-green-500/40', 'bg-green-400/70', 'bg-green-300/40'],
+    emerald: ['bg-emerald-500/40', 'bg-emerald-400/70', 'bg-emerald-300/40'],
+    sky: ['bg-cyan-500/40', 'bg-cyan-400/70', 'bg-cyan-300/40'],
+    indigo: ['bg-blue-500/40', 'bg-blue-400/70', 'bg-blue-300/40'],
+  };
+  const [body, left, top] = colorMap[color as keyof typeof colorMap] || colorMap['cyan'];
   return (
     <div 
       className={`absolute ${sizeClasses[size as keyof typeof sizeClasses]} ${className}`}
@@ -47,11 +55,11 @@ function AnimatedFish({ color = "cyan", size = "sm", delay = 0, className = "" }
         animation: `fishSwim 15s ease-in-out infinite ${delay}s`,
       }}
     >
-      <div className={`relative w-full h-full`}>
-        <div className={`absolute inset-0 rounded-full bg-${color}-500/40 blur-sm`}></div>
-        <div className={`absolute left-0 top-1/2 transform -translate-y-1/2 w-1/2 h-full rounded-l-full bg-${color}-400/70`}></div>
-        <div className={`absolute right-0 top-0 w-1/2 h-1/2 transform rotate-[30deg] origin-left bg-${color}-300/40 rounded-r-sm`}></div>
-        <div className={`absolute right-0 bottom-0 w-1/2 h-1/2 transform -rotate-[30deg] origin-left bg-${color}-300/40 rounded-r-sm`}></div>
+      <div className="relative w-full h-full">
+        <div className={`absolute inset-0 rounded-full ${body} blur-sm`}></div>
+        <div className={`absolute left-0 top-1/2 transform -translate-y-1/2 w-1/2 h-full rounded-l-full ${left}`}></div>
+        <div className={`absolute right-0 top-0 w-1/2 h-1/2 transform rotate-[30deg] origin-left ${top} rounded-r-sm`}></div>
+        <div className={`absolute right-0 bottom-0 w-1/2 h-1/2 transform -rotate-[30deg] origin-left ${top} rounded-r-sm`}></div>
       </div>
     </div>
   );
@@ -59,6 +67,15 @@ function AnimatedFish({ color = "cyan", size = "sm", delay = 0, className = "" }
 
 // Animated Seaweed component for underwater effect
 function Seaweed({ height = "h-24", left = "left-20", width = "w-4", color = "green", delay = 0 }) {
+  // Map color prop to explicit Tailwind classes
+  const colorMap = {
+    cyan: ['bg-cyan-600/40', 'bg-cyan-400/30'],
+    blue: ['bg-blue-600/40', 'bg-blue-400/30'],
+    teal: ['bg-teal-600/40', 'bg-teal-400/30'],
+    green: ['bg-green-600/40', 'bg-green-400/30'],
+    emerald: ['bg-emerald-600/40', 'bg-emerald-400/30'],
+  };
+  const [main, bubble] = colorMap[color as keyof typeof colorMap] || colorMap['green'];
   return (
     <div 
       className={`absolute bottom-0 ${left} ${width} ${height} flex flex-col items-center`}
@@ -67,8 +84,8 @@ function Seaweed({ height = "h-24", left = "left-20", width = "w-4", color = "gr
         animation: `seaweedSway 8s ease-in-out infinite ${delay}s` 
       }}
     >
-      <div className={`w-full h-full bg-${color}-600/40 rounded-t-full`}></div>
-      <div className={`absolute top-1/4 left-1/2 w-8 h-8 rounded-full bg-${color}-400/30 blur-md -translate-x-1/2`}></div>
+      <div className={`w-full h-full ${main} rounded-t-full`}></div>
+      <div className={`absolute top-1/4 left-1/2 w-8 h-8 rounded-full ${bubble} blur-md -translate-x-1/2`}></div>
     </div>
   );
 }
@@ -237,7 +254,7 @@ export default function LandingPage() {
       </div>
 
       {/* Immersive Floating Navigation Header */}
-      <header className="fixed w-full top-0 left-0 z-30 transition-all duration-500">
+      <header className={`fixed w-full top-0 left-0 z-30 transition-all duration-500 ${scrolled ? 'bg-blue-900/70 backdrop-blur-lg shadow-lg border-b border-cyan-500/10' : 'bg-transparent'}`}>
         <div className={`absolute inset-0 overflow-hidden ${scrolled ? 'opacity-100' : 'opacity-0'} transition-opacity duration-500`}>
           <div className="absolute inset-0 bg-gradient-to-r from-blue-900/50 via-cyan-900/30 to-blue-900/50"></div>
           <div className="absolute inset-0 bg-[url('/water-caustics.png')] bg-repeat bg-cover opacity-10"></div>
@@ -324,8 +341,9 @@ export default function LandingPage() {
           </div>
         )}
       </header>
+
       {/* Immersive Hero Section */}
-      <div className="relative z-10 flex flex-col items-center justify-center min-h-[100vh] px-6 text-center pt-20 overflow-hidden">
+      <main className="relative z-10 flex flex-col items-center justify-center min-h-[100vh] px-6 text-center pt-20 overflow-hidden">
         <div 
           className={`max-w-5xl mx-auto transition-all duration-1000 ${animationLoaded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}
           style={{ transitionDelay: '300ms' }}
@@ -397,27 +415,56 @@ export default function LandingPage() {
             style={{ transitionDelay: '600ms' }}
           >
             <p className="text-xl md:text-2xl text-slate-200 mb-12 max-w-3xl mx-auto leading-relaxed font-light">
-              Command your 
-              <span className="text-cyan-300 font-medium relative inline-block group">
-                {/* ...existing code... */}
-              </span>
+              Command your <span className="text-cyan-300 font-medium relative inline-block group">
+                submarine fleet
+                <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-cyan-400/70 group-hover:w-full transition-all duration-300"></span>
+              </span>, mine precious resources from the 
+              <span className="text-blue-300 font-medium relative inline-block group">
+                <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-blue-400/70 group-hover:w-full transition-all duration-300"></span>
+                &nbsp;ocean floor
+              </span>, and compete with players worldwide in this 
+              <span className="text-teal-300 font-medium relative inline-block group">
+                <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-teal-400/70 group-hover:w-full transition-all duration-300"></span>
+                &nbsp;blockchain-powered adventure
+              </span>.
             </p>
           </div>
 
-          {/* Enhanced Call to Action Buttons */}
-          <div className="flex flex-col md:flex-row gap-4 max-w-md mx-auto mb-16">
+          {/* Spectacular CTA buttons with advanced interactive effects */}
+          <div 
+            className={`flex flex-col sm:flex-row gap-8 justify-center items-center mb-16 transition-all duration-1000 ${animationLoaded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}
+            style={{ transitionDelay: '900ms' }}
+          >
             <Button
               size="lg"
-              variant="gradient"
               onClick={handleSignUp}
-              className="relative overflow-hidden bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white px-10 py-6 shadow-glow hover:shadow-glow-strong transition-all duration-300 group"
+              className="relative bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white px-10 py-6 text-lg font-semibold transform hover:scale-105 transition-all duration-300 shadow-glow hover:shadow-glow-strong rounded-xl group overflow-hidden"
+              onMouseEnter={() => setIsHovered(true)}
+              onMouseLeave={() => setIsHovered(false)}
             >
-              <div className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-[100%] group-hover:translate-x-[100%] transition-transform duration-1000"></div>
-              <div className="relative z-10 flex items-center justify-center overflow-hidden">
-                <Gem className="w-5 h-5 mr-3 transition-transform group-hover:rotate-12 duration-300" />
-                <span>Mine the Depths</span>
+              <div className="absolute inset-0 bg-gradient-to-r from-cyan-500/30 to-blue-500/30 opacity-0 group-hover:opacity-100 blur-md transition-opacity duration-300"></div>
+              <div className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
+              
+              {/* Particle effect on hover */}
+              <div className="absolute inset-0 w-full h-full overflow-hidden opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                {[...Array(10)].map((_, i) => (
+                  <div
+                    key={`cta-particle-${i}`}
+                    className="absolute w-1 h-1 rounded-full bg-white/80"
+                    style={{
+                      top: `${Math.random() * 100}%`,
+                      left: `${Math.random() * 100}%`,
+                      opacity: Math.random() * 0.5 + 0.3,
+                      transform: 'scale(0)',
+                      animation: `growAndFade 2s ease-out infinite ${Math.random() * 2}s`,
+                    }}
+                  ></div>
+                ))}
               </div>
-              <div className="absolute bottom-0 left-0 w-full h-0.5 bg-cyan-300/50 scale-x-0 group-hover:scale-x-100 transition-transform duration-300"></div>
+              
+              <Play className={`w-6 h-6 mr-4 relative z-10 ${isHovered ? "animate-pulse text-white" : "text-cyan-100"} transition-all duration-300`} />
+              <span className="relative z-10 tracking-wide">Start Your Journey</span>
+              <ArrowRight className="w-5 h-5 ml-4 relative z-10 group-hover:translate-x-2 transition-transform duration-300" />
             </Button>
 
             <Button
@@ -502,14 +549,74 @@ export default function LandingPage() {
                 }}
               >
                 <div className="relative w-[60%] h-[60%]">
-                  {/* 3D Submarine Model from submarine.tsx */}
-                  <Canvas camera={{ position: [0, 0, 8], fov: 50 }} style={{ width: '100%', height: '100%' }}>
-                    <ambientLight intensity={0.7} />
-                    <directionalLight position={[5, 10, 5]} intensity={1.2} />
-                    <Suspense fallback={null}>
-                      <Submarine />
-                    </Suspense>
-                  </Canvas>
+                  {/* Submarine engine glow */}
+                  <div className="absolute -right-5 top-1/2 w-16 h-16 bg-cyan-500/10 rounded-full blur-xl transform -translate-y-1/2 animate-pulse"></div>
+                  
+                  {/* Submarine Body */}
+                  <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-3/4 h-1/3 bg-gradient-to-b from-cyan-600 to-cyan-900 rounded-full shadow-glow">
+                    {/* Submarine texture overlay */}
+                    <div className="absolute inset-0 bg-[url('/water-caustics.png')] bg-cover opacity-20 mix-blend-overlay rounded-full"></div>
+                    
+                    {/* Metallic reflections */}
+                    <div className="absolute top-0 left-1/4 right-1/4 h-1/4 bg-gradient-to-r from-transparent via-cyan-300/20 to-transparent rounded-full"></div>
+                  </div>
+                  
+                  {/* Submarine Tower */}
+                  <div className="absolute top-1/3 left-1/2 transform -translate-x-1/2 w-1/5 h-2/5 bg-gradient-to-b from-cyan-700 to-cyan-950 rounded-t-lg shadow-lg overflow-hidden">
+                    {/* Tower highlights */}
+                    <div className="absolute top-0 left-0 right-0 h-1/4 bg-gradient-to-r from-transparent via-cyan-300/20 to-transparent"></div>
+                  </div>
+                  
+                  {/* Main Submarine Window with glow */}
+                  <div className="absolute top-1/2 left-[30%] transform -translate-y-1/2 group">
+                    <div className="absolute inset-0 rounded-full bg-cyan-400/30 blur-md scale-150 animate-pulse-slow"></div>
+                    <div className="w-12 h-12 bg-gradient-to-br from-cyan-200/60 to-cyan-400/60 rounded-full shadow-glow-strong relative">
+                      {/* Window interior */}
+                      <div className="absolute inset-2 bg-cyan-900/70 rounded-full">
+                        {/* Pilot silhouette */}
+                        <div className="absolute inset-3 top-1/4 bg-slate-900/70 rounded-full"></div>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Secondary Windows */}
+                  <div className="absolute top-1/2 left-[50%] transform -translate-y-1/2 w-6 h-6 bg-cyan-300/40 rounded-full shadow-md"></div>
+                  <div className="absolute top-1/2 left-[65%] transform -translate-y-1/2 w-6 h-6 bg-cyan-300/40 rounded-full shadow-md"></div>
+                  
+                  {/* Advanced Propeller System */}
+                  <div className="absolute top-1/2 right-[5%] transform -translate-y-1/2">
+                    {/* Propeller Housing */}
+                    <div className="w-10 h-10 rounded-full bg-cyan-800/70 flex items-center justify-center relative overflow-hidden">
+                      {/* Inner glow */}
+                      <div className="absolute inset-1 rounded-full bg-cyan-700/50"></div>
+                      
+                      {/* Spinning propeller */}
+                      <div className="relative w-8 h-8 animate-spin-slow">
+                        <div className="absolute top-1/2 left-0 right-0 h-1 bg-cyan-400/70 rounded-full transform -translate-y-1/2"></div>
+                        <div className="absolute top-0 bottom-0 left-1/2 w-1 bg-cyan-400/70 rounded-full transform -translate-x-1/2"></div>
+                        <div className="absolute top-0 left-0 w-full h-full border-2 border-cyan-400/10 rounded-full"></div>
+                      </div>
+                      
+                      {/* Water current effect */}
+                      {showParticles && [...Array(5)].map((_, i) => (
+                        <div 
+                          key={`propeller-current-${i}`}
+                          className="absolute right-0 w-1 h-1 bg-cyan-300/50 rounded-full"
+                          style={{
+                            top: `${20 + (i * 15)}%`,
+                            animation: `propellerCurrent 2s linear infinite ${i * 0.2}s`,
+                          }}
+                        ></div>
+                      ))}
+                    </div>
+                  </div>
+                  
+                  {/* Front Lights */}
+                  <div className="absolute top-1/2 left-[5%] transform -translate-y-1/2">
+                    <div className="relative w-8 h-8">
+                      <div className="absolute inset-2 rounded-full bg-yellow-400/70 animate-pulse"></div>
+                      <div className="absolute inset-0 rounded-full bg-yellow-300/20 animate-glow"></div>
+                      {/* Light beam */}
                       <div 
                         className="absolute top-1/2 left-0 w-32 h-16 bg-gradient-to-r from-yellow-400/40 to-transparent transform -translate-y-1/2 -translate-x-full blur-md"
                         style={{
@@ -915,15 +1022,243 @@ export default function LandingPage() {
             </div>
           </div>
         </div>
-      </div>
+      </main>
+
       {/* Enhanced Stats Section with Animation */}
-      <div className="relative z-10 py-24 px-6">
-        {/* ...existing stats section code... */}
-      </div>
+      <section className="relative z-10 py-24 px-6">
+        <div 
+          className={`relative max-w-5xl mx-auto transition-all duration-1000 transform ${animationLoaded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}
+          style={{ transitionDelay: '200ms' }}
+        >
+          {/* Background elements with parallax effect */}
+          <div 
+            className="absolute inset-0 bg-slate-800/30 backdrop-blur-lg rounded-2xl"
+            style={{
+              transform: `translate(${parallaxOffset.x * 0.01}px, ${parallaxOffset.y * 0.01}px)`,
+            }}
+          ></div>
+          <div 
+            className="absolute inset-0 bg-gradient-to-r from-cyan-500/5 via-blue-500/5 to-teal-500/5 rounded-2xl"
+            style={{
+              transform: `translate(${parallaxOffset.x * 0.02}px, ${parallaxOffset.y * 0.02}px)`,
+            }}
+          ></div>
+          
+          {/* Animated bubbles background */}
+          {showParticles && [...Array(8)].map((_, i) => (
+            <div 
+              key={`stat-bubble-${i}`}
+              className="absolute rounded-full bg-gradient-to-br from-cyan-400/10 to-white/5"
+              style={{
+                width: `${Math.random() * 30 + 10}px`,
+                height: `${Math.random() * 30 + 10}px`,
+                left: `${Math.random() * 100}%`,
+                bottom: '0',
+                animation: `bubbleRiseSmall ${Math.random() * 15 + 8}s linear infinite ${Math.random() * 5}s`,
+                opacity: Math.random() * 0.3 + 0.1,
+              }}
+            ></div>
+          ))}
+          
+          {/* Section header with shimmering effect */}
+          <div className="relative p-8 text-center mb-12">
+            <h2 className="text-3xl md:text-4xl font-bold relative inline-block mb-6">
+              <span className="bg-gradient-to-br from-cyan-300 via-blue-300 to-teal-300 bg-clip-text text-transparent animate-shimmer">
+                Explore the Underwater Economy
+              </span>
+              <div className="absolute -bottom-3 left-0 w-full h-1 bg-gradient-to-r from-transparent via-cyan-400 to-transparent"></div>
+            </h2>
+            <p className="text-slate-300 max-w-2xl mx-auto">
+              Join thousands of explorers in this thriving blockchain-powered underwater ecosystem
+            </p>
+          </div>
+          
+          {/* Stats Grid with Enhanced Styling and Hover Effects */}
+            <div className="relative grid grid-cols-2 md:grid-cols-4 gap-8 text-center px-8 pb-12">
+              {/* Active Miners Stat */}
+              <div className="group relative">
+                <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/5 to-transparent rounded-lg opacity-0 group-hover:opacity-100 transform scale-90 group-hover:scale-100 transition-all duration-500"></div>
+                <div className="absolute inset-0 p-px rounded-lg overflow-hidden z-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500">
+                  <div className="absolute inset-0 bg-gradient-to-br from-cyan-600/30 via-transparent to-cyan-600/30 animate-rotate-gradient"></div>
+                </div>
+                <div className="relative py-8 px-4">
+                  <div className="mb-4 mx-auto w-12 h-12 rounded-full bg-gradient-to-br from-cyan-900/50 to-blue-900/50 flex items-center justify-center">
+                    <Users className="w-6 h-6 text-cyan-400" />
+                  </div>
+                  <div className="text-4xl font-extrabold mb-1">
+                    <span className="bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent">10K+</span>
+                  </div>
+                  <div className="text-slate-300 font-medium">Active Miners</div>
+                </div>
+              </div>
+              {/* Resources Mined Stat */}
+              <div className="group relative">
+                <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-transparent rounded-lg opacity-0 group-hover:opacity-100 transform scale-90 group-hover:scale-100 transition-all duration-500"></div>
+                <div className="absolute inset-0 p-px rounded-lg overflow-hidden z-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500">
+                  <div className="absolute inset-0 bg-gradient-to-br from-blue-600/30 via-transparent to-blue-600/30 animate-rotate-gradient"></div>
+                </div>
+                <div className="relative py-8 px-4">
+                  <div className="mb-4 mx-auto w-12 h-12 rounded-full bg-gradient-to-br from-blue-900/50 to-indigo-900/50 flex items-center justify-center">
+                    <Gem className="w-6 h-6 text-blue-400" />
+                  </div>
+                  <div className="text-4xl font-extrabold mb-1">
+                    <span className="bg-gradient-to-r from-blue-400 to-indigo-400 bg-clip-text text-transparent">50M+</span>
+                  </div>
+                  <div className="text-slate-300 font-medium">Resources Mined</div>
+                </div>
+              </div>
+              {/* Submarines Stat */}
+              <div className="group relative">
+                <div className="absolute inset-0 bg-gradient-to-br from-teal-500/5 to-transparent rounded-lg opacity-0 group-hover:opacity-100 transform scale-90 group-hover:scale-100 transition-all duration-500"></div>
+                <div className="absolute inset-0 p-px rounded-lg overflow-hidden z-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500">
+                  <div className="absolute inset-0 bg-gradient-to-br from-teal-600/30 via-transparent to-teal-600/30 animate-rotate-gradient"></div>
+                </div>
+                <div className="relative py-8 px-4">
+                  <div className="mb-4 mx-auto w-12 h-12 rounded-full bg-gradient-to-br from-teal-900/50 to-emerald-900/50 flex items-center justify-center">
+                    <Anchor className="w-6 h-6 text-teal-400" />
+                  </div>
+                  <div className="text-4xl font-extrabold mb-1">
+                    <span className="bg-gradient-to-r from-teal-400 to-emerald-400 bg-clip-text text-transparent">8K+</span>
+                  </div>
+                  <div className="text-slate-300 font-medium">Submarines Built</div>
+                </div>
+              </div>
+              {/* Trading Volume */}
+              <div className="group relative">
+                <div className="absolute inset-0 bg-gradient-to-br from-purple-500/5 to-transparent rounded-lg opacity-0 group-hover:opacity-100 transform scale-90 group-hover:scale-100 transition-all duration-500"></div>
+                <div className="absolute inset-0 p-px rounded-lg overflow-hidden z-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500">
+                  <div className="absolute inset-0 bg-gradient-to-br from-purple-600/30 via-transparent to-purple-600/30 animate-rotate-gradient"></div>
+                </div>
+                <div className="relative py-8 px-4">
+                  <div className="mb-4 mx-auto w-12 h-12 rounded-full bg-gradient-to-br from-purple-900/50 to-indigo-900/50 flex items-center justify-center">
+                    <BarChart3 className="w-6 h-6 text-purple-400" />
+                  </div>
+                  <div className="text-4xl font-extrabold mb-1">
+                    <span className="bg-gradient-to-r from-purple-400 to-indigo-400 bg-clip-text text-transparent">120K</span>
+                  </div>
+                  <div className="text-slate-300 font-medium">Daily Trades</div>
+                </div>
+              </div>
+            </div>
+          
+          {/* Key Feature Highlights */}
+          <div className="grid md:grid-cols-3 gap-8 px-8 py-12 relative">
+            {/* Left illumination */}
+            <div className="absolute -left-10 top-1/2 transform -translate-y-1/2 w-20 h-64 bg-cyan-500/10 rounded-full blur-3xl"></div>
+            
+            {/* Feature 1 - Blockchain Verification */}
+            <div className="relative p-6 rounded-xl bg-gradient-to-br from-slate-800/50 to-slate-900/50 backdrop-blur-sm border border-slate-700/30 hover:border-cyan-500/20 transition-all duration-300 group">
+              <div className="absolute -inset-0.5 bg-gradient-to-r from-cyan-500/20 to-blue-500/20 rounded-xl blur opacity-0 group-hover:opacity-100 transition duration-500"></div>
+              <div className="relative">
+                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-cyan-900/70 to-blue-900/70 flex items-center justify-center mb-4">
+                  <Lock className="w-6 h-6 text-cyan-400" />
+                </div>
+                <h3 className="text-xl font-bold mb-3 text-white">Blockchain Verified</h3>
+                <p className="text-slate-300">All resources and submarines are secured on the blockchain with immutable proof of ownership.</p>
+              </div>
+            </div>
+            
+            {/* Feature 2 - Real Economics */}
+            <div className="relative p-6 rounded-xl bg-gradient-to-br from-slate-800/50 to-slate-900/50 backdrop-blur-sm border border-slate-700/30 hover:border-blue-500/20 transition-all duration-300 group">
+              <div className="absolute -inset-0.5 bg-gradient-to-r from-blue-500/20 to-purple-500/20 rounded-xl blur opacity-0 group-hover:opacity-100 transition duration-500"></div>
+              <div className="relative">
+                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-900/70 to-indigo-900/70 flex items-center justify-center mb-4">
+                  <LineChart className="w-6 h-6 text-blue-400" />
+                </div>
+                <h3 className="text-xl font-bold mb-3 text-white">Real Economics</h3>
+                <p className="text-slate-300">Experience a player-driven economy with supply and demand mechanics that affect resource values.</p>
+              </div>
+            </div>
+            
+            {/* Feature 3 - Global Community */}
+            <div className="relative p-6 rounded-xl bg-gradient-to-br from-slate-800/50 to-slate-900/50 backdrop-blur-sm border border-slate-700/30 hover:border-teal-500/20 transition-all duration-300 group">
+              <div className="absolute -inset-0.5 bg-gradient-to-r from-teal-500/20 to-green-500/20 rounded-xl blur opacity-0 group-hover:opacity-100 transition duration-500"></div>
+              <div className="relative">
+                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-teal-900/70 to-emerald-900/70 flex items-center justify-center mb-4">
+                  <Globe2 className="w-6 h-6 text-teal-400" />
+                </div>
+                <h3 className="text-xl font-bold mb-3 text-white">Global Community</h3>
+                <p className="text-slate-300">Join miners from over 50 countries working together in guilds or competing for rare discoveries.</p>
+              </div>
+            </div>
+            
+            {/* Right illumination */}
+            <div className="absolute -right-10 top-1/2 transform -translate-y-1/2 w-20 h-64 bg-blue-500/10 rounded-full blur-3xl"></div>
+          </div>
+        </div>
+      </section>
+
       {/* Immersive Call to Action Section */}
-      <div className="relative z-10 py-24 px-6 overflow-hidden">
-        {/* ...CTA section code... */}
-      </div>
+  <section className="relative z-10 py-24 px-6 overflow-hidden">
+  {/* ...existing code... */}
+  </section>
+        <div className="max-w-6xl mx-auto relative">
+          {/* Background Elements */}
+          <div className="absolute inset-0 opacity-70">
+            {/* Dynamic waves */}
+            <div 
+              className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-blue-900/30 to-transparent"
+              style={{
+                transform: `translateY(${Math.sin(Date.now() * 0.001) * 5}px)`,
+              }}
+            ></div>
+            
+            {/* Light rays */}
+            <div className="absolute top-0 left-1/4 w-1/2 h-full bg-gradient-to-b from-cyan-500/10 via-blue-500/5 to-transparent transform -rotate-45 blur-3xl"></div>
+            <div className="absolute top-0 right-1/3 w-1/3 h-full bg-gradient-to-b from-blue-500/10 via-teal-500/5 to-transparent transform rotate-45 blur-3xl"></div>
+          </div>
+          
+          {/* Floating bubbles for animation */}
+          {showParticles && [...Array(12)].map((_, i) => (
+            <div 
+              key={`cta-bubble-${i}`}
+              className="absolute rounded-full bg-gradient-to-br from-white/60 to-white/20"
+              style={{
+                width: `${Math.random() * 12 + 4}px`,
+                height: `${Math.random() * 12 + 4}px`,
+                left: `${Math.random() * 100}%`,
+                bottom: '0',
+                animation: `bubbleRiseSmall ${Math.random() * 15 + 6}s linear infinite ${Math.random() * 5}s`,
+                opacity: Math.random() * 0.4 + 0.2,
+              }}
+            ></div>
+          ))}
+          
+          <div 
+            className={`text-center max-w-3xl mx-auto py-16 px-6 relative transition-all duration-1000 transform ${animationLoaded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}
+            style={{ transitionDelay: '400ms' }}
+          >
+            <div className="mb-6">
+              <Anchor className="w-16 h-16 text-cyan-400 mx-auto" />
+            </div>
+            
+            <h2 className="text-4xl md:text-5xl font-bold mb-6 bg-gradient-to-r from-cyan-300 via-blue-300 to-teal-300 bg-clip-text text-transparent">
+              Ready to Explore the Depths?
+            </h2>
+            
+            <p className="text-slate-300 text-xl mb-10 max-w-xl mx-auto">
+              Join thousands of explorers in the most immersive underwater mining experience. 
+              Create your account now and begin your deep sea adventure!
+            </p>
+            
+            <div className="relative inline-block group">
+              {/* Button glow effect */}
+              <div className="absolute -inset-1 bg-gradient-to-r from-cyan-600 to-blue-600 rounded-xl blur opacity-75 group-hover:opacity-100 transition duration-1000 group-hover:duration-200 animate-pulse-slow"></div>
+              
+              <Button
+                size="lg"
+                onClick={handleSignUp}
+                className="relative bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white px-10 py-6 text-lg font-semibold shadow-glow hover:shadow-glow-strong rounded-xl group overflow-hidden"
+              >
+                <div className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/10 to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000"></div>
+                <Radar className="w-6 h-6 mr-3 animate-spin-slow" />
+                <span>Start Mining Now</span>
+              </Button>
+            </div>
+          </div>
+        </div>
+  {/* ...existing code... */}
+
       {/* Enhanced Footer */}
       <footer className="relative z-10 border-t border-slate-800/50 pt-16 pb-12 px-6 bg-slate-900/80">
         <div className="max-w-6xl mx-auto">
@@ -1011,6 +1346,7 @@ export default function LandingPage() {
           </div>
         </div>
       </footer>
+
     </div>
   )
 }

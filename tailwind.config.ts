@@ -1,7 +1,20 @@
 import type { Config } from "tailwindcss";
 
 const config: Config = {
-    darkMode: ["class"],
+		darkMode: ["class"],
+		safelist: [
+			// For AnimatedFish and Seaweed dynamic color classes
+			'bg-cyan-500/40', 'bg-cyan-400/70', 'bg-cyan-300/40',
+			'bg-blue-500/40', 'bg-blue-400/70', 'bg-blue-300/40',
+			'bg-teal-500/40', 'bg-teal-400/70', 'bg-teal-300/40',
+			'bg-green-500/40', 'bg-green-400/70', 'bg-green-300/40',
+			'bg-emerald-500/40', 'bg-emerald-400/70', 'bg-emerald-300/40',
+			'bg-cyan-600/40', 'bg-cyan-400/30', 'bg-cyan-400/20',
+			'bg-blue-600/40', 'bg-blue-400/30', 'bg-blue-400/20',
+			'bg-teal-600/40', 'bg-teal-400/30', 'bg-teal-400/20',
+			'bg-green-600/40', 'bg-green-400/30', 'bg-green-400/20',
+			'bg-emerald-600/40', 'bg-emerald-400/30', 'bg-emerald-400/20',
+		],
     content: [
     "./pages/**/*.{js,ts,jsx,tsx,mdx}",
     "./components/**/*.{js,ts,jsx,tsx,mdx}",
