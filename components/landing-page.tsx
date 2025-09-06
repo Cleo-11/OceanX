@@ -948,55 +948,52 @@ export default function LandingPage() {
               </div>
               
               {/* Ecosystem nodes */}
-              <div className="absolute top-1/4 left-1/4 transform -translate-x-1/2 -translate-y-1/2">
+              {/* Use valid percentages and center nodes symmetrically around the hub */}
+              {/* Top Left - Community */}
+              <div className="absolute" style={{ top: '15%', left: '25%', transform: 'translate(-50%, -50%)' }}>
                 <div className="relative">
                   <div className="absolute -inset-2 rounded-full bg-blue-500/20 blur-md animate-pulse-slow"></div>
                   <div className="relative w-16 h-16 rounded-full bg-gradient-to-br from-blue-900/70 to-slate-900/70 flex items-center justify-center border border-blue-500/30"
-                    style={{
-                      boxShadow: '0 0 15px rgba(37, 99, 235, 0.3)'
-                    }}
+                    style={{ boxShadow: '0 0 15px rgba(37, 99, 235, 0.3)' }}
                   >
                     <Users className="w-8 h-8 text-blue-400" />
                   </div>
                 </div>
                 <div className="mt-2 text-center text-sm text-blue-300 font-medium">Community</div>
               </div>
-              
-              <div className="absolute top-1/5 right-1/4 transform translate-x-1/2 -translate-y-1/2">
+
+              {/* Top Right - Resources */}
+              <div className="absolute" style={{ top: '15%', right: '25%', transform: 'translate(50%, -50%)' }}>
                 <div className="relative">
                   <div className="absolute -inset-2 rounded-full bg-teal-500/20 blur-md animate-pulse-slow"></div>
                   <div className="relative w-16 h-16 rounded-full bg-gradient-to-br from-teal-900/70 to-slate-900/70 flex items-center justify-center border border-teal-500/30"
-                    style={{
-                      boxShadow: '0 0 15px rgba(20, 184, 166, 0.3)'
-                    }}
+                    style={{ boxShadow: '0 0 15px rgba(20, 184, 166, 0.3)' }}
                   >
                     <Gem className="w-8 h-8 text-teal-400" />
                   </div>
                 </div>
                 <div className="mt-2 text-center text-sm text-teal-300 font-medium">Resources</div>
               </div>
-              
-              <div className="absolute bottom-1/4 left-1/5 transform -translate-x-1/2 translate-y-1/2">
+
+              {/* Bottom Left - Security */}
+              <div className="absolute" style={{ bottom: '15%', left: '25%', transform: 'translate(-50%, 50%)' }}>
                 <div className="relative">
                   <div className="absolute -inset-2 rounded-full bg-purple-500/20 blur-md animate-pulse-slow"></div>
                   <div className="relative w-16 h-16 rounded-full bg-gradient-to-br from-purple-900/70 to-slate-900/70 flex items-center justify-center border border-purple-500/30"
-                    style={{
-                      boxShadow: '0 0 15px rgba(168, 85, 247, 0.3)'
-                    }}
+                    style={{ boxShadow: '0 0 15px rgba(168, 85, 247, 0.3)' }}
                   >
                     <ShieldCheck className="w-8 h-8 text-purple-400" />
                   </div>
                 </div>
                 <div className="mt-2 text-center text-sm text-purple-300 font-medium">Security</div>
               </div>
-              
-              <div className="absolute bottom-1/4 right-1/5 transform translate-x-1/2 translate-y-1/2">
+
+              {/* Bottom Right - Market */}
+              <div className="absolute" style={{ bottom: '15%', right: '25%', transform: 'translate(50%, 50%)' }}>
                 <div className="relative">
                   <div className="absolute -inset-2 rounded-full bg-amber-500/20 blur-md animate-pulse-slow"></div>
                   <div className="relative w-16 h-16 rounded-full bg-gradient-to-br from-amber-900/70 to-slate-900/70 flex items-center justify-center border border-amber-500/30"
-                    style={{
-                      boxShadow: '0 0 15px rgba(245, 158, 11, 0.3)'
-                    }}
+                    style={{ boxShadow: '0 0 15px rgba(245, 158, 11, 0.3)' }}
                   >
                     <BarChart3 className="w-8 h-8 text-amber-400" />
                   </div>
