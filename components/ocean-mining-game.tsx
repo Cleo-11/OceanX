@@ -131,11 +131,36 @@ export function OceanMiningGame({
   })
 
   // Generate initial resource nodes immediately when component mounts
-  // Multiplayer disabled: skip websocket/game session init
+  // Restore backend and database connectivity, but keep multiplayer visuals disabled
   useEffect(() => {
     generateInitialResourceNodes();
-    // Multiplayer logic is disabled for single player mode
-  }, []);
+    const init = async () => {
+      try {
+        setConnectionStatus("connecting");
+        await wsManager.connect();
+        // Only listen for resource/game state and player data, not multiplayer events
+        wsManager.on("game-state", handleGameState);
+        wsManager.on("resource-mined", handleResourceMined);
+        wsManager.on("error", handleWebSocketError);
+        const connection = walletManager.getConnection();
+        if (connection) {
+          setWalletAddress(connection.address);
+          wsManager.joinSession(connection.address, "global");
+          await loadPlayerData(connection.address);
+        } else {
+          console.warn("[OceanMiningGame] walletManager.getConnection() returned null or undefined");
+        }
+        setConnectionStatus("connected");
+      } catch (error) {
+        console.error("Failed to initialize game:", error);
+        setConnectionStatus("disconnected");
+      }
+    };
+    if (walletConnected) {
+      init();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [walletConnected]);
 
   // Generate resource nodes function
   const generateInitialResourceNodes = () => {
