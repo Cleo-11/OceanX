@@ -7,11 +7,14 @@ const cors = require("cors");
 const { createClient } = require("@supabase/supabase-js");
 require("dotenv").config();
 
+// Initialize express app BEFORE using it
+const app = express();
+const server = http.createServer(app);
+
 // Add body parser middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-const app = express();
-const server = http.createServer(app);
+
 
 console.log("🌊 Starting OceanX Backend Server...");
 console.log("Environment:", process.env.NODE_ENV || "development");
