@@ -61,7 +61,8 @@ export function OceanMiningGame({
   // Player stats and resources
   const [playerTier, setPlayerTier] = useState(1)
   const [sessionId, setSessionId] = useState<string | null>(null)
-  const [otherPlayers, setOtherPlayers] = useState<OtherPlayer[]>([])
+  // Multiplayer disabled: Only single player state is used
+  // const [otherPlayers, setOtherPlayers] = useState<OtherPlayer[]>([])
   const [walletAddress, setWalletAddress] = useState<string>("")
   const submarineData = getSubmarineByTier(playerTier)
 
@@ -130,38 +131,11 @@ export function OceanMiningGame({
   })
 
   // Generate initial resource nodes immediately when component mounts
+  // Multiplayer disabled: skip websocket/game session init
   useEffect(() => {
     generateInitialResourceNodes();
-    const init = async () => {
-      try {
-        setConnectionStatus("connecting");
-        await wsManager.connect();
-        wsManager.on("game-state", handleGameState);
-        wsManager.on("player-joined", handlePlayerJoined);
-        wsManager.on("player-left", handlePlayerLeft);
-        wsManager.on("player-moved", handlePlayerMoved);
-        wsManager.on("resource-mined", handleResourceMined);
-        wsManager.on("error", handleWebSocketError);
-        const connection = walletManager.getConnection();
-        if (connection) {
-          setWalletAddress(connection.address);
-          console.log("[OceanMiningGame] Calling wsManager.joinSession with:", { address: connection.address, sessionId: "global" });
-          wsManager.joinSession(connection.address, "global");
-          await loadPlayerData(connection.address);
-        } else {
-          console.warn("[OceanMiningGame] walletManager.getConnection() returned null or undefined");
-        }
-        setConnectionStatus("connected");
-      } catch (error) {
-        console.error("Failed to initialize game:", error);
-        setConnectionStatus("disconnected");
-      }
-    };
-    if (walletConnected) {
-      init();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [walletConnected]);
+    // Multiplayer logic is disabled for single player mode
+  }, []);
 
   // Generate resource nodes function
   const generateInitialResourceNodes = () => {
@@ -178,7 +152,7 @@ export function OceanMiningGame({
           y: Math.random() * 1800 + 100,
         },
         type: types[Math.floor(Math.random() * types.length)],
-        amount: Math.floor(Math.random() * 15) + 5, // 5-20 resources per node
+  amount: Math.floor(Math.random() * 11) + 5, // 5-15 resources per node
         depleted: false,
         size: Math.random() * 10 + 15, // Size between 15-25 for rendering
       }
@@ -283,72 +257,15 @@ export function OceanMiningGame({
           };
         });
       
-      console.log("Setting other players:", otherPlayersData);
-      setOtherPlayers(otherPlayersData);
+  // Multiplayer disabled: no other players to set
     }
   }
 
-  const handlePlayerJoined = (data: any) => {
-    console.log("Player joined:", data);
-    const playerId = data.id || data.walletAddress;
-    
-    // Skip adding self
-    if (playerId === walletManager.getConnection()?.address) {
-      console.log("Skipping self in player-joined");
-      return;
-    }
-    
-    setOtherPlayers((prev) => {
-      // Avoid duplicates
-      if (prev.some((p) => p.id === playerId)) return prev;
-      
-      // Convert to OtherPlayer format
-      const newPlayer: OtherPlayer = {
-        id: playerId,
-        username: data.username || `Player-${playerId.substring(0, 6)}`,
-        position: { 
-          x: data.position?.x || 0, 
-          y: data.position?.y || 0 
-        },
-        rotation: data.position?.rotation || 0,
-        submarineType: data.submarineTier || 1
-      };
-      
-      console.log("Adding new player:", newPlayer);
-      return [...prev, newPlayer];
-    });
-  }
+  // Multiplayer disabled: no other players to add
 
-  const handlePlayerLeft = (data: any) => {
-    console.log("Player left:", data);
-    const playerId = data.id || data.walletAddress;
-    setOtherPlayers((prev) => prev.filter((p) => p.id !== playerId));
-  }
+  // Multiplayer disabled: no other players to remove
 
-  const handlePlayerMoved = (data: any) => {
-    console.log("Player moved:", data);
-    const playerId = data.id || data.walletAddress;
-    
-    // Skip updating self
-    if (playerId === walletManager.getConnection()?.address) {
-      console.log("Skipping self in player-moved");
-      return;
-    }
-    
-    setOtherPlayers((prev) => prev.map((p) => {
-      if (p.id === playerId) {
-        return {
-          ...p,
-          position: {
-            x: data.position?.x !== undefined ? data.position.x : p.position.x,
-            y: data.position?.y !== undefined ? data.position.y : p.position.y
-          },
-          rotation: data.position?.rotation !== undefined ? data.position.rotation : p.rotation
-        };
-      }
-      return p;
-    }));
-  }
+  // Multiplayer disabled: no other players to update
 
   const handleResourceMined = (data: any) => {
     setResourceNodes((prev) =>
@@ -571,8 +488,8 @@ export function OceanMiningGame({
     const canvas = canvasRef.current
     if (canvas) {
       setViewportOffset({
-        x: Math.max(0, Math.min(1000, newX - canvas.width / 2)),
-        y: Math.max(0, Math.min(1000, newY - canvas.height / 2)),
+        x: newX - canvas.width / 2,
+        y: newY - canvas.height / 2,
       })
     }
   }
@@ -790,20 +707,7 @@ export function OceanMiningGame({
       ctx.fillText(`Nodes: ${resourceNodes.length} | Visible: ${visibleNodes}`, 10, 30)
     }
 
-    // Draw other players
-    otherPlayers.forEach((player) => {
-      const screenX = player.position.x - viewportOffset.x
-      const screenY = player.position.y - viewportOffset.y
-
-      if (screenX > -50 && screenX < canvas.width + 50 && screenY > -50 && screenY < canvas.height + 50) {
-  drawSubmarine(ctx, screenX, screenY, player.rotation || 0, "#22d3ee", 1, false)
-
-        ctx.fillStyle = "#ffffff"
-        ctx.font = "12px Arial"
-        ctx.textAlign = "center"
-        ctx.fillText(player.username || `${player.id.slice(0, 6)}...`, screenX, screenY - 40)
-      }
-    })
+  // Multiplayer disabled: no other players to draw
 
     // Draw player submarine
     const screenX = playerPosition.x - viewportOffset.x
@@ -1271,7 +1175,7 @@ export function OceanMiningGame({
             <SonarRadar
               playerPosition={playerPosition}
               resourceNodes={resourceNodes}
-              otherPlayers={otherPlayers}
+              otherPlayers={[]}
               viewportOffset={viewportOffset}
             />
           </div>
@@ -1393,7 +1297,7 @@ export function OceanMiningGame({
           <div className="absolute bottom-4 left-4 rounded-lg bg-slate-900/70 p-3 text-xs text-slate-300 backdrop-blur-sm">
             <div className="mb-1 font-bold text-cyan-400">SESSION INFO</div>
             <div>Session: {sessionId.slice(-8)}</div>
-            <div>Players: {otherPlayers.length + 1}/20</div>
+            <div>Players: 1/1 (Single Player Mode)</div>
             <div>Status: {connectionStatus}</div>
           </div>
         )}
