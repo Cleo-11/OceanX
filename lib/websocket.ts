@@ -110,6 +110,7 @@ export class WebSocketManager {
 
   sendPlayerMove(position: { x: number; y: number; rotation: number }, walletAddress: string, sessionId: string): void {
     if (!this.socket) return
+    console.log("Sending player move:", { walletAddress, sessionId, position });
     this.socket.emit("player-move", { walletAddress, sessionId, position })
   }
 

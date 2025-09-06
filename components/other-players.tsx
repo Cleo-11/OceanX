@@ -32,6 +32,9 @@ function OtherPlayerSubmarine({ player }: OtherPlayerSubmarineProps) {
   const submarineData = getSubmarineByTier(player.submarineType)
   const submarineColor = submarineData.color
 
+  console.log(`Rendering submarine for player ${player.id} at position:`, player.position, 
+              "rotation:", player.rotation, "submarineType:", player.submarineType);
+
   useFrame((state, delta) => {
     if (propellerRef.current) {
       // Rotate propeller
@@ -41,12 +44,15 @@ function OtherPlayerSubmarine({ player }: OtherPlayerSubmarineProps) {
     if (groupRef.current) {
       // Gentle bobbing motion
       groupRef.current.position.y =
-        player.position[1] + Math.sin(state.clock.elapsedTime * 0.5 + player.position[0]) * 0.1
+        player.position.y + Math.sin(state.clock.elapsedTime * 0.5 + player.position.x) * 0.1
     }
   })
 
   return (
-    <group ref={groupRef} position={player.position} rotation={player.rotation}>
+    <group 
+      ref={groupRef} 
+      position={[player.position.x, player.position.y, 0] as [number, number, number]} 
+      rotation={[0, 0, player.rotation] as [number, number, number]}>
       {/* Main body */}
       <mesh castShadow>
         <capsuleGeometry args={[0.5, 1.5, 16, 16]} />

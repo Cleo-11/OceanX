@@ -246,29 +246,108 @@ export function OceanMiningGame({
 
   // WebSocket event handlers
   const handleGameState = (state: any) => {
-    if (state.resourceNodes && state.resourceNodes.length > 0) {
-      setResourceNodes(state.resourceNodes)
+    console.log("Received game state:", state);
+    
+    // Handle resource nodes
+    if (state.resources && state.resources.length > 0) {
+      setResourceNodes(state.resources);
+    } else if (state.resourceNodes && state.resourceNodes.length > 0) {
+      setResourceNodes(state.resourceNodes);
     }
-    // Map players to OtherPlayer shape
-    setOtherPlayers(
-      (state.players || []).filter((p: any) => p.id !== walletManager.getConnection()?.address)
-    )
+    
+    // Handle players - map server player format to OtherPlayer format
+    if (state.players && Array.isArray(state.players)) {
+      const currentWalletAddress = walletManager.getConnection()?.address;
+      console.log("Current wallet address:", currentWalletAddress);
+      console.log("All players in state:", state.players);
+      
+      const otherPlayersData = state.players
+        .filter((p: any) => {
+          const playerId = p.id || p.walletAddress;
+          const isCurrentPlayer = playerId && playerId.toLowerCase() === (currentWalletAddress || '').toLowerCase();
+          console.log(`Player ${playerId}, isCurrentPlayer: ${isCurrentPlayer}`);
+          return !isCurrentPlayer;
+        })
+        .map((p: any) => {
+          // Convert server player format to OtherPlayer format
+          const posX = p.position?.x || 0;
+          const posY = p.position?.y || 0;
+          const rotation = p.position?.rotation || 0;
+          
+          return {
+            id: p.id || p.walletAddress,
+            username: p.username || `Player-${(p.id || p.walletAddress)?.substring(0, 6) || ''}`,
+            position: { x: posX, y: posY },
+            rotation: rotation,
+            submarineType: p.submarineTier || 1
+          };
+        });
+      
+      console.log("Setting other players:", otherPlayersData);
+      setOtherPlayers(otherPlayersData);
+    }
   }
 
   const handlePlayerJoined = (data: any) => {
+    console.log("Player joined:", data);
+    const playerId = data.id || data.walletAddress;
+    
+    // Skip adding self
+    if (playerId === walletManager.getConnection()?.address) {
+      console.log("Skipping self in player-joined");
+      return;
+    }
+    
     setOtherPlayers((prev) => {
       // Avoid duplicates
-      if (prev.some((p) => p.id === data.id)) return prev
-      return [...prev, data]
-    })
+      if (prev.some((p) => p.id === playerId)) return prev;
+      
+      // Convert to OtherPlayer format
+      const newPlayer: OtherPlayer = {
+        id: playerId,
+        username: data.username || `Player-${playerId.substring(0, 6)}`,
+        position: { 
+          x: data.position?.x || 0, 
+          y: data.position?.y || 0 
+        },
+        rotation: data.position?.rotation || 0,
+        submarineType: data.submarineTier || 1
+      };
+      
+      console.log("Adding new player:", newPlayer);
+      return [...prev, newPlayer];
+    });
   }
 
   const handlePlayerLeft = (data: any) => {
-    setOtherPlayers((prev) => prev.filter((p) => p.id !== data.id))
+    console.log("Player left:", data);
+    const playerId = data.id || data.walletAddress;
+    setOtherPlayers((prev) => prev.filter((p) => p.id !== playerId));
   }
 
   const handlePlayerMoved = (data: any) => {
-    setOtherPlayers((prev) => prev.map((p) => (p.id === data.id ? { ...p, position: data.position, rotation: data.rotation } : p)))
+    console.log("Player moved:", data);
+    const playerId = data.id || data.walletAddress;
+    
+    // Skip updating self
+    if (playerId === walletManager.getConnection()?.address) {
+      console.log("Skipping self in player-moved");
+      return;
+    }
+    
+    setOtherPlayers((prev) => prev.map((p) => {
+      if (p.id === playerId) {
+        return {
+          ...p,
+          position: {
+            x: data.position?.x !== undefined ? data.position.x : p.position.x,
+            y: data.position?.y !== undefined ? data.position.y : p.position.y
+          },
+          rotation: data.position?.rotation !== undefined ? data.position.rotation : p.rotation
+        };
+      }
+      return p;
+    }));
   }
 
   const handleResourceMined = (data: any) => {
