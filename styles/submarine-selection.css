@@ -1,0 +1,125 @@
+/* Submarine Selection Styles */
+
+.submarine-selection-backdrop {
+  background: radial-gradient(circle at center, rgba(8, 47, 73, 0.8) 0%, rgba(0, 10, 30, 0.95) 100%);
+}
+
+.submarine-glow {
+  position: relative;
+}
+
+.submarine-glow::before {
+  content: '';
+  position: absolute;
+  top: -10px;
+  left: -10px;
+  right: -10px;
+  bottom: -10px;
+  border-radius: 16px;
+  background: linear-gradient(45deg, rgba(6, 182, 212, 0.5), rgba(59, 130, 246, 0.5));
+  filter: blur(15px);
+  opacity: 0;
+  z-index: -1;
+  transition: opacity 0.3s ease-in-out;
+}
+
+.submarine-glow.active::before {
+  opacity: 1;
+}
+
+.submarine-model {
+  transition: transform 0.5s ease, filter 0.5s ease;
+}
+
+.submarine-model.active {
+  transform: scale(1.05);
+}
+
+.submarine-viewport {
+  position: relative;
+  overflow: hidden;
+}
+
+.submarine-viewport::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(135deg, rgba(125, 211, 252, 0.3) 0%, rgba(125, 211, 252, 0) 50%);
+  border-radius: 50%;
+}
+
+.submarine-stats-bar {
+  height: 8px;
+  background: rgba(8, 145, 178, 0.3);
+  border-radius: 4px;
+  overflow: hidden;
+  position: relative;
+}
+
+.submarine-stats-bar .fill {
+  height: 100%;
+  background: linear-gradient(90deg, rgb(6, 182, 212), rgb(59, 130, 246));
+  border-radius: 4px;
+  transition: width 0.5s ease;
+}
+
+.stat-label {
+  font-size: 0.7rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: rgba(125, 211, 252, 0.8);
+  margin-bottom: 2px;
+}
+
+/* Button styles */
+.play-button {
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s ease;
+}
+
+.play-button::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, 
+    rgba(255, 255, 255, 0) 0%, 
+    rgba(255, 255, 255, 0.2) 50%, 
+    rgba(255, 255, 255, 0) 100%
+  );
+  animation: shimmer 3s infinite;
+}
+
+@keyframes shimmer {
+  0% { left: -100%; }
+  100% { left: 100%; }
+}
+
+.title-glow {
+  text-shadow: 0 0 10px rgba(6, 182, 212, 0.5), 0 0 20px rgba(6, 182, 212, 0.3);
+}
+
+/* Water caustics effect for background */
+.caustics-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: url('/water-caustics.png') repeat;
+  opacity: 0.1;
+  mix-blend-mode: screen;
+  animation: caustics-move 20s linear infinite;
+  pointer-events: none;
+}
+
+@keyframes caustics-move {
+  0% { background-position: 0% 0%; }
+  100% { background-position: 100% 100%; }
+}

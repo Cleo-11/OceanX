@@ -1,0 +1,616 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+@import '../styles/blockchain-effects.css';
+@import '../styles/submarine-selection.css';
+
+body {
+  font-family: Arial, Helvetica, sans-serif;
+  overflow-x: hidden;
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+
+/* Ocean Bubble Animations */
+@keyframes bubbleRise {
+  0% {
+    transform: translateY(100vh) scale(0.1);
+    opacity: 0;
+  }
+  20% {
+    opacity: var(--opacity, 0.3);
+  }
+  80% {
+    opacity: var(--opacity, 0.3);
+  }
+  100% {
+    transform: translateY(-100px) translateX(calc(var(--drift, 0) * 100px)) scale(var(--scale, 1));
+    opacity: 0;
+  }
+}
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 0 0% 3.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 3.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 3.9%;
+    --primary: 0 0% 9%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 0 0% 96.1%;
+    --secondary-foreground: 0 0% 9%;
+    --muted: 0 0% 96.1%;
+    --muted-foreground: 0 0% 45.1%;
+    --accent: 0 0% 96.1%;
+    --accent-foreground: 0 0% 9%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 89.8%;
+    --input: 0 0% 89.8%;
+    --ring: 0 0% 3.9%;
+    --chart-1: 12 76% 61%;
+    --chart-2: 173 58% 39%;
+    --chart-3: 197 37% 24%;
+    --chart-4: 43 74% 66%;
+    --chart-5: 27 87% 67%;
+    --radius: 0.5rem;
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 240 5.3% 26.1%;
+    --sidebar-primary: 240 5.9% 10%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 240 4.8% 95.9%;
+    --sidebar-accent-foreground: 240 5.9% 10%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+  .dark {
+    --background: 0 0% 3.9%;
+    --foreground: 0 0% 98%;
+    --card: 0 0% 3.9%;
+    --card-foreground: 0 0% 98%;
+    --popover: 0 0% 3.9%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 0 0% 98%;
+    --primary-foreground: 0 0% 9%;
+    --secondary: 0 0% 14.9%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 0 0% 14.9%;
+    --muted-foreground: 0 0% 63.9%;
+    --accent: 0 0% 14.9%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 14.9%;
+    --input: 0 0% 14.9%;
+    --ring: 0 0% 83.1%;
+    --chart-1: 220 70% 50%;
+    --chart-2: 160 60% 45%;
+    --chart-3: 30 80% 55%;
+    --chart-4: 280 65% 60%;
+    --chart-5: 340 75% 55%;
+    --sidebar-background: 240 5.9% 10%;
+    --sidebar-foreground: 240 4.8% 95.9%;
+    --sidebar-primary: 224.3 76.3% 48%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 3.7% 15.9%;
+    --sidebar-accent-foreground: 240 4.8% 95.9%;
+    --sidebar-border: 240 3.7% 15.9%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* Ocean Background Animations */
+@keyframes bubbleRise {
+  0% {
+    transform: translateY(100vh) scale(0.1);
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(-100px) scale(1);
+    opacity: 0;
+  }
+}
+
+@keyframes fishSwimLeft {
+  0% {
+    transform: translateX(100vw) translateY(0px);
+  }
+  100% {
+    transform: translateX(-200px) translateY(-10px);
+  }
+}
+
+@keyframes fishSwimRight {
+  0% {
+    transform: translateX(-200px) translateY(0px) scaleX(-1);
+  }
+  100% {
+    transform: translateX(100vw) translateY(10px) scaleX(-1);
+  }
+}
+
+@keyframes seaweedSway {
+  0%,
+  100% {
+    transform: rotate(-3deg);
+  }
+  50% {
+    transform: rotate(3deg);
+  }
+}
+
+@keyframes kelpSway {
+  0%,
+  100% {
+    transform: rotate(-2deg) scaleY(1);
+  }
+  33% {
+    transform: rotate(1deg) scaleY(1.05);
+  }
+  66% {
+    transform: rotate(2deg) scaleY(0.95);
+  }
+}
+
+@keyframes coralGlow {
+  0%,
+  100% {
+    opacity: 0.6;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.9;
+    transform: scale(1.05);
+  }
+}
+
+@keyframes particleFloat {
+  0%,
+  100% {
+    transform: translateY(0px) translateX(0px);
+    opacity: 0.3;
+  }
+  25% {
+    transform: translateY(-15px) translateX(8px);
+    opacity: 0.7;
+  }
+  50% {
+    transform: translateY(-8px) translateX(-5px);
+    opacity: 0.5;
+  }
+  75% {
+    transform: translateY(-20px) translateX(12px);
+    opacity: 0.8;
+  }
+}
+
+@keyframes sunlightRay {
+  0%,
+  100% {
+    opacity: 0.1;
+    transform: translateX(-5px);
+  }
+  50% {
+    opacity: 0.3;
+    transform: translateX(5px);
+  }
+}
+
+/* Ocean Elements */
+.ocean-background {
+  background: linear-gradient(180deg, #0a1128 0%, #001f54 25%, #034078 50%, #0a1128 100%);
+}
+
+.bubble {
+  position: absolute;
+  background: radial-gradient(circle, rgba(173, 216, 230, 0.8) 0%, rgba(173, 216, 230, 0.3) 70%, transparent 100%);
+  border-radius: 50%;
+  animation: bubbleRise linear infinite;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.fish-shadow {
+  position: absolute;
+  width: 40px;
+  height: 15px;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%;
+  z-index: 1;
+  filter: blur(1px);
+}
+
+.fish-shadow::after {
+  content: "";
+  position: absolute;
+  right: -12px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 0;
+  height: 0;
+  border-left: 12px solid rgba(0, 0, 0, 0.3);
+  border-top: 6px solid transparent;
+  border-bottom: 6px solid transparent;
+  filter: blur(1px);
+}
+
+.fish-left {
+  animation: fishSwimLeft linear infinite;
+}
+
+.fish-right {
+  animation: fishSwimRight linear infinite;
+}
+
+.seaweed {
+  position: absolute;
+  background: linear-gradient(to top, #1a5f1a 0%, #2d8f2d 50%, #40bf40 100%);
+  border-radius: 4px 4px 0 0;
+  transform-origin: bottom center;
+  animation: seaweedSway ease-in-out infinite;
+  z-index: 1;
+  opacity: 0.7;
+}
+
+.kelp {
+  position: absolute;
+  background: linear-gradient(to top, #0d4d0d 0%, #1a6b1a 30%, #267a26 60%, #339933 100%);
+  border-radius: 8px 8px 0 0;
+  transform-origin: bottom center;
+  animation: kelpSway ease-in-out infinite;
+  z-index: 1;
+  opacity: 0.6;
+}
+
+.kelp::before {
+  content: "";
+  position: absolute;
+  top: 20%;
+  left: -6px;
+  width: 8px;
+  height: 20px;
+  background: linear-gradient(45deg, #1a6b1a 0%, #267a26 100%);
+  border-radius: 50%;
+  opacity: 0.8;
+}
+
+.kelp::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  right: -4px;
+  width: 6px;
+  height: 15px;
+  background: linear-gradient(-45deg, #1a6b1a 0%, #267a26 100%);
+  border-radius: 50%;
+  opacity: 0.8;
+}
+
+.coral {
+  position: absolute;
+  border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%;
+  z-index: 1;
+  animation: coralGlow ease-in-out infinite;
+}
+
+.coral::before {
+  content: "";
+  position: absolute;
+  top: -8px;
+  left: 3px;
+  width: 15px;
+  height: 15px;
+  background: radial-gradient(circle, rgba(255, 138, 128, 0.8) 0%, rgba(255, 107, 107, 0.6) 100%);
+  border-radius: 50%;
+}
+
+.coral::after {
+  content: "";
+  position: absolute;
+  top: -4px;
+  right: 2px;
+  width: 10px;
+  height: 10px;
+  background: radial-gradient(circle, rgba(255, 171, 145, 0.8) 0%, rgba(255, 138, 101, 0.6) 100%);
+  border-radius: 50%;
+}
+
+.water-particle {
+  position: absolute;
+  background: rgba(173, 216, 230, 0.6);
+  border-radius: 50%;
+  animation: particleFloat ease-in-out infinite;
+  z-index: 1;
+}
+
+.sunlight-ray {
+  position: absolute;
+  background: linear-gradient(to bottom, rgba(255, 255, 255, 0.1) 0%, rgba(173, 216, 230, 0.05) 50%, transparent 100%);
+  animation: sunlightRay ease-in-out infinite;
+  z-index: 0;
+}
+
+.ocean-floor {
+  background: linear-gradient(
+    180deg,
+    rgba(139, 119, 101, 0.3) 0%,
+    rgba(160, 140, 120, 0.5) 50%,
+    rgba(139, 119, 101, 0.7) 100%
+  );
+}
+
+.ocean-floor::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-image: radial-gradient(circle at 20% 20%, rgba(160, 140, 120, 0.3) 1px, transparent 1px),
+    radial-gradient(circle at 80% 40%, rgba(139, 119, 101, 0.2) 1px, transparent 1px),
+    radial-gradient(circle at 40% 80%, rgba(160, 140, 120, 0.25) 1px, transparent 1px);
+  background-size: 50px 50px, 30px 30px, 70px 70px;
+  opacity: 0.6;
+}
+
+/* Advanced Submarine Animations */
+@keyframes waterCaustics {
+  0% {
+    background-position: 0% 0%;
+  }
+  50% {
+    background-position: 100% 100%;
+  }
+  100% {
+    background-position: 0% 0%;
+  }
+}
+
+@keyframes bubbleRiseSmall {
+  0% {
+    transform: translateY(0) translateX(0) scale(0.8);
+    opacity: 0;
+  }
+  20% {
+    opacity: var(--bubble-opacity, 0.4);
+  }
+  80% {
+    opacity: var(--bubble-opacity, 0.4);
+  }
+  100% {
+    transform: translateY(-60px) translateX(calc(var(--bubble-drift, 0) * 20px)) scale(1);
+    opacity: 0;
+  }
+}
+
+@keyframes propellerCurrent {
+  0% {
+    transform: translateX(0px);
+    opacity: 0.4;
+  }
+  100% {
+    transform: translateX(-20px);
+    opacity: 0;
+  }
+}
+
+@keyframes fishSchool {
+  0% {
+    transform: translateX(-10px);
+  }
+  100% {
+    transform: translateX(calc(100vw + 20px));
+  }
+}
+
+@keyframes fishSchoolReverse {
+  0% {
+    transform: translateX(calc(100vw + 20px));
+  }
+  100% {
+    transform: translateX(-10px);
+  }
+}
+
+@keyframes fishWiggle {
+  0%, 100% {
+    transform: translateY(0px) rotate(0deg);
+  }
+  25% {
+    transform: translateY(1px) rotate(2deg);
+  }
+  75% {
+    transform: translateY(-1px) rotate(-2deg);
+  }
+}
+
+@keyframes floatAround {
+  0%, 100% {
+    transform: translateY(0px) translateX(0px);
+  }
+  25% {
+    transform: translateY(-10px) translateX(5px);
+  }
+  50% {
+    transform: translateY(-5px) translateX(10px);
+  }
+  75% {
+    transform: translateY(5px) translateX(-5px);
+  }
+}
+
+@keyframes rotate-gradient {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes glow-pulse {
+  0%, 100% {
+    opacity: 0.5;
+    transform: scale(0.95);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.05);
+  }
+}
+
+/* Animation utilities */
+.animate-float {
+  animation: float 6s ease-in-out infinite;
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+.animate-spin-slow {
+  animation: spin 4s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-pulse-slow {
+  animation: pulse-slow 3s ease-in-out infinite;
+}
+
+@keyframes pulse-slow {
+  0%, 100% {
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.animate-glow {
+  animation: glow 4s ease-in-out infinite;
+}
+
+@keyframes glow {
+  0%, 100% {
+    opacity: 0.3;
+    box-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+  }
+  50% {
+    opacity: 0.8;
+    box-shadow: 0 0 20px rgba(255, 255, 255, 0.8);
+  }
+}
+
+.shadow-glow {
+  box-shadow: 0 0 15px rgba(8, 145, 178, 0.6);
+}
+
+.shadow-glow-strong {
+  box-shadow: 0 0 20px rgba(6, 182, 212, 0.8), inset 0 0 10px rgba(155, 223, 238, 0.5);
+}
+
+.shadow-inner-glow {
+  box-shadow: inset 0 0 12px rgba(0, 0, 0, 0.3), 0 0 15px rgba(8, 145, 178, 0.4);
+}
+
+.nft-border {
+  position: relative;
+}
+
+.nft-border::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(to right, #60a5fa, #0ea5e9, #2dd4bf, #60a5fa);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+}
+
+/* Additional keyframe animations */
+@keyframes ecosystemParticle {
+  0% {
+    transform: translateY(0);
+    opacity: 0;
+  }
+  20% {
+    opacity: 1;
+  }
+  80% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(120px);
+    opacity: 0;
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% center;
+  }
+  100% {
+    background-position: 200% center;
+  }
+}
+
+@keyframes grow-x {
+  0% {
+    transform: scaleX(0);
+  }
+  100% {
+    transform: scaleX(1);
+  }
+}
+
+@keyframes growAndFade {
+  0% {
+    transform: scale(0);
+    opacity: 0.8;
+  }
+  50% {
+    transform: scale(1.5);
+    opacity: 0.5;
+  }
+  100% {
+    transform: scale(2);
+    opacity: 0;
+  }
+}
