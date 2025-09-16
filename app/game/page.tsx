@@ -24,7 +24,6 @@ interface PlayerData {
   last_login: string
   is_active: boolean
 }
-
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string>("")
   const [playerData, setPlayerData] = useState<PlayerData | null>(null)
@@ -122,6 +121,7 @@ interface PlayerData {
   const handleRetry = () => {
     setError("")
     setIsLoading(true)
+          const [hasSelectedSubmarine, setHasSelectedSubmarine] = useState(false);
     initializeGame()
   }
 
