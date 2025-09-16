@@ -8,6 +8,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { getSession, getCurrentUser, signOut } from "@/lib/supabase"
 import { supabase } from "@/lib/supabase"
 import { OceanMiningGame } from "@/components/ocean-mining-game";
+import { SubmarineSelection } from "@/components/submarine-selection";
 import { walletManager } from "@/lib/wallet";
 import { AlertDialogContent } from "@/components/ui/alert-dialog";
 import { GameState } from "@/lib/types";
@@ -24,7 +25,6 @@ interface PlayerData {
   is_active: boolean
 }
 
-export default function GamePage() {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string>("")
   const [playerData, setPlayerData] = useState<PlayerData | null>(null)
@@ -33,11 +33,20 @@ export default function GamePage() {
   const [walletPrompt, setWalletPrompt] = useState(false);
   const [gameState, setGameState] = useState<GameState>("idle");
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [showSubmarineSelection, setShowSubmarineSelection] = useState(false);
+  const [selectedSubmarineTier, setSelectedSubmarineTier] = useState<number | null>(null);
   const router = useRouter()
 
   useEffect(() => {
     initializeGame()
   }, [])
+
+  // Show submarine selection after player data loads
+  useEffect(() => {
+    if (playerData && playerData.submarine_tier && selectedSubmarineTier === null) {
+      setShowSubmarineSelection(true);
+    }
+  }, [playerData]);
 
   // After playerData is loaded, check wallet connection
   useEffect(() => {
@@ -204,14 +213,35 @@ export default function GamePage() {
 
   return (
     <div className="min-h-screen bg-slate-900">
-      <OceanMiningGame
-        walletConnected={walletConnected}
-        gameState={gameState}
-        setGameState={setGameState}
-        sidebarOpen={sidebarOpen}
-        setSidebarOpen={setSidebarOpen}
-        onFullDisconnect={handleFullDisconnect}
+      {/* Submarine Selection Modal */}
+      <SubmarineSelection
+        isOpen={showSubmarineSelection}
+        onClose={() => {
+          // Prevent closing without selection
+          if (selectedSubmarineTier === null && playerData?.submarine_tier) {
+            setSelectedSubmarineTier(playerData.submarine_tier);
+          }
+          setShowSubmarineSelection(false);
+        }}
+        onSelectSubmarine={(tier) => {
+          setSelectedSubmarineTier(tier);
+          setShowSubmarineSelection(false);
+        }}
+        initialSelectedTier={playerData?.submarine_tier || 1}
       />
+
+      {/* Only render game after submarine is selected */}
+      {selectedSubmarineTier !== null && (
+        <OceanMiningGame
+          walletConnected={walletConnected}
+          gameState={gameState}
+          setGameState={setGameState}
+          sidebarOpen={sidebarOpen}
+          setSidebarOpen={setSidebarOpen}
+          onFullDisconnect={handleFullDisconnect}
+          // You may need to pass selectedSubmarineTier as a prop to OceanMiningGame if needed
+        />
+      )}
     </div>
   )
 }
