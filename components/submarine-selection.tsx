@@ -74,7 +74,8 @@ export function SubmarineSelection({
         </DialogHeader>
 
         <div className="py-6">
-          <Carousel className="w-full max-w-2xl mx-auto">
+          <div className="relative w-full max-w-2xl mx-auto">
+            <Carousel>
             <CarouselContent>
               {availableSubmarines.map((submarine) => (
                 <CarouselItem key={submarine.tier} className="md:basis-1/2 lg:basis-1/3">
@@ -181,7 +182,8 @@ export function SubmarineSelection({
             </CarouselContent>
             <CarouselPrevious className="left-1 bg-cyan-950/50 border-cyan-500/30 text-cyan-400 hover:bg-cyan-900/50 hover:text-white" />
             <CarouselNext className="right-1 bg-cyan-950/50 border-cyan-500/30 text-cyan-400 hover:bg-cyan-900/50 hover:text-white" />
-          </Carousel>
+            </Carousel>
+          </div>
         </div>
 
         <DialogFooter className="flex flex-col sm:flex-row gap-4 mt-6">
