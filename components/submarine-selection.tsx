@@ -19,6 +19,7 @@ import {
 import { Card, CardContent, CardFooter } from "./ui/card"
 import { Button } from "./ui/button"
 import { SUBMARINE_TIERS, type SubmarineTier } from "@/lib/submarine-tiers"
+import SubmarineIcon from "./SubmarineIcon"
 import { cn } from "@/lib/utils"
 
 interface SubmarineSelectionProps {
