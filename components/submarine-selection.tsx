@@ -62,128 +62,135 @@ export function SubmarineSelection({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-  <DialogContent className="fixed inset-0 w-screen h-screen max-w-none max-h-none bg-black/90 border-0 text-white submarine-selection-backdrop !rounded-none flex flex-col justify-center items-center p-0">
+  <DialogContent className="fixed inset-0 w-screen h-screen max-w-none max-h-none bg-black/90 border-0 text-white submarine-selection-backdrop !rounded-none flex flex-col justify-center items-center p-0 !translate-x-0 !translate-y-0 !grid-none">
         <div className="caustics-overlay"></div>
-        <DialogHeader>
-          <DialogTitle className="text-center text-3xl font-bold tracking-wider bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent pb-2 title-glow">
-            CHOOSE YOUR SUBMARINE
-          </DialogTitle>
-          <DialogDescription className="text-center text-cyan-300/80">
-            Select your vessel for deep sea exploration and mining operations
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className="py-6">
-          <div className="relative w-full max-w-2xl mx-auto">
-            <Carousel>
-            <CarouselContent>
-              {availableSubmarines.map((submarine) => (
-                <CarouselItem key={submarine.tier} className="md:basis-1/2 lg:basis-1/3">
-                  <div className="p-1">
-                    <Card 
-                      className={cn(
-                        "border-2 transition-all duration-300 bg-black/60 submarine-glow",
-                        selectedTier === submarine.tier 
-                          ? "border-cyan-400 animate-glow active" 
-                          : "border-gray-600 hover:border-cyan-400/50"
-                      )}
-                      onClick={() => setSelectedTier(submarine.tier)}
-                    >
-                      <CardContent className="flex flex-col items-center p-6">
-                        {/* Submarine 3D model or image */}
-                        <div className="flex items-center justify-center w-full aspect-video mb-4">
-                          <SubmarineIcon tier={submarine.tier} size={120} className="drop-shadow-lg" />
-                        </div>
-                        
-                        {/* Submarine name and tier */}
-                        <div className="text-center mb-4">
-                          <h3 className="text-xl font-bold text-cyan-300">{submarine.name}</h3>
-                          <p className="text-sm text-gray-400">Tier {submarine.tier}</p>
-                        </div>
-                      </CardContent>
-                      
-                      {/* Stats */}
-                      <CardFooter className="flex flex-col p-4 pt-0 gap-2 border-t border-cyan-900/30">
-                        <div className="grid grid-cols-2 gap-2 w-full">
-                          <div className="stat-item">
-                            <span className="stat-label">SPEED</span>
-                            <div className="flex items-center gap-1">
-                              <div className="submarine-stats-bar w-full">
-                                <div 
-                                  className="fill"
-                                  style={{ width: `${submarine.baseStats.speed * 20}%` }}
-                                />
-                              </div>
-                              <span className="text-xs text-cyan-300 min-w-8 text-right">
-                                {formatStatValue('speed', submarine.baseStats.speed)}
-                              </span>
+        <div className="flex flex-col w-full h-full items-center justify-center">
+          <DialogHeader className="w-full max-w-3xl mx-auto">
+            <DialogTitle className="text-center text-3xl font-bold tracking-wider bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent pb-2 title-glow">
+              CHOOSE YOUR SUBMARINE
+            </DialogTitle>
+            <DialogDescription className="text-center text-cyan-300/80">
+              Select your vessel for deep sea exploration and mining operations
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex-1 flex flex-col justify-center w-full max-w-3xl mx-auto">
+            <div className="relative w-full h-full flex flex-col justify-center">
+              <Carousel>
+                <CarouselContent>
+                  {availableSubmarines.map((submarine) => (
+                    <CarouselItem key={submarine.tier} className="md:basis-1/2 lg:basis-1/3">
+                      <div className="p-1">
+                        <Card 
+                          className={cn(
+                            "border-2 transition-all duration-300 bg-black/60 submarine-glow",
+                            selectedTier === submarine.tier 
+                              ? "border-cyan-400 animate-glow active" 
+                              : "border-gray-600 hover:border-cyan-400/50"
+                          )}
+                          onClick={() => setSelectedTier(submarine.tier)}
+                        >
+                          <CardContent className="flex flex-col items-center p-6">
+                            <div className="flex items-center justify-center w-full aspect-video mb-4">
+                              <SubmarineIcon tier={submarine.tier} size={120} className="drop-shadow-lg" />
                             </div>
-                          </div>
-                          
-                          <div className="stat-item">
-                            <span className="stat-label">STORAGE</span>
-                            <div className="flex items-center gap-1">
-                              <div className="submarine-stats-bar w-full">
-                                <div 
-                                  className="fill"
-                                  style={{ 
-                                    width: `${(Object.values(submarine.baseStats.maxCapacity).reduce((a, b) => a + b, 0) / 1000) * 100}%` 
-                                  }}
-                                />
-                              </div>
-                              <span className="text-xs text-cyan-300 min-w-8 text-right">
-                                {Object.values(submarine.baseStats.maxCapacity).reduce((a, b) => a + b, 0)}
-                              </span>
+                            <div className="text-center mb-4">
+                              <h3 className="text-xl font-bold text-cyan-300">{submarine.name}</h3>
+                              <p className="text-sm text-gray-400">Tier {submarine.tier}</p>
                             </div>
-                          </div>
-                          
-                          <div className="stat-item">
-                            <span className="stat-label">MINING</span>
-                            <div className="flex items-center gap-1">
-                              <div className="submarine-stats-bar w-full">
-                                <div 
-                                  className="fill"
-                                  style={{ width: `${submarine.baseStats.miningRate * 20}%` }}
-                                />
+                          </CardContent>
+                          <CardFooter className="flex flex-col p-4 pt-0 gap-2 border-t border-cyan-900/30">
+                            <div className="grid grid-cols-2 gap-2 w-full">
+                              <div className="stat-item">
+                                <span className="stat-label">SPEED</span>
+                                <div className="flex items-center gap-1">
+                                  <div className="submarine-stats-bar w-full">
+                                    <div 
+                                      className="fill"
+                                      style={{ width: `${submarine.baseStats.speed * 20}%` }}
+                                    />
+                                  </div>
+                                  <span className="text-xs text-cyan-300 min-w-8 text-right">
+                                    {formatStatValue('speed', submarine.baseStats.speed)}
+                                  </span>
+                                </div>
                               </div>
-                              <span className="text-xs text-cyan-300 min-w-8 text-right">
-                                {formatStatValue('miningRate', submarine.baseStats.miningRate)}
-                              </span>
-                            </div>
-                          </div>
-                          
-                          <div className="stat-item">
-                            <span className="stat-label">DEPTH</span>
-                            <div className="flex items-center gap-1">
-                              <div className="submarine-stats-bar w-full">
-                                <div 
-                                  className="fill"
-                                  style={{ width: `${(submarine.baseStats.depth / 5000) * 100}%` }}
-                                />
+                              <div className="stat-item">
+                                <span className="stat-label">STORAGE</span>
+                                <div className="flex items-center gap-1">
+                                  <div className="submarine-stats-bar w-full">
+                                    <div 
+                                      className="fill"
+                                      style={{ 
+                                        width: `${(Object.values(submarine.baseStats.maxCapacity).reduce((a, b) => a + b, 0) / 1000) * 100}%` 
+                                      }}
+                                    />
+                                  </div>
+                                  <span className="text-xs text-cyan-300 min-w-8 text-right">
+                                    {Object.values(submarine.baseStats.maxCapacity).reduce((a, b) => a + b, 0)}
+                                  </span>
+                                </div>
                               </div>
-                              <span className="text-xs text-cyan-300 min-w-8 text-right">
-                                {formatStatValue('depth', submarine.baseStats.depth)}
-                              </span>
+                              <div className="stat-item">
+                                <span className="stat-label">MINING</span>
+                                <div className="flex items-center gap-1">
+                                  <div className="submarine-stats-bar w-full">
+                                    <div 
+                                      className="fill"
+                                      style={{ width: `${submarine.baseStats.miningRate * 20}%` }}
+                                    />
+                                  </div>
+                                  <span className="text-xs text-cyan-300 min-w-8 text-right">
+                                    {formatStatValue('miningRate', submarine.baseStats.miningRate)}
+                                  </span>
+                                </div>
+                              </div>
+                              <div className="stat-item">
+                                <span className="stat-label">DEPTH</span>
+                                <div className="flex items-center gap-1">
+                                  <div className="submarine-stats-bar w-full">
+                                    <div 
+                                      className="fill"
+                                      style={{ width: `${(submarine.baseStats.depth / 5000) * 100}%` }}
+                                    />
+                                  </div>
+                                  <span className="text-xs text-cyan-300 min-w-8 text-right">
+                                    {formatStatValue('depth', submarine.baseStats.depth)}
+                                  </span>
+                                </div>
+                              </div>
                             </div>
-                          </div>
-                        </div>
-                        
-                        {submarine.specialAbility && (
-                          <div className="w-full mt-1">
-                            <span className="text-xs text-gray-400">SPECIAL</span>
-                            <p className="text-xs text-cyan-300">{submarine.specialAbility}</p>
-                          </div>
-                        )}
-                      </CardFooter>
-                    </Card>
-                  </div>
-                </CarouselItem>
-              ))}
-            </CarouselContent>
-            <CarouselPrevious className="left-1 bg-cyan-950/50 border-cyan-500/30 text-cyan-400 hover:bg-cyan-900/50 hover:text-white" />
-            <CarouselNext className="right-1 bg-cyan-950/50 border-cyan-500/30 text-cyan-400 hover:bg-cyan-900/50 hover:text-white" />
-            </Carousel>
+                            {submarine.specialAbility && (
+                              <div className="w-full mt-1">
+                                <span className="text-xs text-gray-400">SPECIAL</span>
+                                <p className="text-xs text-cyan-300">{submarine.specialAbility}</p>
+                              </div>
+                            )}
+                          </CardFooter>
+                        </Card>
+                      </div>
+                    </CarouselItem>
+                  ))}
+                </CarouselContent>
+                <CarouselPrevious className="left-1 bg-cyan-950/50 border-cyan-500/30 text-cyan-400 hover:bg-cyan-900/50 hover:text-white" />
+                <CarouselNext className="right-1 bg-cyan-950/50 border-cyan-500/30 text-cyan-400 hover:bg-cyan-900/50 hover:text-white" />
+              </Carousel>
+            </div>
           </div>
+          <DialogFooter className="flex flex-col sm:flex-row gap-4 mt-6 w-full max-w-3xl mx-auto">
+            <Button
+              variant="outline"
+              onClick={onClose}
+              className="sm:w-1/3 border-gray-700 text-gray-300 hover:bg-gray-800 hover:text-white"
+            >
+              Back
+            </Button>
+            <Button
+              onClick={handleSelect}
+              className="sm:w-2/3 bg-gradient-to-r from-cyan-500 to-blue-600 text-white hover:from-cyan-400 hover:to-blue-500 play-button font-bold tracking-wide"
+            >
+              SELECT & DIVE
+            </Button>
+          </DialogFooter>
         </div>
 
         <DialogFooter className="flex flex-col sm:flex-row gap-4 mt-6">
