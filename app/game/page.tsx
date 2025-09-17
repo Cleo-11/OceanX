@@ -24,6 +24,8 @@ interface PlayerData {
   last_login: string
   is_active: boolean
 }
+
+export default function GamePage() {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string>("")
   const [playerData, setPlayerData] = useState<PlayerData | null>(null)
@@ -34,16 +36,19 @@ interface PlayerData {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showSubmarineSelection, setShowSubmarineSelection] = useState(false);
   const [selectedSubmarineTier, setSelectedSubmarineTier] = useState<number | null>(null);
+  const [hasSelectedSubmarine, setHasSelectedSubmarine] = useState(false);
   const router = useRouter()
 
   useEffect(() => {
     initializeGame()
   }, [])
 
-  // Show submarine selection after player data loads
+  // Set initial submarine tier and show modal after player data loads
   useEffect(() => {
-    if (playerData && playerData.submarine_tier && selectedSubmarineTier === null) {
+    if (playerData && selectedSubmarineTier === null) {
+      setSelectedSubmarineTier(playerData.submarine_tier || 1);
       setShowSubmarineSelection(true);
+      setHasSelectedSubmarine(false);
     }
   }, [playerData]);
 
@@ -121,7 +126,6 @@ interface PlayerData {
   const handleRetry = () => {
     setError("")
     setIsLoading(true)
-          const [hasSelectedSubmarine, setHasSelectedSubmarine] = useState(false);
     initializeGame()
   }
 
@@ -215,7 +219,7 @@ interface PlayerData {
     <div className="min-h-screen bg-slate-900">
       {/* Submarine Selection Modal */}
       <SubmarineSelection
-        isOpen={showSubmarineSelection}
+        isOpen={showSubmarineSelection && !hasSelectedSubmarine}
         onClose={() => {
           // Prevent closing without selection
           if (selectedSubmarineTier === null && playerData?.submarine_tier) {
@@ -226,12 +230,13 @@ interface PlayerData {
         onSelectSubmarine={(tier) => {
           setSelectedSubmarineTier(tier);
           setShowSubmarineSelection(false);
+          setHasSelectedSubmarine(true);
         }}
         initialSelectedTier={playerData?.submarine_tier || 1}
       />
 
       {/* Only render game after submarine is selected */}
-      {selectedSubmarineTier !== null && (
+      {selectedSubmarineTier !== null && hasSelectedSubmarine && (
         <OceanMiningGame
           walletConnected={walletConnected}
           gameState={gameState}
@@ -239,9 +244,8 @@ interface PlayerData {
           sidebarOpen={sidebarOpen}
           setSidebarOpen={setSidebarOpen}
           onFullDisconnect={handleFullDisconnect}
-          // You may need to pass selectedSubmarineTier as a prop to OceanMiningGame if needed
         />
       )}
     </div>
-  )
+  );
 }
