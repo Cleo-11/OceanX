@@ -62,7 +62,7 @@ export function SubmarineSelection({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-  <DialogContent className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 max-w-3xl w-full bg-black/90 border border-cyan-500/30 text-white submarine-selection-backdrop rounded-xl p-0">
+  <DialogContent className="fixed inset-0 w-screen h-screen max-w-none max-h-none bg-black/90 border-0 text-white submarine-selection-backdrop !rounded-none flex flex-col justify-center items-center p-0">
         <div className="caustics-overlay"></div>
         <DialogHeader>
           <DialogTitle className="text-center text-3xl font-bold tracking-wider bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent pb-2 title-glow">
