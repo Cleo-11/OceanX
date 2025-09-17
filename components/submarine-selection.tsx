@@ -73,7 +73,7 @@ export function SubmarineSelection({
         </DialogHeader>
 
         <div className="py-6">
-          <Carousel className="w-full">
+          <Carousel className="w-full max-w-2xl mx-auto">
             <CarouselContent>
               {availableSubmarines.map((submarine) => (
                 <CarouselItem key={submarine.tier} className="md:basis-1/2 lg:basis-1/3">
@@ -89,36 +89,8 @@ export function SubmarineSelection({
                     >
                       <CardContent className="flex flex-col items-center p-6">
                         {/* Submarine 3D model or image */}
-                        <div 
-                          className={cn(
-                            "w-full aspect-video bg-gradient-to-b from-cyan-900/30 to-blue-900/30 rounded-lg mb-4 flex items-center justify-center overflow-hidden",
-                            selectedTier === submarine.tier ? "animate-float" : ""
-                          )}
-                          style={{ 
-                            backgroundColor: `${submarine.color}20`,
-                            borderColor: submarine.color,
-                          }}
-                        >
-                          <div 
-                            className={cn(
-                              "w-3/4 h-3/4 relative submarine-model",
-                              selectedTier === submarine.tier ? "active" : ""
-                            )}
-                            style={{ 
-                              backgroundColor: submarine.color,
-                              clipPath: "polygon(0% 50%, 10% 30%, 75% 30%, 85% 10%, 100% 10%, 100% 90%, 85% 90%, 75% 70%, 10% 70%, 0% 50%)",
-                              opacity: 0.8,
-                            }}
-                          >
-                            {/* Submarine viewport/window */}
-                            <div 
-                              className="absolute top-1/4 right-1/4 w-1/4 h-2/5 rounded-full submarine-viewport"
-                              style={{
-                                backgroundColor: "#7dd3fc", 
-                                boxShadow: "inset 0 0 10px rgba(255,255,255,0.5)"
-                              }}
-                            />
-                          </div>
+                        <div className="flex items-center justify-center w-full aspect-video mb-4">
+                          <SubmarineIcon tier={submarine.tier} size={120} className="drop-shadow-lg" />
                         </div>
                         
                         {/* Submarine name and tier */}
@@ -230,4 +202,4 @@ export function SubmarineSelection({
     </Dialog>
   )
 }
-//
+//.
