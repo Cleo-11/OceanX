@@ -74,108 +74,121 @@ export function SubmarineSelection({
             </DialogDescription>
           </DialogHeader>
           <div className="flex-1 flex flex-col justify-center w-full max-w-3xl mx-auto">
-            <div className="relative w-full h-full flex flex-col justify-center">
-              <Carousel>
-                <CarouselContent>
-                  {availableSubmarines.map((submarine) => (
-                    <CarouselItem key={submarine.tier} className="md:basis-1/2 lg:basis-1/3">
-                      <div className="p-1">
-                        <Card 
-                          className={cn(
-                            "border-2 transition-all duration-300 bg-black/60 submarine-glow",
-                            selectedTier === submarine.tier 
-                              ? "border-cyan-400 animate-glow active" 
-                              : "border-gray-600 hover:border-cyan-400/50"
-                          )}
-                          onClick={() => setSelectedTier(submarine.tier)}
-                        >
-                          <CardContent className="flex flex-col items-center p-6">
-                            <div className="flex items-center justify-center w-full aspect-video mb-4">
-                              <SubmarineIcon tier={submarine.tier} size={120} className="drop-shadow-lg" />
-                            </div>
-                            <div className="text-center mb-4">
-                              <h3 className="text-xl font-bold text-cyan-300">{submarine.name}</h3>
-                              <p className="text-sm text-gray-400">Tier {submarine.tier}</p>
-                            </div>
-                          </CardContent>
-                          <CardFooter className="flex flex-col p-4 pt-0 gap-2 border-t border-cyan-900/30">
-                            <div className="grid grid-cols-2 gap-2 w-full">
-                              <div className="stat-item">
-                                <span className="stat-label">SPEED</span>
-                                <div className="flex items-center gap-1">
-                                  <div className="submarine-stats-bar w-full">
-                                    <div 
-                                      className="fill"
-                                      style={{ width: `${submarine.baseStats.speed * 20}%` }}
-                                    />
-                                  </div>
-                                  <span className="text-xs text-cyan-300 min-w-8 text-right">
-                                    {formatStatValue('speed', submarine.baseStats.speed)}
-                                  </span>
+            <div className="relative w-full flex flex-col justify-center items-center">
+              {/* Carousel with absolutely positioned arrows */}
+              <div className="relative w-full flex items-center justify-center" style={{minHeight: 340}}>
+                {/* Left Arrow */}
+                <div className="absolute left-0 top-1/2 -translate-y-1/2 z-20">
+                  <CarouselPrevious className="bg-cyan-950/50 border-cyan-500/30 text-cyan-400 hover:bg-cyan-900/50 hover:text-white w-12 h-12 rounded-full flex items-center justify-center" />
+                </div>
+                {/* Carousel Content */}
+                <div className="w-full max-w-2xl">
+                  <Carousel>
+                    <CarouselContent>
+                      {availableSubmarines.map((submarine) => (
+                        <CarouselItem key={submarine.tier} className="md:basis-1/2 lg:basis-1/3">
+                          <div className="p-1">
+                            <Card 
+                              className={cn(
+                                "border-2 transition-all duration-300 bg-black/60 submarine-glow",
+                                selectedTier === submarine.tier 
+                                  ? "border-cyan-400 animate-glow active" 
+                                  : "border-gray-600 hover:border-cyan-400/50"
+                              )}
+                              onClick={() => setSelectedTier(submarine.tier)}
+                            >
+                              <CardContent className="flex flex-col items-center p-6">
+                                <div className="flex items-center justify-center w-full aspect-video mb-4">
+                                  <SubmarineIcon tier={submarine.tier} size={120} className="drop-shadow-lg" />
                                 </div>
-                              </div>
-                              <div className="stat-item">
-                                <span className="stat-label">STORAGE</span>
-                                <div className="flex items-center gap-1">
-                                  <div className="submarine-stats-bar w-full">
-                                    <div 
-                                      className="fill"
-                                      style={{ 
-                                        width: `${(Object.values(submarine.baseStats.maxCapacity).reduce((a, b) => a + b, 0) / 1000) * 100}%` 
-                                      }}
-                                    />
-                                  </div>
-                                  <span className="text-xs text-cyan-300 min-w-8 text-right">
-                                    {Object.values(submarine.baseStats.maxCapacity).reduce((a, b) => a + b, 0)}
-                                  </span>
+                                <div className="text-center mb-4">
+                                  <h3 className="text-xl font-bold text-cyan-300">{submarine.name}</h3>
+                                  <p className="text-sm text-gray-400">Tier {submarine.tier}</p>
                                 </div>
-                              </div>
-                              <div className="stat-item">
-                                <span className="stat-label">MINING</span>
-                                <div className="flex items-center gap-1">
-                                  <div className="submarine-stats-bar w-full">
-                                    <div 
-                                      className="fill"
-                                      style={{ width: `${submarine.baseStats.miningRate * 20}%` }}
-                                    />
+                              </CardContent>
+                              <CardFooter className="flex flex-col p-4 pt-0 gap-2 border-t border-cyan-900/30">
+                                <div className="grid grid-cols-2 gap-2 w-full">
+                                  <div className="stat-item">
+                                    <span className="stat-label">SPEED</span>
+                                    <div className="flex items-center gap-1">
+                                      <div className="submarine-stats-bar w-full">
+                                        <div 
+                                          className="fill"
+                                          style={{ width: `${submarine.baseStats.speed * 20}%` }}
+                                        />
+                                      </div>
+                                      <span className="text-xs text-cyan-300 min-w-8 text-right">
+                                        {formatStatValue('speed', submarine.baseStats.speed)}
+                                      </span>
+                                    </div>
                                   </div>
-                                  <span className="text-xs text-cyan-300 min-w-8 text-right">
-                                    {formatStatValue('miningRate', submarine.baseStats.miningRate)}
-                                  </span>
-                                </div>
-                              </div>
-                              <div className="stat-item">
-                                <span className="stat-label">DEPTH</span>
-                                <div className="flex items-center gap-1">
-                                  <div className="submarine-stats-bar w-full">
-                                    <div 
-                                      className="fill"
-                                      style={{ width: `${(submarine.baseStats.depth / 5000) * 100}%` }}
-                                    />
+                                  <div className="stat-item">
+                                    <span className="stat-label">STORAGE</span>
+                                    <div className="flex items-center gap-1">
+                                      <div className="submarine-stats-bar w-full">
+                                        <div 
+                                          className="fill"
+                                          style={{ 
+                                            width: `${(Object.values(submarine.baseStats.maxCapacity).reduce((a, b) => a + b, 0) / 1000) * 100}%` 
+                                          }}
+                                        />
+                                      </div>
+                                      <span className="text-xs text-cyan-300 min-w-8 text-right">
+                                        {Object.values(submarine.baseStats.maxCapacity).reduce((a, b) => a + b, 0)}
+                                      </span>
+                                    </div>
                                   </div>
-                                  <span className="text-xs text-cyan-300 min-w-8 text-right">
-                                    {formatStatValue('depth', submarine.baseStats.depth)}
-                                  </span>
+                                  <div className="stat-item">
+                                    <span className="stat-label">MINING</span>
+                                    <div className="flex items-center gap-1">
+                                      <div className="submarine-stats-bar w-full">
+                                        <div 
+                                          className="fill"
+                                          style={{ width: `${submarine.baseStats.miningRate * 20}%` }}
+                                        />
+                                      </div>
+                                      <span className="text-xs text-cyan-300 min-w-8 text-right">
+                                        {formatStatValue('miningRate', submarine.baseStats.miningRate)}
+                                      </span>
+                                    </div>
+                                  </div>
+                                  <div className="stat-item">
+                                    <span className="stat-label">DEPTH</span>
+                                    <div className="flex items-center gap-1">
+                                      <div className="submarine-stats-bar w-full">
+                                        <div 
+                                          className="fill"
+                                          style={{ width: `${(submarine.baseStats.depth / 5000) * 100}%` }}
+                                        />
+                                      </div>
+                                      <span className="text-xs text-cyan-300 min-w-8 text-right">
+                                        {formatStatValue('depth', submarine.baseStats.depth)}
+                                      </span>
+                                    </div>
+                                  </div>
                                 </div>
-                              </div>
-                            </div>
-                            {submarine.specialAbility && (
-                              <div className="w-full mt-1">
-                                <span className="text-xs text-gray-400">SPECIAL</span>
-                                <p className="text-xs text-cyan-300">{submarine.specialAbility}</p>
-                              </div>
-                            )}
-                          </CardFooter>
-                        </Card>
-                      </div>
-                    </CarouselItem>
-                  ))}
-                </CarouselContent>
-                <CarouselPrevious className="left-1 bg-cyan-950/50 border-cyan-500/30 text-cyan-400 hover:bg-cyan-900/50 hover:text-white" />
-                <CarouselNext className="right-1 bg-cyan-950/50 border-cyan-500/30 text-cyan-400 hover:bg-cyan-900/50 hover:text-white" />
-              </Carousel>
+                                {submarine.specialAbility && (
+                                  <div className="w-full mt-1">
+                                    <span className="text-xs text-gray-400">SPECIAL</span>
+                                    <p className="text-xs text-cyan-300">{submarine.specialAbility}</p>
+                                  </div>
+                                )}
+                              </CardFooter>
+                            </Card>
+                          </div>
+                        </CarouselItem>
+                      ))}
+                    </CarouselContent>
+                  </Carousel>
+                </div>
+                {/* Right Arrow */}
+                <div className="absolute right-0 top-1/2 -translate-y-1/2 z-20">
+                  <CarouselNext className="bg-cyan-950/50 border-cyan-500/30 text-cyan-400 hover:bg-cyan-900/50 hover:text-white w-12 h-12 rounded-full flex items-center justify-center" />
+                </div>
+              </div>
             </div>
           </div>
+          {/* Single instance of footer buttons */}
           <DialogFooter className="flex flex-col sm:flex-row gap-4 mt-6 w-full max-w-3xl mx-auto">
             <Button
               variant="outline"
