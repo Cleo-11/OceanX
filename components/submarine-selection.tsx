@@ -77,13 +77,11 @@ export function SubmarineSelection({
             <div className="relative w-full flex flex-col justify-center items-center">
               {/* Carousel with absolutely positioned arrows */}
               <div className="relative w-full flex items-center justify-center" style={{minHeight: 340}}>
-                {/* Left Arrow */}
-                <div className="absolute left-0 top-1/2 -translate-y-1/2 z-20">
-                  <CarouselPrevious className="bg-cyan-950/50 border-cyan-500/30 text-cyan-400 hover:bg-cyan-900/50 hover:text-white w-12 h-12 rounded-full flex items-center justify-center" />
-                </div>
-                {/* Carousel Content */}
-                <div className="w-full max-w-2xl">
-                  <Carousel>
+                <Carousel>
+                  {/* Left Arrow */}
+                  <CarouselPrevious className="absolute left-0 top-1/2 -translate-y-1/2 z-20 bg-cyan-950/50 border-cyan-500/30 text-cyan-400 hover:bg-cyan-900/50 hover:text-white w-12 h-12 rounded-full flex items-center justify-center" />
+                  {/* Carousel Content */}
+                  <div className="w-full max-w-2xl">
                     <CarouselContent>
                       {availableSubmarines.map((submarine) => (
                         <CarouselItem key={submarine.tier} className="md:basis-1/2 lg:basis-1/3">
@@ -179,12 +177,10 @@ export function SubmarineSelection({
                         </CarouselItem>
                       ))}
                     </CarouselContent>
-                  </Carousel>
-                </div>
-                {/* Right Arrow */}
-                <div className="absolute right-0 top-1/2 -translate-y-1/2 z-20">
-                  <CarouselNext className="bg-cyan-950/50 border-cyan-500/30 text-cyan-400 hover:bg-cyan-900/50 hover:text-white w-12 h-12 rounded-full flex items-center justify-center" />
-                </div>
+                  </div>
+                  {/* Right Arrow */}
+                  <CarouselNext className="absolute right-0 top-1/2 -translate-y-1/2 z-20 bg-cyan-950/50 border-cyan-500/30 text-cyan-400 hover:bg-cyan-900/50 hover:text-white w-12 h-12 rounded-full flex items-center justify-center" />
+                </Carousel>
               </div>
             </div>
           </div>
