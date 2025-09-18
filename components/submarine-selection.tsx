@@ -202,21 +202,7 @@ export function SubmarineSelection({
           </DialogFooter>
         </div>
 
-        <DialogFooter className="flex flex-col sm:flex-row gap-4 mt-6">
-          <Button
-            variant="outline"
-            onClick={onClose}
-            className="sm:w-1/3 border-gray-700 text-gray-300 hover:bg-gray-800 hover:text-white"
-          >
-            Back
-          </Button>
-          <Button
-            onClick={handleSelect}
-            className="sm:w-2/3 bg-gradient-to-r from-cyan-500 to-blue-600 text-white hover:from-cyan-400 hover:to-blue-500 play-button font-bold tracking-wide"
-          >
-            SELECT & DIVE
-          </Button>
-        </DialogFooter>
+        // Removed duplicate DialogFooter
       </DialogContent>
     </Dialog>
   )
