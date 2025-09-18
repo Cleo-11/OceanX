@@ -79,7 +79,7 @@ export function SubmarineSelection({
               <div className="relative w-full flex items-center justify-center" style={{minHeight: 340}}>
                 <Carousel>
                   {/* Left Arrow */}
-                  <CarouselPrevious className="absolute left-0 top-1/2 -translate-y-1/2 z-20 bg-cyan-950/50 border-cyan-500/30 text-cyan-400 hover:bg-cyan-900/50 hover:text-white w-12 h-12 rounded-full flex items-center justify-center" />
+                  <CarouselPrevious className="bg-cyan-950/50 border-cyan-500/30 text-cyan-400 hover:bg-cyan-900/50 hover:text-white w-12 h-12 rounded-full flex items-center justify-center" />
                   {/* Carousel Content */}
                   <div className="w-full max-w-2xl">
                     <CarouselContent>
@@ -179,7 +179,7 @@ export function SubmarineSelection({
                     </CarouselContent>
                   </div>
                   {/* Right Arrow */}
-                  <CarouselNext className="absolute right-0 top-1/2 -translate-y-1/2 z-20 bg-cyan-950/50 border-cyan-500/30 text-cyan-400 hover:bg-cyan-900/50 hover:text-white w-12 h-12 rounded-full flex items-center justify-center" />
+                  <CarouselNext className="bg-cyan-950/50 border-cyan-500/30 text-cyan-400 hover:bg-cyan-900/50 hover:text-white w-12 h-12 rounded-full flex items-center justify-center" />
                 </Carousel>
               </div>
             </div>
@@ -201,8 +201,6 @@ export function SubmarineSelection({
             </Button>
           </DialogFooter>
         </div>
-
-        // Removed duplicate DialogFooter
       </DialogContent>
     </Dialog>
   )
