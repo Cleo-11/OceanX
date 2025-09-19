@@ -4,6 +4,8 @@ import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { AnimatedOceanBackground } from "@/components/animated-ocean-background"
+import { CSSWaterEffect } from "@/components/css-water-effect"
 import {
   Anchor, Waves, Gem, Zap, Users, ArrowRight, Play,
   UserPlus, LogIn, Compass, ShipWheel, Sparkles, ShieldCheck,
@@ -144,115 +146,34 @@ export default function LandingPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-blue-950 via-blue-900 to-slate-900 text-white overflow-hidden">
-      {/* Advanced Animated Background Elements */}
-      <div className="absolute inset-0 overflow-hidden">
-        {/* Deep ocean gradient overlay */}
+    <div className="min-h-screen bg-slate-900 text-white overflow-hidden relative">
+      {/* Animated Ocean Background Canvas */}
+      <AnimatedOceanBackground 
+        className="z-0" 
+        showParticles={true}
+        showSunRays={true}
+        showFish={true}
+      />
+      
+      {/* CSS Water Distortion Effect */}
+      <CSSWaterEffect 
+        className="z-5" 
+        intensity="medium"
+      />
+      
+      {/* Water Caustics Overlay */}
+      <div className="absolute inset-0 z-5 pointer-events-none">
         <div 
-          className="absolute inset-0 bg-gradient-to-b from-blue-950/90 via-blue-900/80 to-slate-900/90 opacity-80"
-          style={{
-            transform: `translate(${parallaxOffset.x * -0.02}px, ${parallaxOffset.y * -0.02}px)`,
-          }}
-        ></div>
-        
-        {/* Ocean floor texture */}
-        <div 
-          className="absolute inset-0 opacity-10 bg-hexagon-pattern"
-          style={{
-            transform: `translate(${parallaxOffset.x * -0.05}px, ${parallaxOffset.y * -0.05}px)`,
-          }}
-        ></div>
-        
-        {/* Dynamic light beams from surface */}
-        <div 
-          className="absolute top-0 left-1/4 w-[50vw] h-[90vh] bg-gradient-to-b from-cyan-400/5 to-transparent transform -rotate-12 blur-3xl"
-          style={{
-            transform: `translate(${parallaxOffset.x * 0.2}px, 0) rotate(-12deg)`,
-          }}
-        ></div>
-        
-        <div 
-          className="absolute top-10 right-1/3 w-[40vw] h-[80vh] bg-gradient-to-b from-blue-400/5 to-transparent transform rotate-12 blur-3xl"
-          style={{
-            transform: `translate(${parallaxOffset.x * -0.3}px, 0) rotate(12deg)`,
-          }}
-        ></div>
-        
-        {/* Dynamic glow sources */}
-        <div 
-          className="absolute top-1/4 left-1/5 w-96 h-96 bg-cyan-500/10 rounded-full blur-3xl animate-pulse"
-          style={{
-            transform: `translate(${parallaxOffset.x * 0.1}px, ${parallaxOffset.y * 0.1}px)`,
-          }}
-        ></div>
-        <div 
-          className="absolute bottom-1/3 right-1/4 w-[40rem] h-[40rem] bg-blue-500/10 rounded-full blur-3xl animate-pulse delay-1000"
-          style={{
-            transform: `translate(${parallaxOffset.x * -0.12}px, ${parallaxOffset.y * -0.12}px)`,
-          }}
-        ></div>
-        <div 
-          className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-[50rem] h-[50rem] bg-teal-500/5 rounded-full blur-3xl animate-pulse delay-2000"
-          style={{
-            transform: `translate(calc(-50% + ${parallaxOffset.x * -0.08}px), calc(-50% + ${parallaxOffset.y * -0.08}px))`,
-          }}
-        ></div>
-        
-        {/* Water caustics animated effect */}
-        <div 
-          className="absolute inset-0 bg-cover bg-center opacity-20" 
+          className="absolute inset-0 bg-cover bg-center opacity-10 mix-blend-overlay" 
           style={{
             backgroundImage: "url('/water-caustics.png')",
-            transform: `translate(${parallaxOffset.x * -0.03}px, ${parallaxOffset.y * -0.03}px)`,
             animation: 'waterCaustics 15s linear infinite',
           }}
-        ></div>
-        
-        {/* Animated sea flora */}
-        {showParticles && (
-          <>
-            <Seaweed height="h-36" left="left-[5%]" width="w-6" color="teal" delay={0.5} />
-            <Seaweed height="h-24" left="left-[10%]" width="w-4" color="green" delay={1.2} />
-            <Seaweed height="h-40" left="left-[20%]" width="w-5" color="emerald" delay={0} />
-            <Seaweed height="h-32" left="left-[85%]" width="w-5" color="teal" delay={0.8} />
-            <Seaweed height="h-28" left="left-[92%]" width="w-6" color="green" delay={2} />
-          </>
-        )}
-        
-        {/* Animated sea creatures */}
-        {showParticles && (
-          <>
-            <AnimatedFish color="cyan" size="md" delay={0} className="top-[15%] left-[10%]" />
-            <AnimatedFish color="blue" size="sm" delay={1} className="top-[25%] left-[85%]" />
-            <AnimatedFish color="teal" size="lg" delay={2} className="top-[60%] left-[75%]" />
-            <AnimatedFish color="sky" size="sm" delay={3.5} className="top-[40%] left-[30%]" />
-            <AnimatedFish color="indigo" size="md" delay={5} className="top-[75%] left-[50%]" />
-          </>
-        )}
-        
-        {/* Animated bubbles */}
-        {showParticles && (
-          <>
-            {[...Array(25)].map((_, i) => (
-              <div 
-                key={i}
-                className="resource-particle animate-float"
-                style={{
-                  width: `${Math.random() * 20 + 5}px`,
-                  height: `${Math.random() * 20 + 5}px`,
-                  left: `${Math.random() * 100}%`,
-                  bottom: `-20px`,
-                  animation: `bubbleRise ${Math.random() * 15 + 10}s linear infinite ${Math.random() * 10}s`,
-                  opacity: Math.random() * 0.5 + 0.1,
-                  background: 'radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.8), rgba(255, 255, 255, 0.1))',
-                  boxShadow: '0 0 4px 2px rgba(255, 255, 255, 0.1)',
-                }}
-              />
-            ))}
-          </>
-        )}
+        />
       </div>
-
+      
+      {/* Subtle overlay for content readability */}
+      <div className="absolute inset-0 bg-gradient-to-b from-transparent via-slate-900/10 to-slate-900/30 z-10"></div>
       {/* Professional Navigation Header */}
       <header className={`fixed w-full top-0 left-0 z-30 transition-all duration-300 ${scrolled ? 'bg-slate-900/95 backdrop-blur-md border-b border-slate-700/50' : 'bg-transparent'}`}>
         <nav className="flex items-center justify-between max-w-7xl mx-auto px-6 py-4">
@@ -326,7 +247,7 @@ export default function LandingPage() {
       </header>
 
       {/* Professional Hero Section */}
-      <main className="relative z-10 flex flex-col items-center justify-center min-h-[100vh] px-6 text-center pt-20">
+      <main className="relative z-20 flex flex-col items-center justify-center min-h-[100vh] px-6 text-center pt-20">
         <div className="max-w-5xl mx-auto">
           {/* Clean Badge */}
           <Badge 
@@ -358,7 +279,7 @@ export default function LandingPage() {
             <Button
               size="lg"
               onClick={handleSignUp}
-              className="bg-teal-600 hover:bg-teal-500 text-white px-8 py-4 font-display font-semibold text-lg transition-colors rounded-lg min-w-[200px]"
+              className="btn-ocean ripple-effect bg-teal-600 hover:bg-teal-500 text-white px-8 py-4 font-display font-semibold text-lg transition-colors rounded-lg min-w-[200px] shadow-glow-teal"
             >
               <Play className="w-5 h-5 mr-3" />
               Start Playing
@@ -368,7 +289,7 @@ export default function LandingPage() {
               size="lg"
               variant="outline"
               onClick={handleLogin}
-              className="border-slate-600 text-slate-300 hover:bg-slate-800 px-8 py-4 font-display font-medium text-lg transition-colors rounded-lg min-w-[200px]"
+              className="btn-ocean ripple-effect border-slate-600 text-slate-300 hover:bg-slate-800 px-8 py-4 font-display font-medium text-lg transition-colors rounded-lg min-w-[200px] hover:shadow-glow-blue"
             >
               <LogIn className="w-5 h-5 mr-3" />
               Sign In
@@ -568,7 +489,7 @@ export default function LandingPage() {
           </div>
 
           {/* Enhanced Feature Presentation */}
-          <div id="features" className={`mt-24 mb-12 text-center transition-all duration-1000 ${animationLoaded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}>
+          <div id="features" className={`mt-24 mb-12 text-center transition-all duration-1000 relative z-20 ${animationLoaded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}>
             <h2 className="text-3xl md:text-4xl font-bold mb-4 relative inline-block">
               <span className="bg-gradient-to-br from-cyan-300 via-blue-400 to-teal-300 bg-clip-text text-transparent">
                 Explore the Ocean's Depths
@@ -580,9 +501,9 @@ export default function LandingPage() {
             </p>
           </div>
           
-          <div className="grid md:grid-cols-3 gap-10 max-w-6xl mx-auto px-4">
+          <div className="grid md:grid-cols-3 gap-10 max-w-6xl mx-auto px-4 relative z-20">
             {/* Mine Resources Card */}
-            <Card className="group bg-gradient-to-br from-blue-950/70 to-slate-900/70 border-0 backdrop-blur-lg hover:shadow-xl transition-all duration-500 overflow-hidden relative h-full">
+            <Card className="group card-ocean bg-gradient-to-br from-blue-950/70 to-slate-900/70 border-0 backdrop-blur-lg hover:shadow-xl transition-all duration-500 overflow-hidden relative h-full shadow-glow-blue">
               {/* Animated border effect */}
               <div className="absolute inset-0 p-px rounded-2xl overflow-hidden z-0">
                 <div className="absolute inset-0 bg-gradient-to-br from-cyan-600/30 via-transparent to-cyan-600/30 animate-rotate-gradient"></div>

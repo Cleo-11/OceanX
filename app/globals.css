@@ -4,6 +4,7 @@
 @tailwind utilities;
 @import '../styles/blockchain-effects.css';
 @import '../styles/submarine-selection.css';
+@import '../styles/ocean-effects.css';
 
 :root {
   --font-display: 'Orbitron', monospace;

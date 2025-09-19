@@ -6,6 +6,8 @@ import { SUBMARINE_TIERS, getSubmarineByTier } from "@/lib/submarine-tiers"
 import { hasEnoughResourcesForUpgrade } from "@/lib/resource-utils"
 import { X, Lock, Star, Zap } from "lucide-react"
 import SubmarineIcon from "./SubmarineIcon"
+import { AnimatedOceanBackground } from "./animated-ocean-background"
+import { CSSWaterEffect } from "./css-water-effect"
 
 interface SubmarineStoreProps {
   isOpen: boolean
@@ -99,11 +101,39 @@ export function SubmarineStore({
 
   return (
     <div className="fixed inset-0 z-50 flex">
-      {/* Backdrop */}
-      <div className="flex-1 bg-slate-900/50 backdrop-blur-sm" onClick={onClose} />
+      {/* Animated Ocean Backdrop */}
+      <div className="absolute inset-0">
+        <AnimatedOceanBackground 
+          className="opacity-80" 
+          showParticles={true}
+          showSunRays={true}
+          showFish={false}
+        />
+        {/* CSS Water Effects */}
+        <CSSWaterEffect 
+          className="opacity-60" 
+          intensity="high"
+        />
+        {/* Water caustics overlay */}
+        <div className="absolute inset-0">
+          <div 
+            className="absolute inset-0 bg-cover bg-center opacity-15 mix-blend-overlay" 
+            style={{
+              backgroundImage: "url('/water-caustics.png')",
+              animation: 'waterCaustics 20s linear infinite',
+            }}
+          />
+        </div>
+        {/* Dark overlay for readability */}
+        <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" />
+      </div>
+
+      {/* Empty space that can be clicked to close */}
+      <div className="flex-1 cursor-pointer" onClick={onClose} />
 
       {/* Store Panel */}
-      <div className="w-full max-w-4xl bg-slate-800/95 backdrop-blur-md shadow-2xl">
+      <div className="relative z-10 w-full max-w-4xl bg-slate-800/95 backdrop-blur-md shadow-2xl border-l border-cyan-500/20"
+           onClick={(e) => e.stopPropagation()}>
         {/* Header */}
         <div className="flex items-center justify-between border-b border-slate-700 p-6">
           <div>
@@ -151,9 +181,11 @@ export function SubmarineStore({
               return (
                 <div
                   key={submarine.tier}
-                  className={`rounded-lg border-2 p-4 transition-all ${getStatusColor(submarine.tier)} ${
-                    isSelected ? "ring-2 ring-cyan-400" : ""
-                  } ${status === "available" && canAfford ? "cursor-pointer hover:border-blue-300" : ""}`}
+                  className={`submarine-card rounded-lg border-2 p-4 transition-all ${getStatusColor(submarine.tier)} ${
+                    isSelected ? "ring-2 ring-cyan-400 animated-border" : ""
+                  } ${status === "available" && canAfford ? "cursor-pointer hover:border-blue-300 ripple-effect" : ""} ${
+                    status === "current" ? "shadow-glow-strong" : status === "available" && canAfford ? "shadow-glow" : ""
+                  }`}
                   onClick={() => {
                     if (status === "available" && canAfford) {
                       setSelectedTier(submarine.tier)
