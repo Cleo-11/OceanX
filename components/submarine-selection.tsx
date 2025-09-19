@@ -102,7 +102,8 @@ export function SubmarineSelection({
                     <CarouselContent>
                       {availableSubmarines.map((submarine) => {
                         const owned = ownedTiers.includes(submarine.tier)
-                        const canAfford = tokenBalance >= submarine.price
+                        const price = submarine.upgradeCost.tokens
+                        const canAfford = tokenBalance >= price
                         return (
                           <CarouselItem key={submarine.tier} className="md:basis-1/2 lg:basis-1/3">
                             <div className="p-1">
@@ -126,7 +127,7 @@ export function SubmarineSelection({
                                   {/* Price display */}
                                   <div className="mb-2">
                                     <span className="text-cyan-400 font-semibold text-lg">
-                                      {submarine.price.toLocaleString()} TOKENS
+                                      {price.toLocaleString()} TOKENS
                                     </span>
                                   </div>
                                   {/* Purchase/Select button */}
@@ -136,7 +137,7 @@ export function SubmarineSelection({
                                       disabled={!canAfford}
                                       onClick={e => {
                                         e.stopPropagation()
-                                        handlePurchase(submarine.tier, submarine.price)
+                                        handlePurchase(submarine.tier, price)
                                       }}
                                     >
                                       {canAfford ? "Purchase" : "Insufficient Tokens"}
