@@ -253,51 +253,34 @@ export default function LandingPage() {
         )}
       </div>
 
-      {/* Immersive Floating Navigation Header */}
-      <header className={`fixed w-full top-0 left-0 z-30 transition-all duration-500 ${scrolled ? 'bg-blue-900/70 backdrop-blur-lg shadow-lg border-b border-cyan-500/10' : 'bg-transparent'}`}>
-        <div className={`absolute inset-0 overflow-hidden ${scrolled ? 'opacity-100' : 'opacity-0'} transition-opacity duration-500`}>
-          <div className="absolute inset-0 bg-gradient-to-r from-blue-900/50 via-cyan-900/30 to-blue-900/50"></div>
-          <div className="absolute inset-0 bg-[url('/water-caustics.png')] bg-repeat bg-cover opacity-10"></div>
-        </div>
-        
-        <nav className="flex items-center justify-between max-w-7xl mx-auto p-6 relative">
-          {/* Logo with animated effects */}
-          <div className="flex items-center space-x-3 group relative">
+      {/* Professional Navigation Header */}
+      <header className={`fixed w-full top-0 left-0 z-30 transition-all duration-300 ${scrolled ? 'bg-slate-900/95 backdrop-blur-md border-b border-slate-700/50' : 'bg-transparent'}`}>
+        <nav className="flex items-center justify-between max-w-7xl mx-auto px-6 py-4">
+          {/* Clean Logo */}
+          <div className="flex items-center space-x-3">
             <div className="relative">
-              <div className="absolute inset-0 rounded-full bg-cyan-400/20 animate-ping opacity-0 group-hover:opacity-100"></div>
-              <div className="absolute -inset-2 bg-gradient-to-r from-cyan-500/20 to-blue-500/20 rounded-full blur-md opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-              <Anchor className="w-9 h-9 text-cyan-400 group-hover:text-cyan-300 relative z-10 transition-all duration-300 transform group-hover:rotate-12" />
+              <Anchor className="w-8 h-8 text-teal-400" />
             </div>
-            
-            <div className="relative">
-              <span className={`text-3xl font-bold bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent transition-all duration-500 ${scrolled ? 'group-hover:from-cyan-300 group-hover:to-blue-300' : 'group-hover:from-white group-hover:to-cyan-200'}`}>
-                OceanX
-              </span>
-              <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-gradient-to-r from-cyan-400 to-blue-400 group-hover:w-full transition-all duration-500"></span>
-            </div>
-            
-            {/* Animated bubble on hover */}
-            <div className="absolute -top-1 -right-2 w-4 h-4 rounded-full bg-cyan-400/0 group-hover:bg-cyan-400/20 transition-all duration-300 group-hover:animate-float"></div>
+            <span className="text-2xl font-display font-bold text-white">
+              OceanX
+            </span>
           </div>
           
-          {/* Navigation Links - fade in when scrolled */}
-          <div className={`hidden md:flex items-center space-x-8 mx-4 transition-all duration-500 ${scrolled ? 'opacity-100' : 'opacity-0'}`}>
-            <a href="#features" className="text-white/80 hover:text-cyan-300 transition-colors duration-300 relative group">
+          {/* Navigation Links */}
+          <div className="hidden md:flex items-center space-x-8">
+            <a href="#features" className="text-slate-300 hover:text-white transition-colors font-medium">
               Features
-              <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-cyan-400/50 group-hover:w-full transition-all duration-300"></span>
             </a>
-            <a href="#resources" className="text-white/80 hover:text-cyan-300 transition-colors duration-300 relative group">
+            <a href="#resources" className="text-slate-300 hover:text-white transition-colors font-medium">
               Resources
-              <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-cyan-400/50 group-hover:w-full transition-all duration-300"></span>
             </a>
-            <a href="#about" className="text-white/80 hover:text-cyan-300 transition-colors duration-300 relative group">
+            <a href="#about" className="text-slate-300 hover:text-white transition-colors font-medium">
               About
-              <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-cyan-400/50 group-hover:w-full transition-all duration-300"></span>
             </a>
           </div>
 
-          {/* Auth buttons with enhanced effects */}
-          <div className="flex items-center space-x-4">
+          {/* Clean Auth Buttons */}
+          <div className="flex items-center space-x-3">
             <Button
               variant="ghost"
               onClick={handleLogin}
@@ -342,141 +325,53 @@ export default function LandingPage() {
         )}
       </header>
 
-      {/* Immersive Hero Section */}
-      <main className="relative z-10 flex flex-col items-center justify-center min-h-[100vh] px-6 text-center pt-20 overflow-hidden">
-        <div 
-          className={`max-w-5xl mx-auto transition-all duration-1000 ${animationLoaded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}
-          style={{ transitionDelay: '300ms' }}
-        >
-          {/* Floating animated badge with pulse effect */}
-          <div className="relative inline-block">
-            <div className="absolute -inset-1 bg-gradient-to-r from-cyan-500/30 to-blue-500/30 blur-md rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-            <Badge 
-              variant="secondary" 
-              className="relative mb-10 py-3 px-6 bg-blue-900/70 text-cyan-300 border border-cyan-500/30 backdrop-blur-md overflow-hidden animate-float"
-            >
-              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full animate-shimmer"></div>
-              <Waves className="w-5 h-5 mr-3 animate-float" />
-              <span className="relative z-10 font-medium tracking-widest text-sm">DEEP SEA MINING ADVENTURE</span>
-            </Badge>
-          </div>
-
-          {/* Epic Main Heading with Parallax Animation */}
-          <div 
-            className="relative mb-10"
-            style={{
-              transform: `translate(${parallaxOffset.x * -0.05}px, ${parallaxOffset.y * -0.05}px)`,
-            }}
+      {/* Professional Hero Section */}
+      <main className="relative z-10 flex flex-col items-center justify-center min-h-[100vh] px-6 text-center pt-20">
+        <div className="max-w-5xl mx-auto">
+          {/* Clean Badge */}
+          <Badge 
+            variant="secondary" 
+            className="mb-8 py-2 px-4 bg-slate-800/80 text-teal-300 border border-teal-500/30 backdrop-blur-md"
           >
-            <div 
-              className="absolute -top-20 -right-20 w-72 h-72 bg-blue-500/10 rounded-full blur-3xl opacity-70"
-              style={{
-                transform: `translate(${parallaxOffset.x * 0.1}px, ${parallaxOffset.y * 0.1}px)`,
-              }}
-            ></div>
-            
-            <div 
-              className="absolute -bottom-20 -left-20 w-72 h-72 bg-cyan-500/10 rounded-full blur-3xl opacity-70"
-              style={{
-                transform: `translate(${parallaxOffset.x * -0.1}px, ${parallaxOffset.y * -0.1}px)`,
-              }}
-            ></div>
-            
-            <h1 className={`text-5xl sm:text-6xl md:text-8xl font-black mb-8 leading-tight tracking-tighter relative z-10 ${animationLoaded ? 'opacity-100' : 'opacity-0'} transition-opacity duration-1000`}>
-              <span className="block relative mb-2 text-white">
-                <span className="absolute -inset-1 bg-gradient-to-r from-cyan-500/20 to-blue-500/20 blur-2xl rounded-lg opacity-0 animate-pulse-slow"></span>
-                <span className="relative">Dive Into the</span>
-              </span>
-              
-              <span className="block relative">
-                <span className="bg-gradient-to-br from-cyan-300 via-blue-400 to-teal-300 bg-clip-text text-transparent">Ocean's Depths</span>
-                <span className="absolute -bottom-2 left-0 w-full h-1.5 bg-gradient-to-r from-cyan-400 via-blue-500 to-teal-400 rounded-full transform origin-left scale-x-0 animate-grow-x"></span>
+            <Waves className="w-4 h-4 mr-2" />
+            <span className="font-display font-medium text-sm">UNDERWATER MINING</span>
+          </Badge>
+
+          {/* Professional Main Heading */}
+          <div className="mb-10">
+            <h1 className="text-5xl sm:text-6xl md:text-7xl font-display font-bold mb-6 leading-tight text-white">
+              Deep Ocean
+              <span className="block text-transparent bg-gradient-to-r from-teal-400 to-blue-500 bg-clip-text">
+                Mining
               </span>
             </h1>
-            
-            {/* Animated glowing orbs */}
-            <div 
-              className="absolute top-1/4 -right-10 w-20 h-20 rounded-full bg-cyan-500/5 animate-pulse blur-2xl"
-              style={{
-                transform: `translate(${parallaxOffset.x * 0.2}px, ${parallaxOffset.y * 0.2}px)`,
-              }}
-            ></div>
-            <div 
-              className="absolute bottom-1/4 -left-10 w-16 h-16 rounded-full bg-blue-500/5 animate-pulse delay-700 blur-2xl"
-              style={{
-                transform: `translate(${parallaxOffset.x * -0.2}px, ${parallaxOffset.y * -0.2}px)`,
-              }}
-            ></div>
+            <div className="w-24 h-1 bg-gradient-to-r from-teal-400 to-blue-500 mx-auto rounded-full"></div>
           </div>
+          {/* Professional Subtitle */}
+          <p className="text-xl md:text-2xl text-slate-300 mb-12 max-w-3xl mx-auto font-body leading-relaxed">
+            Command submarine fleets, extract valuable resources from the ocean floor, 
+            and build your underwater empire in this strategic blockchain game.
+          </p>
 
-          {/* Enhanced subheading with dynamic interactive typography */}
-          <div 
-            className={`transition-all duration-1000 ${animationLoaded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}
-            style={{ transitionDelay: '600ms' }}
-          >
-            <p className="text-xl md:text-2xl text-slate-200 mb-12 max-w-3xl mx-auto leading-relaxed font-light">
-              Command your <span className="text-cyan-300 font-medium relative inline-block group">
-                submarine fleet
-                <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-cyan-400/70 group-hover:w-full transition-all duration-300"></span>
-              </span>, mine precious resources from the 
-              <span className="text-blue-300 font-medium relative inline-block group">
-                <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-blue-400/70 group-hover:w-full transition-all duration-300"></span>
-                &nbsp;ocean floor
-              </span>, and compete with players worldwide in this 
-              <span className="text-teal-300 font-medium relative inline-block group">
-                <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-teal-400/70 group-hover:w-full transition-all duration-300"></span>
-                &nbsp;blockchain-powered adventure
-              </span>.
-            </p>
-          </div>
-
-          {/* Spectacular CTA buttons with advanced interactive effects */}
-          <div 
-            className={`flex flex-col sm:flex-row gap-8 justify-center items-center mb-16 transition-all duration-1000 ${animationLoaded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}
-            style={{ transitionDelay: '900ms' }}
-          >
+          {/* Clean CTA Buttons */}
+          <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-16">
             <Button
               size="lg"
               onClick={handleSignUp}
-              className="relative bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white px-10 py-6 text-lg font-semibold transform hover:scale-105 transition-all duration-300 shadow-glow hover:shadow-glow-strong rounded-xl group overflow-hidden"
-              onMouseEnter={() => setIsHovered(true)}
-              onMouseLeave={() => setIsHovered(false)}
+              className="bg-teal-600 hover:bg-teal-500 text-white px-8 py-4 font-display font-semibold text-lg transition-colors rounded-lg min-w-[200px]"
             >
-              <div className="absolute inset-0 bg-gradient-to-r from-cyan-500/30 to-blue-500/30 opacity-0 group-hover:opacity-100 blur-md transition-opacity duration-300"></div>
-              <div className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
-              
-              {/* Particle effect on hover */}
-              <div className="absolute inset-0 w-full h-full overflow-hidden opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                {[...Array(10)].map((_, i) => (
-                  <div
-                    key={`cta-particle-${i}`}
-                    className="absolute w-1 h-1 rounded-full bg-white/80"
-                    style={{
-                      top: `${Math.random() * 100}%`,
-                      left: `${Math.random() * 100}%`,
-                      opacity: Math.random() * 0.5 + 0.3,
-                      transform: 'scale(0)',
-                      animation: `growAndFade 2s ease-out infinite ${Math.random() * 2}s`,
-                    }}
-                  ></div>
-                ))}
-              </div>
-              
-              <Play className={`w-6 h-6 mr-4 relative z-10 ${isHovered ? "animate-pulse text-white" : "text-cyan-100"} transition-all duration-300`} />
-              <span className="relative z-10 tracking-wide">Start Your Journey</span>
-              <ArrowRight className="w-5 h-5 ml-4 relative z-10 group-hover:translate-x-2 transition-transform duration-300" />
+              <Play className="w-5 h-5 mr-3" />
+              Start Playing
             </Button>
-
+            
             <Button
               size="lg"
               variant="outline"
               onClick={handleLogin}
-              className="relative border-2 border-cyan-500/40 text-cyan-100 hover:text-white hover:border-cyan-400 px-10 py-6 text-lg bg-blue-950/50 backdrop-blur-md rounded-xl transition-all duration-300 group overflow-hidden"
+              className="border-slate-600 text-slate-300 hover:bg-slate-800 px-8 py-4 font-display font-medium text-lg transition-colors rounded-lg min-w-[200px]"
             >
-              <div className="absolute inset-0 w-0 bg-gradient-to-r from-cyan-700/30 to-blue-700/30 group-hover:w-full transition-all duration-500"></div>
-              <div className="absolute bottom-0 left-0 h-1 w-0 bg-gradient-to-r from-cyan-400 to-blue-500 group-hover:w-full transition-all duration-700 delay-100"></div>
-              <LogIn className="w-5 h-5 mr-4 relative z-10 group-hover:-translate-y-1 group-hover:translate-x-1 transition-transform duration-300" />
-              <span className="relative z-10 tracking-wide">I Have an Account</span>
+              <LogIn className="w-5 h-5 mr-3" />
+              Sign In
             </Button>
           </div>
 

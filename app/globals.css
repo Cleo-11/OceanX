@@ -1,19 +1,96 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Orbitron:wght@400;500;600;700;800;900&display=swap');
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 @import '../styles/blockchain-effects.css';
 @import '../styles/submarine-selection.css';
 
+:root {
+  --font-display: 'Orbitron', monospace;
+  --font-body: 'Inter', sans-serif;
+  
+  /* Professional Ocean Theme Colors */
+  --ocean-deep: #0c1421;
+  --ocean-dark: #1a2332;
+  --ocean-mid: #2d3b4f;
+  --ocean-light: #4a6481;
+  --ocean-surface: #6b8db5;
+  --ocean-foam: #a8c8ec;
+  
+  --aqua-deep: #0d7377;
+  --aqua-mid: #14a085;
+  --aqua-bright: #2dd4bf;
+  --aqua-glow: #7dd3fc;
+  
+  --gold-dark: #b45309;
+  --gold-mid: #d97706;
+  --gold-bright: #f59e0b;
+  --gold-glow: #fbbf24;
+}
 
 body {
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-body);
+  font-weight: 400;
+  letter-spacing: -0.01em;
   overflow-x: hidden;
+  background: var(--ocean-deep);
+}
+
+/* Typography Scale */
+.font-display {
+  font-family: var(--font-display);
+}
+
+.font-body {
+  font-family: var(--font-body);
 }
 
 @layer utilities {
   .text-balance {
     text-wrap: balance;
   }
+}
+
+/* Professional Animations & Effects */
+@keyframes fadeInUp {
+  0% {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200px 0;
+  }
+  100% {
+    background-position: calc(200px + 100%) 0;
+  }
+}
+
+/* Professional Button Styles */
+.btn-primary {
+  background: linear-gradient(135deg, var(--teal-600), var(--blue-600));
+  border: none;
+  transition: all 0.2s ease;
+}
+
+.btn-primary:hover {
+  background: linear-gradient(135deg, var(--teal-500), var(--blue-500));
+  transform: translateY(-1px);
+}
+
+/* Subtle Glow Effects */
+.glow-teal {
+  box-shadow: 0 0 20px rgba(45, 212, 191, 0.15);
+}
+
+.glow-blue {
+  box-shadow: 0 0 20px rgba(59, 130, 246, 0.15);
 }
 
 /* Ocean Bubble Animations */
