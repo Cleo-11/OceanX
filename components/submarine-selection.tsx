@@ -40,8 +40,8 @@ export function SubmarineSelection({
   const [ownedTiers, setOwnedTiers] = useState<number[]>([1]) // Player starts with tier 1
   const [selectedTier, setSelectedTier] = useState<number>(initialSelectedTier)
 
-  // Show all submarines from tier 1-3
-  const availableSubmarines = SUBMARINE_TIERS.filter(sub => sub.tier <= 3)
+  // Show all submarines
+  const availableSubmarines = SUBMARINE_TIERS
 
   const handleSelect = () => {
     if (ownedTiers.includes(selectedTier)) {
