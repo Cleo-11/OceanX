@@ -114,6 +114,14 @@ const Carousel = React.forwardRef<
       onSelect(api)
       api.on("reInit", onSelect)
       api.on("select", onSelect)
+      
+      // Debug: Log scroll states
+      console.log('Carousel initialized:', {
+        canScrollPrev: api.canScrollPrev(),
+        canScrollNext: api.canScrollNext(),
+        slideCount: api.slideNodes().length,
+        scrollProgress: api.scrollProgress()
+      })
 
       return () => {
         api?.off("select", onSelect)

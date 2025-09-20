@@ -42,6 +42,9 @@ export function SubmarineSelection({
 
   // Show all submarines (tiers 1-15) for full carousel scrolling
   const availableSubmarines = SUBMARINE_TIERS
+  
+  // Debug: Log the number of submarines
+  console.log('Available submarines:', availableSubmarines.length, availableSubmarines.map(s => s.tier))
 
   const handleSelect = () => {
     if (ownedTiers.includes(selectedTier)) {
@@ -92,21 +95,21 @@ export function SubmarineSelection({
           </DialogHeader>
           <div className="flex-1 flex flex-col justify-center w-full max-w-3xl mx-auto">
             <div className="relative w-full flex flex-col justify-center items-center">
-              {/* Carousel with absolutely positioned arrows */}
+              {/* Carousel with default button positioning */}
               <div className="relative w-full flex items-center justify-center" style={{minHeight: 340}}>
-                <Carousel>
-                  {/* Left Arrow */}
-                  <CarouselPrevious className="bg-cyan-950/50 border-cyan-500/30 text-cyan-400 hover:bg-cyan-900/50 hover:text-white w-12 h-12 rounded-full flex items-center justify-center" />
+                <Carousel className="w-full max-w-6xl" opts={{ 
+                  align: "start", 
+                  loop: false,
+                  slidesToScroll: 1
+                }}>
                   {/* Carousel Content */}
-                  <div className="w-full max-w-2xl">
-                    <div className="w-full max-w-5xl"> {/* Increased max width for overflow */}
-                      <CarouselContent>
-                      {availableSubmarines.map((submarine) => {
+                  <CarouselContent className="-ml-4">
+                    {availableSubmarines.map((submarine) => {
                         const owned = ownedTiers.includes(submarine.tier)
                         const price = submarine.upgradeCost.tokens
                         const canAfford = tokenBalance >= price
                         return (
-                          <CarouselItem key={submarine.tier} className="basis-1/2 md:basis-1/3 lg:basis-1/4 xl:basis-1/5">
+                          <CarouselItem key={submarine.tier} className="pl-4 basis-full sm:basis-1/2 md:basis-1/3 lg:basis-1/4 xl:basis-1/5">
                             <div className="p-1">
                               <Card 
                                 className={cn(
@@ -230,10 +233,9 @@ export function SubmarineSelection({
                           </CarouselItem>
                         )
                       })}
-                      </CarouselContent>
-                    </div>
-                  </div>
-                  {/* Right Arrow */}
+                  </CarouselContent>
+                  {/* Navigation Buttons */}
+                  <CarouselPrevious className="bg-cyan-950/50 border-cyan-500/30 text-cyan-400 hover:bg-cyan-900/50 hover:text-white w-12 h-12 rounded-full flex items-center justify-center" />
                   <CarouselNext className="bg-cyan-950/50 border-cyan-500/30 text-cyan-400 hover:bg-cyan-900/50 hover:text-white w-12 h-12 rounded-full flex items-center justify-center" />
                 </Carousel>
               </div>
