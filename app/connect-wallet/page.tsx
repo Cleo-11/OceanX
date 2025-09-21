@@ -67,8 +67,8 @@ export default function ConnectWalletPage() {
         .single()
 
       if (playerData?.wallet_address) {
-        // User already has wallet connected, redirect to game
-        router.push("/game")
+        // User already has wallet connected, redirect to dashboard
+        router.push("/dashboard")
         return
       }
 
