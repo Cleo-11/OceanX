@@ -173,9 +173,9 @@ export default function ConnectWalletPage() {
 
       setStep("complete")
 
-      // Redirect to game after a short delay
+      // Redirect to dashboard after a short delay
       setTimeout(() => {
-        router.push("/game")
+        router.push("/dashboard")
       }, 2000)
     } catch (error: any) {
       console.error("Error linking wallet:", error)
