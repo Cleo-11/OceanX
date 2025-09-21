@@ -65,17 +65,22 @@ export default function ConnectWalletPage() {
         .from("players")
         .select("wallet_address")
         .eq("user_id", user?.id)
-        .single()
-      console.log("[DEBUG] user?.id:", user?.id)
-      console.log("[DEBUG] playerData from supabase:", playerData)
+        .single();
+      console.log("[DEBUG] user?.id:", user?.id);
+      console.log("[DEBUG] playerData from supabase:", playerData);
+      console.log("[DEBUG] playerError from supabase:", playerError);
+      if (playerError) {
+        console.error("[DEBUG] Error fetching player record:", playerError);
+      }
       if (playerData?.wallet_address) {
         // User already has wallet connected, redirect to dashboard
         console.log("[DEBUG] Wallet already connected, redirecting to /dashboard");
-        router.push("/dashboard")
-        return
+        router.push("/dashboard");
+        return;
       }
 
-      setStep("connect")
+      console.log("[DEBUG] No wallet found, advancing to connect step");
+      setStep("connect");
     } catch (error) {
       console.error("Error checking auth and wallet:", error)
       setError("Failed to verify authentication status")
