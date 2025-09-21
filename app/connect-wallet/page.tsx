@@ -84,68 +84,72 @@ export default function ConnectWalletPage() {
   }
 
   const connectWallet = async () => {
+    console.log("[DEBUG] connectWallet button clicked");
     if (!window.ethereum) {
-      setError("MetaMask is not installed. Please install MetaMask to continue.")
-      setStep("error")
-      return
+      setError("MetaMask is not installed. Please install MetaMask to continue.");
+      setStep("error");
+      return;
     }
 
-    setIsLoading(true)
-    setError("")
+    setIsLoading(true);
+    setError("");
 
     try {
       // Request account access
       const accounts = await window.ethereum.request({
         method: "eth_requestAccounts",
-      })
+      });
+      console.log("[DEBUG] MetaMask accounts:", accounts);
 
       if (accounts.length === 0) {
-        throw new Error("No accounts found")
+        throw new Error("No accounts found");
       }
 
-      const address = accounts[0]
-      setWalletAddress(address)
-      setStep("linking")
+      const address = accounts[0];
+      setWalletAddress(address);
+      setStep("linking");
+      console.log("[DEBUG] Wallet address received:", address);
 
       // Link wallet to user account
-      await linkWalletToAccount(address)
+      await linkWalletToAccount(address);
     } catch (error: any) {
-      console.error("Error connecting wallet:", error)
+      console.error("Error connecting wallet:", error);
       if (error.code === 4001) {
-        setError("Wallet connection was rejected. Please try again.")
+        setError("Wallet connection was rejected. Please try again.");
       } else {
-        setError(error.message || "Failed to connect wallet")
+        setError(error.message || "Failed to connect wallet");
       }
-      setStep("error")
+      setStep("error");
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
 
   const linkWalletToAccount = async (address: string) => {
     try {
       // Check if wallet is already linked to another account
-      // Debug log for user.id
-      console.log("user.id for wallet linking (linkWalletToAccount):", user?.id)
+      console.log("[DEBUG] linkWalletToAccount called with address:", address);
+      console.log("[DEBUG] user.id for wallet linking:", user?.id);
 
       if (!user?.id) {
-        setError("No user ID found. Cannot link wallet.")
-        setStep("error")
-        return
+        setError("No user ID found. Cannot link wallet.");
+        setStep("error");
+        return;
       }
 
       const { data: existingPlayer, error: checkError } = await supabase
         .from("players")
         .select("user_id, username")
         .eq("wallet_address", address)
-        .single()
+        .single();
+      console.log("[DEBUG] existingPlayer:", existingPlayer, "checkError:", checkError);
 
       if (existingPlayer && existingPlayer.user_id !== user?.id) {
-        setPendingWalletAddress(address)
-        setPendingOldUserId(existingPlayer.user_id)
-        setShowTransferDialog(true)
-        setStep("connect") // Go back to connect step while waiting for confirmation
-        return
+        setPendingWalletAddress(address);
+        setPendingOldUserId(existingPlayer.user_id);
+        setShowTransferDialog(true);
+        setStep("connect"); // Go back to connect step while waiting for confirmation
+        return;
       }
 
       // Create or update player record
@@ -158,35 +162,38 @@ export default function ConnectWalletPage() {
         submarine_tier: 1,
         total_resources_mined: 0,
         total_ocx_earned: 0,
-      }
+      };
+      console.log("[DEBUG] Upserting playerData:", playerData);
 
       const { error: upsertError } = await supabase.from("players").upsert(playerData, {
         onConflict: "user_id",
-      })
-
+      });
       if (upsertError) {
-        throw upsertError
+        console.error("[DEBUG] Supabase upsert error:", upsertError);
+        setError(upsertError.message || "Failed to link wallet to account");
+        setStep("error");
+        return;
       }
 
       // Reset pending transfer state
-      setPendingWalletAddress("")
-      setPendingOldUserId("")
-      setShowTransferDialog(false)
-      setPendingLinking(false)
+      setPendingWalletAddress("");
+      setPendingOldUserId("");
+      setShowTransferDialog(false);
+      setPendingLinking(false);
 
-      setStep("complete")
+      setStep("complete");
 
       // Redirect to dashboard after a short delay
       setTimeout(() => {
         console.log("[DEBUG] Wallet linked, redirecting to /dashboard");
-        router.push("/dashboard")
-      }, 2000)
+        router.push("/dashboard");
+      }, 2000);
     } catch (error: any) {
-      console.error("Error linking wallet:", error)
-      setError(error.message || "Failed to link wallet to account")
-      setStep("error")
+      console.error("[DEBUG] Error linking wallet:", error);
+      setError(error.message || "Failed to link wallet to account");
+      setStep("error");
     }
-  }
+  };
 
   const handleConfirmTransfer = async () => {
     setPendingLinking(true)
