@@ -48,6 +48,7 @@ export default function HomePage() {
         if (playerData?.wallet_address) {
           // User has wallet, redirect to dashboard
           setHasWallet(true)
+          console.log("[DEBUG] HomePage: User has wallet, redirecting to /dashboard");
           router.replace("/dashboard")
           return
         } else {

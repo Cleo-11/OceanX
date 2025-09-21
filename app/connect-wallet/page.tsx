@@ -68,6 +68,7 @@ export default function ConnectWalletPage() {
 
       if (playerData?.wallet_address) {
         // User already has wallet connected, redirect to dashboard
+        console.log("[DEBUG] Wallet already connected, redirecting to /dashboard");
         router.push("/dashboard")
         return
       }
@@ -175,6 +176,7 @@ export default function ConnectWalletPage() {
 
       // Redirect to dashboard after a short delay
       setTimeout(() => {
+        console.log("[DEBUG] Wallet linked, redirecting to /dashboard");
         router.push("/dashboard")
       }, 2000)
     } catch (error: any) {
