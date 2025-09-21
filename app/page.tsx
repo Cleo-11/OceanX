@@ -46,9 +46,9 @@ export default function HomePage() {
           .single()
 
         if (playerData?.wallet_address) {
-          // User has wallet, redirect to game
+          // User has wallet, redirect to dashboard
           setHasWallet(true)
-          router.replace("/game")
+          router.replace("/dashboard")
           return
         } else {
           // User authenticated but no wallet, redirect to connect wallet
