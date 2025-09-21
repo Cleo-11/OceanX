@@ -35,18 +35,6 @@ export function UserDashboard({
   onNavigateToGame,
   onNavigateToStore
 }: UserDashboardProps) {
-
-  currentSubmarineTier = 1,
-  tokenBalance = 2500,
-  resources = {
-    nickel: 150,
-    cobalt: 75,
-    copper: 200,
-    manganese: 50
-  },
-  onNavigateToGame,
-  onNavigateToStore
-}: UserDashboardProps) {
   const [showSubmarineStore, setShowSubmarineStore] = useState(false)
   const [showInventory, setShowInventory] = useState(false)
 
