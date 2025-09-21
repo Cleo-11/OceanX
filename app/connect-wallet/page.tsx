@@ -59,13 +59,15 @@ export default function ConnectWalletPage() {
       // Debug log for user.id
       console.log("user.id for wallet lookup (checkAuthAndWallet):", user?.id)
 
+
       // Check if user already has a wallet connected
       const { data: playerData, error: playerError } = await supabase
         .from("players")
         .select("wallet_address")
         .eq("user_id", user?.id)
         .single()
-
+      console.log("[DEBUG] user?.id:", user?.id)
+      console.log("[DEBUG] playerData from supabase:", playerData)
       if (playerData?.wallet_address) {
         // User already has wallet connected, redirect to dashboard
         console.log("[DEBUG] Wallet already connected, redirecting to /dashboard");
