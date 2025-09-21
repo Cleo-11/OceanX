@@ -1,11 +1,18 @@
 "use client"
+
+import { useRouter } from "next/navigation"
 import { UserDashboard } from "@/components/user-dashboard"
 
 export default function DashboardPage() {
+  const router = useRouter();
+
   const handleNavigateToGame = () => {
-    // Navigate to game page
-    console.log("Navigate to game")
-  }
+    router.push("/game");
+  };
+
+  const handleNavigateToStore = () => {
+    router.push("/submarines");
+  };
 
   return (
     <UserDashboard
@@ -18,6 +25,7 @@ export default function DashboardPage() {
         manganese: 125
       }}
       onNavigateToGame={handleNavigateToGame}
+      onNavigateToStore={handleNavigateToStore}
     />
-  )
+  );
 }

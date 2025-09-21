@@ -9,16 +9,18 @@ import SubmarineIcon from "./SubmarineIcon"
 import { SubmarineSelection } from "./submarine-selection"
 import { cn } from "@/lib/utils"
 
+
 interface UserDashboardProps {
-  currentSubmarineTier?: number
-  tokenBalance?: number
+  currentSubmarineTier?: number;
+  tokenBalance?: number;
   resources?: {
-    nickel: number
-    cobalt: number
-    copper: number
-    manganese: number
-  }
-  onNavigateToGame?: () => void
+    nickel: number;
+    cobalt: number;
+    copper: number;
+    manganese: number;
+  };
+  onNavigateToGame?: () => void;
+  onNavigateToStore?: () => void;
 }
 
 export function UserDashboard({
@@ -30,7 +32,20 @@ export function UserDashboard({
     copper: 200,
     manganese: 50
   },
-  onNavigateToGame
+  onNavigateToGame,
+  onNavigateToStore
+}: UserDashboardProps) {
+
+  currentSubmarineTier = 1,
+  tokenBalance = 2500,
+  resources = {
+    nickel: 150,
+    cobalt: 75,
+    copper: 200,
+    manganese: 50
+  },
+  onNavigateToGame,
+  onNavigateToStore
 }: UserDashboardProps) {
   const [showSubmarineStore, setShowSubmarineStore] = useState(false)
   const [showInventory, setShowInventory] = useState(false)
@@ -93,7 +108,7 @@ export function UserDashboard({
         <div className="flex gap-6 mb-8">
           {/* Submarine Store Button */}
           <Button
-            onClick={() => setShowSubmarineStore(true)}
+            onClick={onNavigateToStore}
             className="group relative px-8 py-6 bg-gradient-to-r from-slate-800/80 to-slate-700/80 hover:from-cyan-600/90 hover:to-blue-600/90 border border-slate-600/50 hover:border-cyan-500/50 rounded-2xl shadow-lg hover:shadow-cyan-500/25 transition-all duration-300 backdrop-blur-md"
             size="lg"
           >
