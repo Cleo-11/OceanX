@@ -1,4 +1,4 @@
-# Deploying OceanX to Render
+# Deploying AbyssX to Render
 
 ## Quick Deploy Options
 
@@ -6,7 +6,7 @@
 1. Fork this repository to your GitHub account
 2. Click the "Deploy to Render" button below:
 
-[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/YOUR_USERNAME/oceanx-game)
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/YOUR_USERNAME/abyssx-game)
 
 ### Option 2: Manual Deployment
 
@@ -19,7 +19,7 @@
 
 2. **Configure Backend Service**
    \`\`\`
-   Name: oceanx-backend
+   Name: abyssx-backend
    Environment: Node
    Build Command: npm install
    Start Command: npm run start
@@ -29,7 +29,7 @@
 3. **Set Environment Variables**
    \`\`\`
    NODE_ENV=production
-   FRONTEND_URL=https://oceanx-frontend.onrender.com
+   FRONTEND_URL=https://abyssx-frontend.onrender.com
    RPC_URL=https://mainnet.infura.io/v3/YOUR_INFURA_KEY
    SUPABASE_URL=your_supabase_project_url
    SUPABASE_ANON_KEY=your_supabase_anon_key
@@ -38,7 +38,7 @@
 4. **Deploy Backend**
    - Click "Create Web Service"
    - Wait for deployment (usually 2-3 minutes)
-   - Note your backend URL: `https://oceanx-backend.onrender.com`
+   - Note your backend URL: `https://abyssx-backend.onrender.com`
 
 ## Step 2: Deploy Frontend (Static Site)
 
@@ -48,15 +48,15 @@
 
 2. **Configure Frontend Service**
    \`\`\`
-   Name: oceanx-frontend
+   Name: abyssx-frontend
    Build Command: npm install && npm run build
    Publish Directory: out
    \`\`\`
 
 3. **Set Environment Variables**
    \`\`\`
-   NEXT_PUBLIC_API_URL=https://oceanx-backend.onrender.com
-   NEXT_PUBLIC_WS_URL=https://oceanx-backend.onrender.com
+   NEXT_PUBLIC_API_URL=https://abyssx-backend.onrender.com
+   NEXT_PUBLIC_WS_URL=https://abyssx-backend.onrender.com
    NEXT_PUBLIC_CHAIN_ID=1
    NEXT_PUBLIC_RPC_URL=https://mainnet.infura.io/v3/YOUR_INFURA_KEY
    \`\`\`
@@ -64,7 +64,7 @@
 4. **Deploy Frontend**
    - Click "Create Static Site"
    - Wait for deployment
-   - Your game will be live at: `https://oceanx-frontend.onrender.com`
+   - Your game will be live at: `https://abyssx-frontend.onrender.com`
 
 ## Step 3: Configure Smart Contract ABIs
 
@@ -76,7 +76,7 @@ You'll need to add your smart contract ABIs to the `abis/` directory:
 
 2. **Add ABI Files**
    \`\`\`
-   abis/OceanXToken.json
+   abis/AbyssXToken.json
    abis/PlayerProfile.json
    abis/UpgradeManager.json
    abis/DailyMiner.json
@@ -90,7 +90,7 @@ You'll need to add your smart contract ABIs to the `abis/` directory:
 
 1. **Check Backend Health**
    \`\`\`bash
-   curl https://oceanx-backend.onrender.com/health
+   curl https://abyssx-backend.onrender.com/health
    \`\`\`
 
 2. **Test Frontend**
@@ -104,7 +104,7 @@ You'll need to add your smart contract ABIs to the `abis/` directory:
 \`\`\`env
 NODE_ENV=production
 PORT=10000
-FRONTEND_URL=https://oceanx-frontend.onrender.com
+FRONTEND_URL=https://abyssx-frontend.onrender.com
 RPC_URL=https://mainnet.infura.io/v3/YOUR_INFURA_KEY
 SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_ANON_KEY=your_supabase_anon_key
@@ -112,8 +112,8 @@ SUPABASE_ANON_KEY=your_supabase_anon_key
 
 ### Frontend (.env.local)
 \`\`\`env
-NEXT_PUBLIC_API_URL=https://oceanx-backend.onrender.com
-NEXT_PUBLIC_WS_URL=https://oceanx-backend.onrender.com
+NEXT_PUBLIC_API_URL=https://abyssx-backend.onrender.com
+NEXT_PUBLIC_WS_URL=https://abyssx-backend.onrender.com
 NEXT_PUBLIC_CHAIN_ID=1
 NEXT_PUBLIC_RPC_URL=https://mainnet.infura.io/v3/YOUR_INFURA_KEY
 \`\`\`
@@ -201,4 +201,4 @@ If you encounter issues:
 4. Check smart contract interactions on Etherscan
 5. Monitor WebSocket connections
 
-Your OceanX game should now be live and ready for players! 🌊⛏️
+Your AbyssX game should now be live and ready for players! 🌊⛏️

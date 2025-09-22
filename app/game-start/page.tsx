@@ -21,7 +21,7 @@ export default function GameStartPage() {
     <div className="flex min-h-screen flex-col items-center justify-center bg-black text-white p-4">
       {/* Game logo or title */}
       <div className="text-4xl font-bold mb-8 bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent">
-        OCEANX EXPLORER
+        ABYSSX EXPLORER
       </div>
       
       <div className="flex flex-col gap-6 max-w-md w-full">

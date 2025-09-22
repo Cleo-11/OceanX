@@ -1,4 +1,4 @@
-# OceanX Deployment Guide
+# AbyssX Deployment Guide
 
 ## Frontend Deployment (Vercel)
 
@@ -13,8 +13,8 @@
 Add these in your Vercel project settings:
 
 \`\`\`env
-NEXT_PUBLIC_API_URL=https://oceanx-backend.onrender.com
-NEXT_PUBLIC_WS_URL=https://oceanx-backend.onrender.com
+NEXT_PUBLIC_API_URL=https://abyssx-backend.onrender.com
+NEXT_PUBLIC_WS_URL=https://abyssx-backend.onrender.com
 NEXT_PUBLIC_CHAIN_ID=1
 NEXT_PUBLIC_RPC_URL=https://mainnet.infura.io/v3/YOUR_INFURA_KEY
 \`\`\`
@@ -33,7 +33,7 @@ NEXT_PUBLIC_RPC_URL=https://mainnet.infura.io/v3/YOUR_INFURA_KEY
 2. Click "New +" → "Web Service"
 3. Connect your GitHub repository
 4. Configure:
-   - **Name**: `oceanx-backend`
+   - **Name**: `abyssx-backend`
    - **Environment**: Node
    - **Build Command**: `cd server && npm install`
    - **Start Command**: `cd server && npm start`
@@ -68,11 +68,11 @@ After Vercel deployment, update the `FRONTEND_URL` in Render with your actual Ve
 ## Testing Deployment
 
 ### Health Checks
-- Backend: `https://oceanx-backend.onrender.com/health`
+- Backend: `https://abyssx-backend.onrender.com/health`
 - Frontend: `https://your-vercel-app.vercel.app`
 
 ### WebSocket Connection
-- Test at: `https://oceanx-backend.onrender.com/socket.io/`
+- Test at: `https://abyssx-backend.onrender.com/socket.io/`
 
 ---
 

@@ -233,7 +233,7 @@ class ApiClient {
 
   // Utility method to create authenticated message
   createAuthMessage(walletAddress: string, action = "authenticate"): string {
-    return `OceanX ${action}
+    return `AbyssX ${action}
 
 Wallet: ${walletAddress}
 Timestamp: ${Date.now()}

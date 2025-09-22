@@ -271,7 +271,7 @@ export default function LandingPage() {
             
             <div className="relative">
               <span className={`text-3xl font-bold bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent transition-all duration-500 ${scrolled ? 'group-hover:from-cyan-300 group-hover:to-blue-300' : 'group-hover:from-white group-hover:to-cyan-200'}`}>
-                OceanX
+                AbyssX
               </span>
               <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-gradient-to-r from-cyan-400 to-blue-400 group-hover:w-full transition-all duration-500"></span>
             </div>
@@ -1266,7 +1266,7 @@ export default function LandingPage() {
               <div className="flex items-center space-x-2 mb-4">
                 <Anchor className="w-8 h-8 text-cyan-400" />
                 <span className="text-2xl font-bold bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent">
-                  OceanX
+                  AbyssX
                 </span>
               </div>
               <p className="text-slate-400 mb-6">
@@ -1339,7 +1339,7 @@ export default function LandingPage() {
           
           {/* Copyright */}
           <div className="pt-8 border-t border-slate-800 text-center">
-            <p className="text-slate-400 text-sm">© 2025 OceanX. Dive deep, mine smart, conquer the seas.</p>
+            <p className="text-slate-400 text-sm">© 2025 AbyssX. Dive deep, mine smart, conquer the seas.</p>
           </div>
         </div>
       </footer>

@@ -131,7 +131,7 @@ function AuthPageContent() {
           <div className="flex items-center justify-center mb-4">
             <Anchor className="w-8 h-8 text-cyan-400 mr-2" />
             <h1 className="text-3xl font-bold bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent">
-              OceanX
+              AbyssX
             </h1>
           </div>
 

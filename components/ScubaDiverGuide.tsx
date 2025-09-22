@@ -35,7 +35,7 @@ const ScubaDiverSVG = ({ style = {} }) => (
 
 const guideSteps = [
   {
-    message: "Welcome to OceanX! 🌊",
+    message: "Welcome to AbyssX! 🌊",
     sub: "I'm your scuba guide. Ready to explore the ocean?",
   },
   {

@@ -29,6 +29,7 @@ interface OceanMiningGameProps {
   setSidebarOpen: (open: boolean | ((prev: boolean) => boolean)) => void
   onFullDisconnect: () => void // NEW PROP
   onConnectWallet?: () => void // NEW PROP for wallet connection
+  autoOpenStore?: boolean // NEW PROP for auto-opening submarine store
 }
 
 export function OceanMiningGame({
@@ -39,6 +40,7 @@ export function OceanMiningGame({
   setSidebarOpen,
   onFullDisconnect, // NEW PROP
   onConnectWallet, // NEW PROP for wallet connection
+  autoOpenStore = false, // NEW PROP for auto-opening submarine store
 }: OceanMiningGameProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const gameLoopRef = useRef<number>(0)
@@ -163,6 +165,16 @@ export function OceanMiningGame({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [walletConnected]);
+
+  // Auto-open submarine store when requested
+  useEffect(() => {
+    if (autoOpenStore && walletConnected) {
+      const timer = setTimeout(() => {
+        setShowSubmarineStore(true);
+      }, 500); // Small delay to let the game initialize
+      return () => clearTimeout(timer);
+    }
+  }, [autoOpenStore, walletConnected]);
 
   // Generate resource nodes function
   const generateInitialResourceNodes = () => {

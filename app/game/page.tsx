@@ -9,6 +9,7 @@ import { getSession, getCurrentUser, signOut } from "@/lib/supabase"
 import { supabase } from "@/lib/supabase"
 import { OceanMiningGame } from "@/components/ocean-mining-game";
 import { SubmarineSelection } from "@/components/submarine-selection";
+import { SubmarineStore } from "@/components/submarine-store";
 import { walletManager } from "@/lib/wallet";
 import { AlertDialogContent } from "@/components/ui/alert-dialog";
 import { GameState } from "@/lib/types";
@@ -37,6 +38,7 @@ export default function GamePage() {
   const [showSubmarineSelection, setShowSubmarineSelection] = useState(false);
   const [selectedSubmarineTier, setSelectedSubmarineTier] = useState<number | null>(null);
   const [hasSelectedSubmarine, setHasSelectedSubmarine] = useState(false);
+  const [showSubmarineStore, setShowSubmarineStore] = useState(false);
   const router = useRouter()
 
   useEffect(() => {
@@ -62,6 +64,15 @@ export default function GamePage() {
         setWalletPrompt(true);
       } else {
         setWalletConnected(true);
+        // Check if user wants to open submarine store
+        const shouldOpenStore = sessionStorage.getItem("openSubmarineStore");
+        if (shouldOpenStore === "true") {
+          sessionStorage.removeItem("openSubmarineStore");
+          // Small delay to ensure game is loaded first
+          setTimeout(() => {
+            setShowSubmarineStore(true);
+          }, 1000);
+        }
       }
     }
   }, [playerData]);
@@ -252,6 +263,27 @@ export default function GamePage() {
           setHasSelectedSubmarine(true);
         }}
         initialSelectedTier={playerData?.submarine_tier || 1}
+      />
+
+      {/* Submarine Store Modal */}
+      <SubmarineStore
+        isOpen={showSubmarineStore}
+        onClose={() => setShowSubmarineStore(false)}
+        currentTier={selectedSubmarineTier || playerData?.submarine_tier || 1}
+        resources={{
+          nickel: playerData?.nickel || 0,
+          cobalt: playerData?.cobalt || 0,
+          copper: playerData?.copper || 0,
+          manganese: playerData?.manganese || 0
+        }}
+        balance={playerData?.balance || 0}
+        onPurchase={(targetTier) => {
+          // Handle submarine purchase logic here
+          console.log('Purchasing submarine tier:', targetTier);
+          // TODO: Implement purchase logic
+          setShowSubmarineStore(false);
+        }}
+        gameState={gameState}
       />
 
       {/* Only render game after submarine is selected */}

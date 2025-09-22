@@ -70,9 +70,9 @@ export default function ConnectWalletPage() {
       console.log("Player error:", playerError)
 
       if (playerData?.wallet_address) {
-        console.log("User has wallet, redirecting to game:", playerData.wallet_address)
-        // User already has wallet connected, redirect to game
-        router.push("/game")
+        console.log("User has wallet, redirecting to home:", playerData.wallet_address)
+        // User already has wallet connected, redirect to home
+        router.push("/home")
         return
       }
 
@@ -178,9 +178,9 @@ export default function ConnectWalletPage() {
 
       setStep("complete")
 
-      // Redirect to game after a short delay
+      // Redirect to home after a short delay
       setTimeout(() => {
-        router.push("/game")
+        router.push("/home")
       }, 2000)
     } catch (error: any) {
       console.error("Error linking wallet:", error)
@@ -265,7 +265,7 @@ export default function ConnectWalletPage() {
             {Wallet && <Wallet className="w-16 h-16 text-cyan-400 mx-auto mb-6" />}
             <h3 className="text-2xl font-semibold text-white mb-4">Connect Your Wallet</h3>
             <p className="text-slate-400 mb-6 max-w-md mx-auto">
-              Connect your MetaMask wallet to start playing OceanX. Your wallet will be securely linked to your account.
+              Connect your MetaMask wallet to start playing AbyssX. Your wallet will be securely linked to your account.
             </p>
             {Button && (
               <Button
@@ -371,7 +371,7 @@ export default function ConnectWalletPage() {
           <div className="flex items-center justify-center mb-4">
             <Anchor className="w-8 h-8 text-cyan-400 mr-2" />
             <h1 className="text-3xl font-bold bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent">
-              OceanX
+              AbyssX
             </h1>
           </div>
 

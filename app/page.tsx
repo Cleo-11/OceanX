@@ -46,9 +46,9 @@ export default function HomePage() {
           .single()
 
         if (playerData?.wallet_address) {
-          // User has wallet, redirect to game
+          // User has wallet, redirect to home page
           setHasWallet(true)
-          router.replace("/game")
+          router.replace("/home")
           return
         } else {
           // User authenticated but no wallet, redirect to connect wallet
@@ -68,7 +68,7 @@ export default function HomePage() {
       <div className="min-h-screen bg-gradient-to-b from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center">
         <div className="text-center">
           <Loader2 className="w-8 h-8 text-cyan-400 animate-spin mx-auto mb-4" />
-          <p className="text-slate-400">Loading OceanX...</p>
+          <p className="text-slate-400">Loading AbyssX...</p>
         </div>
       </div>
     )
