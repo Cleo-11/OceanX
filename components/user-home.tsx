@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { Play, Store, Settings, User, Waves } from "lucide-react"
+import { Play, Store, Settings, User, Waves, ChevronDown, Wifi, ShoppingBag, TrendingUp, Coins } from "lucide-react"
 import SubmarineIcon from "./SubmarineIcon"
 import { getSubmarineByTier } from "@/lib/submarine-tiers"
 import { apiClient, createSignaturePayload } from "@/lib/api"
@@ -31,6 +31,23 @@ export function UserHome({ playerData, onPlayClick, onSubmarineStoreClick }: Use
   const [ocxBalance, setOcxBalance] = useState<string | null>(null)
   const [ocxSymbol, setOcxSymbol] = useState<string>("OCX")
   const [balanceLoading, setBalanceLoading] = useState(false)
+  const [currentNetwork, setCurrentNetwork] = useState<string>("Base")
+  const [showNetworkDropdown, setShowNetworkDropdown] = useState(false)
+  
+  // Captain's log messages rotation
+  const captainLogMessages = [
+    "The depths await, Captain. Our sonar is detecting rich mineral deposits in the abyssal plains.",
+    "Current oceanic conditions optimal. All submarine systems operational and ready for deployment.",
+    "Intelligence reports indicate new treasure caches discovered in the deepest trenches.",
+    "The ocean's mysteries call to us, Captain. Our advanced mining equipment stands ready.",
+    "Submarine fleet status: All vessels primed for deep-sea expedition. Awaiting your command.",
+    "Seabed analysis complete. High-value resources detected in previously unexplored regions.",
+    "Captain's log: The crew reports excellent morale. Ready to venture into the unknown depths.",
+    "Our cutting-edge technology gives us the edge in the competitive waters of ocean mining.",
+    "The tide favors the bold, Captain. Fortune awaits those who dare to dive deeper.",
+    "Pressure suits checked, navigation systems calibrated. The abyss beckons with untold riches."
+  ]
+  const [currentLogIndex, setCurrentLogIndex] = useState(0)
   const router = useRouter()
   const currentSubmarine = getSubmarineByTier(playerData.submarine_tier)
 
@@ -42,14 +59,20 @@ export function UserHome({ playerData, onPlayClick, onSubmarineStoreClick }: Use
     return () => clearInterval(interval)
   }, [])
 
-  // Fetch OCX balance
+  // Fetch OCX balance and detect network
   useEffect(() => {
-    async function fetchBalance() {
+    async function fetchBalanceAndNetwork() {
       setBalanceLoading(true)
       try {
         const walletManager = WalletManager.getInstance()
         const connection = walletManager.getConnection()
         if (!connection) return
+        
+        // Detect current network
+        const network = await connection.provider.getNetwork()
+        const networkName = network.chainId === BigInt(8453) ? "Base" : network.chainId === BigInt(11155111) ? "Sepolia" : "Unknown"
+        setCurrentNetwork(networkName)
+        
         const { message } = createSignaturePayload(connection.address, "get-balance")
         const signature = await walletManager.signMessage(message)
         const resp = await apiClient.getPlayerBalance(connection.address, signature, message)
@@ -59,12 +82,30 @@ export function UserHome({ playerData, onPlayClick, onSubmarineStoreClick }: Use
         }
       } catch (e) {
         setOcxBalance(null)
+        setCurrentNetwork("Unknown")
       } finally {
         setBalanceLoading(false)
       }
     }
-    fetchBalance()
+    fetchBalanceAndNetwork()
   }, [playerData.wallet_address])
+
+  // Handle dropdown close on outside click
+  useEffect(() => {
+    const handleClickOutside = () => setShowNetworkDropdown(false)
+    if (showNetworkDropdown) {
+      document.addEventListener('click', handleClickOutside)
+      return () => document.removeEventListener('click', handleClickOutside)
+    }
+  }, [showNetworkDropdown])
+
+  // Captain's log rotation
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentLogIndex((prevIndex) => (prevIndex + 1) % captainLogMessages.length)
+    }, 8000) // Rotate every 8 seconds
+    return () => clearInterval(interval)
+  }, [captainLogMessages.length])
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-blue-950 to-teal-950 overflow-hidden relative">
@@ -110,11 +151,35 @@ export function UserHome({ playerData, onPlayClick, onSubmarineStoreClick }: Use
               </div>
               
               {/* Rank/Level Display */}
-              <div className="inline-flex items-center gap-2 bg-gradient-to-r from-yellow-500/20 to-orange-500/20 rounded-full px-4 py-2 border border-yellow-400/30">
+              <div className="inline-flex items-center gap-2 bg-gradient-to-r from-yellow-500/20 to-orange-500/20 rounded-full px-4 py-2 border border-yellow-400/30 mb-4">
                 <div className="w-3 h-3 bg-gradient-to-r from-yellow-400 to-orange-400 rounded-full animate-pulse"></div>
                 <span className="text-yellow-200 font-semibold text-sm">
                   SUBMARINE CAPTAIN • TIER {playerData.submarine_tier}
                 </span>
+              </div>
+              
+              {/* Rotating Captain's Log */}
+              <div className="relative bg-gradient-to-r from-slate-900/60 via-slate-800/60 to-slate-900/60 rounded-xl border border-cyan-500/20 p-4 mt-4 backdrop-blur-sm">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-2 h-2 bg-cyan-400 rounded-full animate-pulse"></div>
+                  <span className="text-cyan-300 font-bold text-xs uppercase tracking-wider">Captain's Log</span>
+                  <div className="flex-1 h-px bg-gradient-to-r from-cyan-400/50 via-transparent to-transparent"></div>
+                </div>
+                <p className="text-slate-200 text-sm italic leading-relaxed font-medium transition-all duration-1000 ease-in-out">
+                  "{captainLogMessages[currentLogIndex]}"
+                </p>
+                <div className="flex justify-end mt-2">
+                  <div className="flex gap-1">
+                    {captainLogMessages.map((_, index) => (
+                      <div 
+                        key={index}
+                        className={`w-1.5 h-1.5 rounded-full transition-all duration-300 ${
+                          index === currentLogIndex ? 'bg-cyan-400 scale-125' : 'bg-slate-600 scale-100'
+                        }`}
+                      />
+                    ))}
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -126,6 +191,35 @@ export function UserHome({ playerData, onPlayClick, onSubmarineStoreClick }: Use
               {playerData.wallet_address.slice(0, 8)}...{playerData.wallet_address.slice(-6)}
             </span>
             <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+            
+            {/* Network Indicator */}
+            <div className="relative">
+              <button 
+                onClick={() => setShowNetworkDropdown(!showNetworkDropdown)}
+                className="flex items-center gap-1 text-cyan-300 font-semibold text-sm bg-slate-700/60 hover:bg-slate-600/60 px-2 py-1 rounded-full border border-cyan-400/20 transition-colors"
+              >
+                <Wifi className="w-3 h-3" />
+                <span>{currentNetwork}</span>
+                <ChevronDown className="w-3 h-3" />
+              </button>
+              
+              {showNetworkDropdown && (
+                <div className="absolute top-full mt-2 right-0 w-44 bg-slate-900/95 border border-cyan-500/30 rounded-lg shadow-xl backdrop-blur-sm z-50">
+                  <div className="p-2">
+                    <div className="px-3 py-2 text-xs text-cyan-300/70 uppercase tracking-wider border-b border-slate-700/50 mb-1">
+                      Switch Network
+                    </div>
+                    <button className="w-full text-left px-3 py-2 text-sm text-cyan-200 hover:bg-cyan-500/10 rounded transition-colors">
+                      🟢 Base (Mainnet)
+                    </button>
+                    <button className="w-full text-left px-3 py-2 text-sm text-cyan-200 hover:bg-cyan-500/10 rounded transition-colors">
+                      🔵 Sepolia (Testnet)
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+            
             {/* OCX Balance */}
             <span className="ml-4 flex items-center gap-1 text-cyan-300 font-bold text-base bg-cyan-900/30 px-3 py-1 rounded-full border border-cyan-400/20">
               {balanceLoading ? <span className="animate-pulse">...</span> : (ocxBalance ?? "-")}
@@ -335,56 +429,46 @@ export function UserHome({ playerData, onPlayClick, onSubmarineStoreClick }: Use
               </Button>
             </div>
 
-            {/* Enhanced Secondary Buttons */}
-            <div className="space-y-6 w-full max-w-sm">
-              <div className="relative group">
-                <div className="absolute -inset-1 bg-gradient-to-r from-purple-500 to-pink-500 rounded-2xl blur-md opacity-20 group-hover:opacity-40 transition-opacity duration-300"></div>
+            {/* Marketplace Shortcut */}
+            <div className="relative group">
+              {/* Outer Glow Ring */}
+              <div className="absolute -inset-1 bg-gradient-to-r from-yellow-400 via-orange-400 to-red-400 rounded-2xl blur-md opacity-30 group-hover:opacity-60 animate-pulse transition-opacity duration-500"></div>
+              
+              <Button
+                onClick={() => router.push('/marketplace')}
+                className="relative group/btn bg-gradient-to-r from-yellow-600/90 via-orange-600/90 to-red-600/90 
+                           hover:from-yellow-500 hover:via-orange-500 hover:to-red-500 
+                           text-white font-bold text-lg px-12 py-6 rounded-2xl 
+                           shadow-2xl shadow-orange-900/50 hover:shadow-orange-400/30
+                           transform hover:scale-105 active:scale-95 
+                           transition-all duration-300 ease-out
+                           border-2 border-orange-300/40 hover:border-orange-300/70
+                           w-full max-w-sm
+                           overflow-hidden"
+              >
+                {/* Inner Animated Background */}
+                <div className="absolute inset-0 bg-gradient-to-r from-white/10 via-transparent to-white/10 transform skew-x-12 -translate-x-full group-hover/btn:translate-x-full transition-transform duration-700 ease-out"></div>
                 
-                <Button
-                  onClick={onSubmarineStoreClick}
-                  className="relative group/btn w-full bg-gradient-to-r from-slate-700/80 to-slate-600/80 
-                             hover:from-slate-600/90 hover:to-slate-500/90
-                             text-cyan-300 hover:text-white border-2 border-cyan-800/50 hover:border-cyan-400/70
-                             font-bold py-6 px-8 rounded-2xl 
-                             shadow-xl shadow-slate-900/50 hover:shadow-cyan-900/30
-                             transform hover:scale-105 active:scale-95 transition-all duration-300
-                             overflow-hidden"
-                >
-                  <div className="absolute inset-0 bg-gradient-to-r from-cyan-500/10 via-transparent to-cyan-500/10 transform skew-x-12 -translate-x-full group-hover/btn:translate-x-full transition-transform duration-700"></div>
-                  
-                  <div className="flex items-center justify-center gap-4 relative z-10">
-                    <Store className="w-6 h-6 group-hover/btn:scale-110 group-hover/btn:rotate-12 transition-all duration-300" />
-                    <span className="text-lg">Submarine Hangar</span>
+                <div className="flex items-center justify-center gap-3 relative z-10">
+                  <div className="relative">
+                    <ShoppingBag className="w-7 h-7 group-hover/btn:scale-110 group-hover/btn:rotate-6 transition-transform duration-300" />
+                    <div className="absolute inset-0 bg-orange-300/30 rounded-full blur-sm animate-pulse"></div>
                   </div>
-                  
-                  <div className="absolute top-2 right-3 w-1 h-1 bg-cyan-400 rounded-full animate-pulse"></div>
-                </Button>
-              </div>
-
-              <div className="relative group">
-                <div className="absolute -inset-1 bg-gradient-to-r from-emerald-500 to-teal-500 rounded-2xl blur-md opacity-15 group-hover:opacity-30 transition-opacity duration-300"></div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xl tracking-wide drop-shadow-lg">TRADE OCX</span>
+                    <TrendingUp className="w-5 h-5 group-hover/btn:scale-125 transition-transform duration-300" />
+                  </div>
+                </div>
                 
-                <Button
-                  onClick={() => router.push('/profile')}
-                  className="relative group/btn w-full bg-gradient-to-r from-slate-700/70 to-slate-600/70 
-                             hover:from-slate-600/80 hover:to-slate-500/80
-                             text-slate-300 hover:text-emerald-200 border-2 border-slate-600/50 hover:border-emerald-500/50
-                             font-bold py-6 px-8 rounded-2xl 
-                             shadow-xl shadow-slate-900/40
-                             transform hover:scale-105 active:scale-95 transition-all duration-300
-                             overflow-hidden"
-                >
-                  <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/5 via-transparent to-emerald-500/5 transform skew-x-12 -translate-x-full group-hover/btn:translate-x-full transition-transform duration-700"></div>
-                  
-                  <div className="flex items-center justify-center gap-4 relative z-10">
-                    <User className="w-6 h-6 group-hover/btn:scale-110 transition-all duration-300" />
-                    <span className="text-lg">Captain Profile</span>
-                  </div>
-                  
-                  <div className="absolute top-2 right-3 w-1 h-1 bg-emerald-400 rounded-full animate-pulse delay-500"></div>
-                </Button>
-              </div>
+                {/* Floating Particles */}
+                <div className="absolute top-2 right-4 w-1 h-1 bg-yellow-200 rounded-full animate-ping delay-200"></div>
+                <div className="absolute bottom-3 left-6 w-1 h-1 bg-orange-200 rounded-full animate-ping delay-600"></div>
+                <div className="absolute top-4 left-8 w-1 h-1 bg-red-200 rounded-full animate-ping delay-900"></div>
+              </Button>
             </div>
+
+            {/* Enhanced Secondary Buttons - Now moved to fixed side panel */}
+            {/* See floating side panel at bottom of component */}
 
             {/* Enhanced Flavor Text */}
             <div className="text-center max-w-sm mt-12 relative">
@@ -457,6 +541,57 @@ export function UserHome({ playerData, onPlayClick, onSubmarineStoreClick }: Use
             {/* Floating Status Indicators */}
             <div className="absolute -top-2 -right-2 w-2 h-2 bg-green-400 rounded-full animate-ping"></div>
             <div className="absolute -bottom-2 -left-2 w-2 h-2 bg-cyan-400 rounded-full animate-ping delay-700"></div>
+          </div>
+        </div>
+      </div>
+
+      {/* Floating Side Navigation Panel */}
+      <div className="fixed right-4 top-1/2 transform -translate-y-1/2 z-20">
+        <div className="flex flex-col space-y-4">
+          {/* Submarine Hangar */}
+          <div className="relative group">
+            <div className="absolute -inset-1 bg-gradient-to-r from-purple-500 to-pink-500 rounded-2xl blur-md opacity-20 group-hover:opacity-50 transition-opacity duration-300"></div>
+            
+            <button
+              onClick={onSubmarineStoreClick}
+              className="relative group/btn bg-gradient-to-r from-slate-800/90 to-slate-700/90 
+                         hover:from-slate-700 hover:to-slate-600
+                         text-cyan-300 hover:text-white border-2 border-cyan-800/50 hover:border-cyan-400/70
+                         p-4 rounded-2xl 
+                         shadow-xl shadow-slate-900/50 hover:shadow-cyan-900/30
+                         transform hover:scale-110 active:scale-95 transition-all duration-300
+                         overflow-hidden backdrop-blur-sm"
+              title="Submarine Hangar"
+            >
+              <div className="absolute inset-0 bg-gradient-to-r from-cyan-500/10 via-transparent to-cyan-500/10 transform skew-x-12 -translate-x-full group-hover/btn:translate-x-full transition-transform duration-700"></div>
+              
+              <Store className="w-7 h-7 group-hover/btn:scale-110 group-hover/btn:rotate-12 transition-all duration-300 relative z-10" />
+              
+              <div className="absolute top-1 right-1 w-1.5 h-1.5 bg-cyan-400 rounded-full animate-pulse"></div>
+            </button>
+          </div>
+
+          {/* Captain Profile */}
+          <div className="relative group">
+            <div className="absolute -inset-1 bg-gradient-to-r from-emerald-500 to-teal-500 rounded-2xl blur-md opacity-15 group-hover:opacity-40 transition-opacity duration-300"></div>
+            
+            <button
+              onClick={() => router.push('/profile')}
+              className="relative group/btn bg-gradient-to-r from-slate-800/90 to-slate-700/90 
+                         hover:from-slate-700 hover:to-slate-600
+                         text-slate-300 hover:text-emerald-200 border-2 border-slate-600/50 hover:border-emerald-500/50
+                         p-4 rounded-2xl 
+                         shadow-xl shadow-slate-900/40
+                         transform hover:scale-110 active:scale-95 transition-all duration-300
+                         overflow-hidden backdrop-blur-sm"
+              title="Captain Profile"
+            >
+              <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/5 via-transparent to-emerald-500/5 transform skew-x-12 -translate-x-full group-hover/btn:translate-x-full transition-transform duration-700"></div>
+              
+              <User className="w-7 h-7 group-hover/btn:scale-110 transition-all duration-300 relative z-10" />
+              
+              <div className="absolute top-1 right-1 w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse delay-500"></div>
+            </button>
           </div>
         </div>
       </div>
