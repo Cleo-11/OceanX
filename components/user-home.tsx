@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation"
 import { Play, Store, Settings, User, Waves } from "lucide-react"
 import SubmarineIcon from "./SubmarineIcon"
 import { getSubmarineByTier } from "@/lib/submarine-tiers"
+import { apiClient, createSignaturePayload } from "@/lib/api"
+import { WalletManager } from "@/lib/wallet"
 import { Button } from "./ui/button"
 import { Card, CardContent } from "./ui/card"
 import "../styles/user-home-animations.css"
@@ -26,17 +28,43 @@ interface UserHomeProps {
 
 export function UserHome({ playerData, onPlayClick, onSubmarineStoreClick }: UserHomeProps) {
   const [isFloating, setIsFloating] = useState(false)
+  const [ocxBalance, setOcxBalance] = useState<string | null>(null)
+  const [ocxSymbol, setOcxSymbol] = useState<string>("OCX")
+  const [balanceLoading, setBalanceLoading] = useState(false)
   const router = useRouter()
-  
   const currentSubmarine = getSubmarineByTier(playerData.submarine_tier)
-  
+
   // Floating animation trigger
   useEffect(() => {
     const interval = setInterval(() => {
-      setIsFloating(prev => !prev)
+      setIsFloating((prev: boolean) => !prev)
     }, 3000)
     return () => clearInterval(interval)
   }, [])
+
+  // Fetch OCX balance
+  useEffect(() => {
+    async function fetchBalance() {
+      setBalanceLoading(true)
+      try {
+        const walletManager = WalletManager.getInstance()
+        const connection = walletManager.getConnection()
+        if (!connection) return
+        const { message } = createSignaturePayload(connection.address, "get-balance")
+        const signature = await walletManager.signMessage(message)
+        const resp = await apiClient.getPlayerBalance(connection.address, signature, message)
+        if (resp.success && resp.data) {
+          setOcxBalance(resp.data.balance)
+          setOcxSymbol(resp.data.symbol || "OCX")
+        }
+      } catch (e) {
+        setOcxBalance(null)
+      } finally {
+        setBalanceLoading(false)
+      }
+    }
+    fetchBalance()
+  }, [playerData.wallet_address])
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-blue-950 to-teal-950 overflow-hidden relative">
@@ -98,6 +126,11 @@ export function UserHome({ playerData, onPlayClick, onSubmarineStoreClick }: Use
               {playerData.wallet_address.slice(0, 8)}...{playerData.wallet_address.slice(-6)}
             </span>
             <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+            {/* OCX Balance */}
+            <span className="ml-4 flex items-center gap-1 text-cyan-300 font-bold text-base bg-cyan-900/30 px-3 py-1 rounded-full border border-cyan-400/20">
+              {balanceLoading ? <span className="animate-pulse">...</span> : (ocxBalance ?? "-")}
+              <span className="text-xs font-semibold">{ocxSymbol}</span>
+            </span>
           </div>
         </div>
 
