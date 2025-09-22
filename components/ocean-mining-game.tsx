@@ -1336,21 +1336,7 @@ export function OceanMiningGame({
                 Connect your Web3 wallet to start mining resources from the ocean floor.
               </p>
               <button
-<<<<<<< HEAD
-                onClick={async () => {
-                  if (typeof window !== 'undefined' && window.ethereum) {
-                    try {
-                      await window.ethereum.request({ method: 'eth_requestAccounts' });
-                    } catch (error) {
-                      console.error('User rejected wallet connection:', error);
-                    }
-                  } else {
-                    alert('MetaMask is not installed. Please install MetaMask to connect your wallet.');
-                  }
-                }}
-=======
                 onClick={() => {}}
->>>>>>> 3f4212680d9735d2bfd82332f45ba54b439fde52
                 className="pointer-events-auto rounded-lg bg-gradient-to-r from-teal-500 to-cyan-600 px-6 py-3 font-medium text-white shadow-lg shadow-cyan-900/30 transition-all hover:shadow-cyan-900/50"
               >
                 Connect Wallet
@@ -1382,10 +1368,6 @@ export function OceanMiningGame({
           gameState={gameState}
         />
       )}
-    </div>
-  </>
-  )
+    </>
+  );
 }
-
-
-//
