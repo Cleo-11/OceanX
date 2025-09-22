@@ -66,12 +66,17 @@ export default function ConnectWalletPage() {
         .eq("user_id", user?.id)
         .single()
 
+      console.log("Player data from database:", playerData)
+      console.log("Player error:", playerError)
+
       if (playerData?.wallet_address) {
+        console.log("User has wallet, redirecting to game:", playerData.wallet_address)
         // User already has wallet connected, redirect to game
         router.push("/game")
         return
       }
 
+      console.log("No wallet found, setting step to connect")
       setStep("connect")
     } catch (error) {
       console.error("Error checking auth and wallet:", error)
