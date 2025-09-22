@@ -133,6 +133,25 @@ export default function GamePage() {
     handleSignOut();
   };
 
+  const handleConnectWallet = async () => {
+    try {
+      const connection = await walletManager.connectWallet();
+      if (!playerData?.wallet_address) {
+        alert("No wallet address found in player data. Please reconnect your account.");
+        return;
+      }
+      if (connection.address.toLowerCase() !== playerData.wallet_address.toLowerCase()) {
+        alert("Please connect the wallet you registered with: " + playerData.wallet_address);
+        return;
+      }
+      setWalletConnected(true);
+      setWalletPrompt(false);
+    } catch (e) {
+      console.error("Failed to connect wallet:", e);
+      alert("Failed to connect wallet. Please try again.");
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center">
@@ -244,6 +263,7 @@ export default function GamePage() {
           sidebarOpen={sidebarOpen}
           setSidebarOpen={setSidebarOpen}
           onFullDisconnect={handleFullDisconnect}
+          onConnectWallet={handleConnectWallet}
         />
       )}
     </div>

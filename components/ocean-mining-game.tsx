@@ -28,6 +28,7 @@ interface OceanMiningGameProps {
   sidebarOpen: boolean
   setSidebarOpen: (open: boolean | ((prev: boolean) => boolean)) => void
   onFullDisconnect: () => void // NEW PROP
+  onConnectWallet?: () => void // NEW PROP for wallet connection
 }
 
 export function OceanMiningGame({
@@ -37,6 +38,7 @@ export function OceanMiningGame({
   sidebarOpen,
   setSidebarOpen,
   onFullDisconnect, // NEW PROP
+  onConnectWallet, // NEW PROP for wallet connection
 }: OceanMiningGameProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const gameLoopRef = useRef<number>(0)
@@ -1336,7 +1338,7 @@ export function OceanMiningGame({
                 Connect your Web3 wallet to start mining resources from the ocean floor.
               </p>
               <button
-                onClick={() => {}}
+                onClick={onConnectWallet || (() => {})}
                 className="pointer-events-auto rounded-lg bg-gradient-to-r from-teal-500 to-cyan-600 px-6 py-3 font-medium text-white shadow-lg shadow-cyan-900/30 transition-all hover:shadow-cyan-900/50"
               >
                 Connect Wallet
