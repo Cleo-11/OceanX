@@ -1344,7 +1344,8 @@ export function OceanMiningGame({
             </div>
           </div>
         )}
-      </div>
+        </div> {/* Close HUD Overlay div */}
+      </div> {/* Close main container div */}
 
       {/* Submarine Store */}
       <SubmarineStore
