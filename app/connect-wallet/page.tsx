@@ -48,47 +48,52 @@ export default function ConnectWalletPage() {
     try {
       // Check if user is authenticated
       const { session } = await getSession()
-      if (!session) {
-        router.push("/auth")
-        return
+      try {
+        console.log("[DEBUG] checkAuthAndWallet: start");
+        // Check if user is authenticated
+        const { session } = await getSession();
+        console.log("[DEBUG] getSession result:", session);
+        if (!session) {
+          console.log("[DEBUG] No session, redirecting to /auth");
+          router.push("/auth");
+          return;
+        }
+
+        const { user } = await getCurrentUser();
+        console.log("[DEBUG] getCurrentUser result:", user);
+        setUser(user);
+
+        // Debug log for user.id
+        console.log("[DEBUG] user.id for wallet lookup (checkAuthAndWallet):", user?.id);
+
+        // Check if user already has a wallet connected
+        const { data: playerData, error: playerError } = await supabase
+          .from("players")
+          .select("wallet_address")
+          .eq("user_id", user?.id)
+          .single();
+        console.log("[DEBUG] user?.id:", user?.id);
+        console.log("[DEBUG] playerData from supabase:", playerData);
+        console.log("[DEBUG] playerError from supabase:", playerError);
+        if (playerError) {
+          console.error("[DEBUG] Error fetching player record:", playerError);
+        }
+        if (playerData?.wallet_address) {
+          // User already has wallet connected, redirect to dashboard
+          console.log("[DEBUG] Wallet already connected, redirecting to /dashboard");
+          router.push("/dashboard");
+          return;
+        }
+
+        console.log("[DEBUG] No wallet found, advancing to connect step");
+        setStep("connect");
+        console.log("[DEBUG] checkAuthAndWallet: end");
+      } catch (error) {
+        console.error("[DEBUG] Error checking auth and wallet:", error);
+        setError("Failed to verify authentication status");
+        setStep("error");
       }
-
-      const { user } = await getCurrentUser()
-      setUser(user)
-
-      // Debug log for user.id
-      console.log("user.id for wallet lookup (checkAuthAndWallet):", user?.id)
-
-
-      // Check if user already has a wallet connected
-      const { data: playerData, error: playerError } = await supabase
-        .from("players")
-        .select("wallet_address")
-        .eq("user_id", user?.id)
-        .single();
-      console.log("[DEBUG] user?.id:", user?.id);
-      console.log("[DEBUG] playerData from supabase:", playerData);
-      console.log("[DEBUG] playerError from supabase:", playerError);
-      if (playerError) {
-        console.error("[DEBUG] Error fetching player record:", playerError);
-      }
-      if (playerData?.wallet_address) {
-        // User already has wallet connected, redirect to dashboard
-        console.log("[DEBUG] Wallet already connected, redirecting to /dashboard");
-        router.push("/dashboard");
-        return;
-      }
-
-      console.log("[DEBUG] No wallet found, advancing to connect step");
-      setStep("connect");
-    } catch (error) {
-      console.error("Error checking auth and wallet:", error)
-      setError("Failed to verify authentication status")
-      setStep("error")
     }
-  }
-
-  const connectWallet = async () => {
     console.log("[DEBUG] connectWallet button clicked");
     if (!window.ethereum) {
       setError("MetaMask is not installed. Please install MetaMask to continue.");
