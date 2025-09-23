@@ -10,7 +10,6 @@ import { getSession, getCurrentUser, signOut } from "@/lib/supabase"
 import { supabase } from "@/lib/supabase"
 import {
   AlertDialog,
-  AlertDialogTrigger,
   AlertDialogContent,
   AlertDialogHeader,
   AlertDialogFooter,
