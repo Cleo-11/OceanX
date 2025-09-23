@@ -18,6 +18,16 @@ import { ContractManager } from "@/lib/contracts"
 import { getSubmarineByTier } from "@/lib/submarine-tiers"
 import { canMineResource, getStoragePercentage, getResourceColor } from "@/lib/resource-utils"
 import type { GameState, ResourceNode, PlayerStats, PlayerResources, OtherPlayer, PlayerPosition } from "@/lib/types"
+import type { 
+  AquaticState, 
+  ScreenShake, 
+  ColorGrade, 
+  ParticleBurst, 
+  MovementKeys, 
+  ConnectionStatus,
+  GameStateHandlerData,
+  ResourceMinedData
+} from "@/lib/game-types"
 import { ShoppingCart } from "lucide-react"
 import { ScubaDiverGuide } from "./ScubaDiverGuide"
 
@@ -47,15 +57,26 @@ export function OceanMiningGame({
   const lastTimeRef = useRef<number>(0)
 
   // --- CINEMATIC FEEDBACK STATE ---
-  const [screenShake, setScreenShake] = useState<{ active: boolean; intensity: number; duration: number; time: number }>({ active: false, intensity: 0, duration: 0, time: 0 })
-  const [colorGrade, setColorGrade] = useState<{ active: boolean; tint: string; opacity: number; duration: number; time: number }>({ active: false, tint: '#0ea5e9', opacity: 0.0, duration: 0, time: 0 })
-  const [particleBursts, setParticleBursts] = useState<Array<{ x: number, y: number, color: string, particles: Array<{ x: number, y: number, vx: number, vy: number, life: number }> }>>([])
+  const [screenShake, setScreenShake] = useState<ScreenShake>({ 
+    active: false, 
+    intensity: 0, 
+    duration: 0, 
+    time: 0 
+  })
+  const [colorGrade, setColorGrade] = useState<ColorGrade>({ 
+    active: false, 
+    tint: '#0ea5e9', 
+    opacity: 0.0, 
+    duration: 0, 
+    time: 0 
+  })
+  const [particleBursts, setParticleBursts] = useState<ParticleBurst[]>([])
 
   // --- CINEMATIC FEEDBACK UTILS ---
 
   // Player position and movement
   const [playerPosition, setPlayerPosition] = useState<PlayerPosition>({ x: 500, y: 500, rotation: 0 })
-  const [movementKeys, setMovementKeys] = useState({
+  const [movementKeys, setMovementKeys] = useState<MovementKeys>({
     forward: false,
     backward: false,
     left: false,
@@ -63,7 +84,7 @@ export function OceanMiningGame({
   })
 
   // Player stats and resources
-  const [playerTier, setPlayerTier] = useState(1)
+  const [playerTier, setPlayerTier] = useState<number>(1)
   const [sessionId, setSessionId] = useState<string | null>(null)
   // Multiplayer disabled: Only single player state is used
   // const [otherPlayers, setOtherPlayers] = useState<OtherPlayer[]>([])
@@ -88,32 +109,32 @@ export function OceanMiningGame({
     manganese: 0,
   })
 
-  const [balance, setBalance] = useState(0)
-  const [showUpgradeModal, setShowUpgradeModal] = useState(false)
-  const [showSubmarineStore, setShowSubmarineStore] = useState(false)
+  const [balance, setBalance] = useState<number>(0)
+  const [showUpgradeModal, setShowUpgradeModal] = useState<boolean>(false)
+  const [showSubmarineStore, setShowSubmarineStore] = useState<boolean>(false)
   const [targetNode, setTargetNode] = useState<ResourceNode | null>(null)
   const [resourceNodes, setResourceNodes] = useState<ResourceNode[]>([])
-  const [showStorageAlert, setShowStorageAlert] = useState(false)
-  const [storagePercentage, setStoragePercentage] = useState(0)
-  const [showEnergyAlert, setShowEnergyAlert] = useState(false)
-  const [viewportOffset, setViewportOffset] = useState({ x: 0, y: 0 })
-  const [connectionStatus, setConnectionStatus] = useState<"connecting" | "connected" | "disconnected">("disconnected")
-  const [showGuide, setShowGuide] = useState(true);
+  const [showStorageAlert, setShowStorageAlert] = useState<boolean>(false)
+  const [storagePercentage, setStoragePercentage] = useState<number>(0)
+  const [showEnergyAlert, setShowEnergyAlert] = useState<boolean>(false)
+  const [viewportOffset, setViewportOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 })
+  const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>("disconnected")
+  const [showGuide, setShowGuide] = useState<boolean>(true);
 
   // --- AQUATIC FEATURE STATE ---
-  const [aquaticState] = useState(() => {
+  const [aquaticState] = useState<AquaticState>(() => {
     // Sunlight rays
-    const sunRays = Array.from({ length: 6 }, (_, i) => ({
+    const sunRays = Array.from({ length: 6 }, () => ({
       x: Math.random() * window.innerWidth,
       width: 80 + Math.random() * 60,
       opacity: 0.10 + Math.random() * 0.10,
       speed: 0.4 + Math.random() * 0.4,
     }))
     // No kelp, seaweed, bubbles, or coral/flowers
-    const seaweed: Array<any> = []
-    const kelp: Array<any> = []
-    const coral: Array<any> = []
-    const fish = Array.from({ length: 10 }, (_, i) => ({
+    const seaweed: never[] = []
+    const kelp: never[] = []
+    const coral: never[] = []
+    const fish = Array.from({ length: 10 }, () => ({
       x: Math.random() * window.innerWidth,
       y: 100 + Math.random() * (window.innerHeight - 200),
       size: 12 + Math.random() * 8,
@@ -122,8 +143,8 @@ export function OceanMiningGame({
       opacity: 0.5 + Math.random() * 0.5,
       swimOffset: Math.random() * Math.PI * 2,
     }))
-    const bubbles: Array<any> = []
-    const particles = Array.from({ length: 30 }, (_, i) => ({
+    const bubbles: never[] = []
+    const particles = Array.from({ length: 30 }, () => ({
       x: Math.random() * window.innerWidth,
       y: Math.random() * window.innerHeight,
       speedX: (Math.random() - 0.5) * 0.3,
@@ -206,7 +227,7 @@ export function OceanMiningGame({
     wsManager.disconnect()
     setConnectionStatus("disconnected")
     setSessionId(null)
-    setOtherPlayers([])
+    // Note: Multiplayer disabled - no other players to clear
     // Don't clear resource nodes on cleanup - keep them for offline play
   }
 
@@ -274,6 +295,7 @@ export function OceanMiningGame({
       console.log("Current wallet address:", currentWalletAddress);
       console.log("All players in state:", state.players);
       
+      // Note: Multiplayer disabled - otherPlayersData computed but not used
       const otherPlayersData = state.players
         .filter((p: any) => {
           const playerId = p.id || p.walletAddress;
@@ -296,7 +318,7 @@ export function OceanMiningGame({
           };
         });
       
-  // Multiplayer disabled: no other players to set
+      // Multiplayer disabled: no other players to set
     }
   }
 

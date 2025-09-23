@@ -1,15 +1,20 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   eslint: {
-    ignoreDuringBuilds: true,
+    // Enable ESLint during builds to catch issues early
+    ignoreDuringBuilds: false,
   },
   typescript: {
-    ignoreBuildErrors: true,
+    // Enable TypeScript error checking during builds
+    ignoreBuildErrors: false,
   },
   images: {
     unoptimized: true,
   },
-  // Remove static export for Vercel deployment
+  // Enable strict mode for better error detection
+  reactStrictMode: true,
+  // Enable SWC minification for better performance
+  swcMinify: true,
 }
 
 export default nextConfig
