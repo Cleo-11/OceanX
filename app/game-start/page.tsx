@@ -1,7 +1,5 @@
 "use client"
 
-import { useState } from "react"
-import { SubmarineSelection } from "@/components/submarine-selection"
 import { Button } from "@/components/ui/button"
 
 export default function GameStartPage() {

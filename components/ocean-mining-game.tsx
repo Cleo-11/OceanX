@@ -8,7 +8,6 @@ import { ResourceSidebar } from "./resource-sidebar"
 import { SubmarineStore } from "./submarine-store"
 import { MineButton } from "./mine-button"
 import { UpgradeModal } from "./upgrade-modal"
-import { WalletInfo } from "./wallet-info"
 import { StorageFullAlert } from "./storage-full-alert"
 import { EnergyDepletedAlert } from "./energy-depleted-alert"
 import { apiClient } from "@/lib/api"
@@ -17,16 +16,14 @@ import { wsManager } from "@/lib/websocket"
 import { ContractManager } from "@/lib/contracts"
 import { getSubmarineByTier } from "@/lib/submarine-tiers"
 import { canMineResource, getStoragePercentage, getResourceColor } from "@/lib/resource-utils"
-import type { GameState, ResourceNode, PlayerStats, PlayerResources, OtherPlayer, PlayerPosition } from "@/lib/types"
-import type { 
-  AquaticState, 
-  ScreenShake, 
-  ColorGrade, 
-  ParticleBurst, 
-  MovementKeys, 
+import type { GameState, ResourceNode, PlayerStats, PlayerResources, PlayerPosition } from "@/lib/types"
+import type {
+  AquaticState,
+  ScreenShake,
+  ColorGrade,
+  ParticleBurst,
+  MovementKeys,
   ConnectionStatus,
-  GameStateHandlerData,
-  ResourceMinedData
 } from "@/lib/game-types"
 import { ShoppingCart } from "lucide-react"
 import { ScubaDiverGuide } from "./ScubaDiverGuide"
@@ -296,29 +293,7 @@ export function OceanMiningGame({
       console.log("All players in state:", state.players);
       
       // Note: Multiplayer disabled - otherPlayersData computed but not used
-      const otherPlayersData = state.players
-        .filter((p: any) => {
-          const playerId = p.id || p.walletAddress;
-          const isCurrentPlayer = playerId && playerId.toLowerCase() === (currentWalletAddress || '').toLowerCase();
-          console.log(`Player ${playerId}, isCurrentPlayer: ${isCurrentPlayer}`);
-          return !isCurrentPlayer;
-        })
-        .map((p: any) => {
-          // Convert server player format to OtherPlayer format
-          const posX = p.position?.x || 0;
-          const posY = p.position?.y || 0;
-          const rotation = p.position?.rotation || 0;
-          
-          return {
-            id: p.id || p.walletAddress,
-            username: p.username || `Player-${(p.id || p.walletAddress)?.substring(0, 6) || ''}`,
-            position: { x: posX, y: posY },
-            rotation: rotation,
-            submarineType: p.submarineTier || 1
-          };
-        });
       
-      // Multiplayer disabled: no other players to set
     }
   }
 
@@ -1034,37 +1009,6 @@ export function OceanMiningGame({
       setGameState("idle");
     }
   };
-
-  const handleTrade = async (resourceType: keyof PlayerResources) => {
-    if (resources[resourceType] <= 0) return
-
-    setGameState("trading")
-
-    setTimeout(() => {
-      const value = Math.floor(Math.random() * 10) + 5
-
-      setResources((prev) => ({
-        ...prev,
-        [resourceType]: prev[resourceType] - 1,
-      }))
-
-      setPlayerStats((prev) => ({
-        ...prev,
-        capacity: {
-          ...prev.capacity,
-          [resourceType]: prev.capacity[resourceType] - 1,
-        },
-      }))
-
-      setBalance((prev) => prev + value)
-
-      setGameState("resourceTraded")
-
-      setTimeout(() => {
-        setGameState("idle")
-      }, 2000)
-    }, 1500)
-  }
 
   const handleUpgradeSubmarine = async () => {
     if (playerTier >= 15) return
