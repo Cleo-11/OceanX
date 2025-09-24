@@ -135,7 +135,7 @@ export default function ConnectWalletPage() {
         return
       }
 
-      const { data: existingPlayer, error: checkError } = await supabase
+      const { data: existingPlayer } = await supabase
         .from("players")
         .select("user_id, username")
         .eq("wallet_address", address)
