@@ -11,26 +11,31 @@ import { OceanMiningGame } from "@/components/ocean-mining-game";
 import { SubmarineSelection } from "@/components/submarine-selection";
 import { SubmarineStore } from "@/components/submarine-store";
 import { walletManager } from "@/lib/wallet";
-import { AlertDialogContent } from "@/components/ui/alert-dialog";
+// ...existing code...
 import { GameState } from "@/lib/types";
 
 interface PlayerData {
-  id: string
-  user_id: string
-  wallet_address: string
-  username: string
-  submarine_tier: number
-  total_resources_mined: number
-  total_ocx_earned: number
-  last_login: string
-  is_active: boolean
+  id: string;
+  user_id: string;
+  wallet_address: string;
+  username: string;
+  submarine_tier: number;
+  total_resources_mined: number;
+  total_ocx_earned: number;
+  last_login: string;
+  is_active: boolean;
+  nickel?: number;
+  cobalt?: number;
+  copper?: number;
+  manganese?: number;
+  balance?: number;
 }
 
 export default function GamePage() {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string>("")
   const [playerData, setPlayerData] = useState<PlayerData | null>(null)
-  const [user, setUser] = useState<any>(null)
+  // Removed unused 'user' state
   const [walletConnected, setWalletConnected] = useState(false);
   const [walletPrompt, setWalletPrompt] = useState(false);
   const [gameState, setGameState] = useState<GameState>("idle");
@@ -92,7 +97,7 @@ export default function GamePage() {
         return
       }
 
-      setUser(user)
+  // ...existing code...
 
       // Get player data
       const { data: playerData, error: playerError } = await supabase
