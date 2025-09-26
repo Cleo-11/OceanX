@@ -6,12 +6,11 @@ import { Loader2 } from "lucide-react"
 import { getSession, getCurrentUser } from "@/lib/supabase"
 import { supabase } from "@/lib/supabase"
 import LandingPage from "@/components/landing-page"
-import { AlertDialogContent } from "@/components/ui/alert-dialog";
+// ...existing code...
 
 export default function HomePage() {
   const [isLoading, setIsLoading] = useState(true)
-  const [isAuthenticated, setIsAuthenticated] = useState(false)
-  const [hasWallet, setHasWallet] = useState(false)
+  // Removed unused isAuthenticated and hasWallet state
   const router = useRouter()
 
 
@@ -29,12 +28,12 @@ export default function HomePage() {
 
       if (!session) {
         // User not authenticated, show landing page
-        setIsAuthenticated(false)
+  // ...existing code...
         setIsLoading(false)
         return
       }
 
-      setIsAuthenticated(true)
+  // ...existing code...
 
       // Check if user has wallet connected
       const { user } = await getCurrentUser()
@@ -47,7 +46,6 @@ export default function HomePage() {
 
         if (playerData?.wallet_address) {
           // User has wallet, redirect to home page
-          setHasWallet(true)
           router.replace("/home")
           return
         } else {
