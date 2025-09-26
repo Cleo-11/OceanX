@@ -21,8 +21,10 @@ export function ResourceItem({ name, icon, amount, capacity, maxCapacity }: Reso
       setIsAnimating(true);
       const timer = setTimeout(() => setIsAnimating(false), 1500);
       return () => clearTimeout(timer);
+    } else {
+      setPrevAmount(amount);
+      return () => {};
     }
-    setPrevAmount(amount);
   }, [amount, prevAmount]);
   
   // Color mapping for different resource types
