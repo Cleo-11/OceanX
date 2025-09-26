@@ -1206,7 +1206,7 @@ export function OceanMiningGame({
           {/* Daily Reward Button */}
           <button
             onClick={handleClaimDailyReward}
-            className="pointer-events-auto absolute right-4 top-52 z-50 rounded-lg bg-slate-800/80 p-2 text-cyan-400 backdrop-blur-sm transition-all hover:bg-slate-700/80"
+            className="pointer-events-auto absolute right-4 top-40 z-50 rounded-lg bg-slate-800/80 p-2 text-cyan-400 backdrop-blur-sm transition-all hover:bg-slate-700/80"
             disabled={gameState !== "idle"}
           >
             <svg
