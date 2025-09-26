@@ -191,6 +191,8 @@ export function OceanMiningGame({
         setShowSubmarineStore(true);
       }, 500); // Small delay to let the game initialize
       return () => clearTimeout(timer);
+    } else {
+      return () => {};
     }
   }, [autoOpenStore, walletConnected]);
 
@@ -544,22 +546,7 @@ export function OceanMiningGame({
     setTargetNode(nearbyNode || null)
   }
 
-  // --- CINEMATIC FEEDBACK UTILS ---
-  const triggerScreenShake = (intensity = 8, duration = 0.3) => {
-    setScreenShake({ active: true, intensity, duration, time: 0 })
-  }
-  const triggerColorGrade = (tint = '#0ea5e9', opacity = 0.18, duration = 0.5) => {
-    setColorGrade({ active: true, tint, opacity, duration, time: 0 })
-  }
-  const triggerParticleBurst = (x: number, y: number, color = '#fbbf24') => {
-    const particles = Array.from({ length: 18 }, () => ({
-      x, y,
-      vx: (Math.random() - 0.5) * 5,
-      vy: (Math.random() - 0.5) * 5,
-      life: 30 + Math.random() * 10
-    }))
-    setParticleBursts((prev) => [...prev, { x, y, color, particles }])
-  }
+  // ...existing code...
 
   const renderGame = () => {
 

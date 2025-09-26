@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 
 // Cartoon scuba diver SVG (simple, can be improved or replaced with a more detailed SVG)
 const ScubaDiverSVG = ({ style = {} }) => (
