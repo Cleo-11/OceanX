@@ -5,8 +5,8 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import {
-  Anchor, Waves, Gem, Zap, Users, ArrowRight, Play,
-  UserPlus, LogIn, Compass, ShipWheel, Sparkles, ShieldCheck,
+  Anchor, Waves, Gem, Users, ArrowRight, Play,
+  UserPlus, LogIn, ShieldCheck,
   BarChart3, Radar, Wrench, Twitter, Globe2, Lock, LineChart
 } from "lucide-react"
 
@@ -90,7 +90,7 @@ function Seaweed({ height = "h-24", left = "left-20", width = "w-4", color = "gr
   );
 }
 import { useRouter } from "next/navigation"
-import Image from "next/image"
+// ...existing code...
 
 export default function LandingPage() {
   const [isHovered, setIsHovered] = useState(false)
@@ -921,8 +921,8 @@ export default function LandingPage() {
                   {[...Array(6)].map((_, i) => {
                     const angle = (i * 60) * (Math.PI / 180);
                     const length = 120;
-                    const endX = Math.cos(angle) * length;
-                    const endY = Math.sin(angle) * length;
+                    // removed unused endX
+                    // removed unused endY
                     
                     return (
                       <div 

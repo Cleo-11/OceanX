@@ -1160,7 +1160,7 @@ export function OceanMiningGame({
           )}
 
           {/* Player Stats HUD */}
-          <PlayerHUD stats={playerStats} resources={resources} tier={playerTier} />
+          <PlayerHUD stats={playerStats} tier={playerTier} />
 
           {/* Sonar/Mini-map at bottom left */}
           <div className="absolute left-4 bottom-4 z-20">
@@ -1168,7 +1168,6 @@ export function OceanMiningGame({
               playerPosition={playerPosition}
               resourceNodes={resourceNodes}
               otherPlayers={[]}
-              viewportOffset={viewportOffset}
             />
           </div>
 

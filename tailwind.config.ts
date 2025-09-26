@@ -22,44 +22,62 @@ const config: Config = {
     "*.{js,ts,jsx,tsx,mdx}"
   ],
   theme: {
-  	extend: {
-      keyframes: {
-        shimmer: {
-          '0%': { backgroundPosition: '-200% 0' },
-          '100%': { backgroundPosition: '200% 0' },
-        },
-        float: {
-          '0%, 100%': { transform: 'translateY(0)' },
-          '50%': { transform: 'translateY(-10px)' },
-        },
-        ping: {
-          '75%, 100%': { transform: 'scale(2)', opacity: '0' },
-        },
-        glow: {
-          '0%, 100%': { boxShadow: '0 0 12px 2px rgba(56, 189, 248, 0.5)' },
-          '50%': { boxShadow: '0 0 24px 4px rgba(56, 189, 248, 0.9)' },
-        },
-        spinSlow: {
-          '0%': { transform: 'rotate(0deg)' },
-          '100%': { transform: 'rotate(360deg)' },
-        }
-      },
-      animation: {
-        shimmer: 'shimmer 4s linear infinite',
-        float: 'float 4s ease-in-out infinite',
-        glow: 'glow 2s ease-in-out infinite',
-        spinSlow: 'spinSlow 8s linear infinite',
-      },
-      boxShadow: {
-        'glow': '0 0 16px 2px rgba(56, 189, 248, 0.7)',
-        'glow-strong': '0 0 24px 4px rgba(56, 189, 248, 0.9)',
-        'inner-glow': 'inset 0 2px 24px 0 rgba(172, 224, 255, 0.2)',
-      },
-      backgroundImage: {
-        'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
-        'shimmer': 'linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.1), transparent)',
-        'hexagon-pattern': 'url("data:image/svg+xml,%3Csvg width=\'60\' height=\'60\' viewBox=\'0 0 60 60\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cpath d=\'M15 10h30l15 25.98L45 50H15L0 25.98L15 10z\' fill=\'%2338bdf8\' fill-opacity=\'0.05\' fill-rule=\'evenodd\'/%3E%3C/svg%3E")',
-      },
+		 extend: {
+				keyframes: {
+					shimmer: {
+						'0%': { backgroundPosition: '-200% 0' },
+						'100%': { backgroundPosition: '200% 0' },
+					},
+					float: {
+						'0%, 100%': { transform: 'translateY(0)' },
+						'50%': { transform: 'translateY(-10px)' },
+					},
+					ping: {
+						'75%, 100%': { transform: 'scale(2)', opacity: '0' },
+					},
+					glow: {
+						'0%, 100%': { boxShadow: '0 0 12px 2px rgba(56, 189, 248, 0.5)' },
+						'50%': { boxShadow: '0 0 24px 4px rgba(56, 189, 248, 0.9)' },
+					},
+					spinSlow: {
+						'0%': { transform: 'rotate(0deg)' },
+						'100%': { transform: 'rotate(360deg)' },
+					},
+					'accordion-down': {
+						from: {
+							height: '0'
+						},
+						to: {
+							height: 'var(--radix-accordion-content-height)'
+						}
+					},
+					'accordion-up': {
+						from: {
+							height: 'var(--radix-accordion-content-height)'
+						},
+						to: {
+							height: '0'
+						}
+					}
+				},
+				animation: {
+					'accordion-down': 'accordion-down 0.2s ease-out',
+					'accordion-up': 'accordion-up 0.2s ease-out',
+					shimmer: 'shimmer 4s linear infinite',
+					float: 'float 4s ease-in-out infinite',
+					glow: 'glow 2s ease-in-out infinite',
+					spinSlow: 'spinSlow 8s linear infinite',
+				},
+				boxShadow: {
+					'glow': '0 0 16px 2px rgba(56, 189, 248, 0.7)',
+					'glow-strong': '0 0 24px 4px rgba(56, 189, 248, 0.9)',
+					'inner-glow': 'inset 0 2px 24px 0 rgba(172, 224, 255, 0.2)',
+				},
+				backgroundImage: {
+				'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
+				'shimmer': 'linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.1), transparent)',
+				'hexagon-pattern': `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M15 10h30l15 25.98L45 50H15L0 25.98L15 10z' fill='%2338bdf8' fill-opacity='0.05' fill-rule='evenodd'/%3E%3C/svg%3E")`,
+				},
   		colors: {
   			background: 'hsl(var(--background))',
   			foreground: 'hsl(var(--foreground))',
@@ -117,61 +135,6 @@ const config: Config = {
   			md: 'calc(var(--radius) - 2px)',
   			sm: 'calc(var(--radius) - 4px)'
   		},
-  		keyframes: {
-  			'accordion-down': {
-  				from: {
-  					height: '0'
-  				},
-  				to: {
-  					height: 'var(--radix-accordion-content-height)'
-  				}
-  			},
-  			'accordion-up': {
-  				from: {
-  					height: 'var(--radix-accordion-content-height)'
-  				},
-  				to: {
-  					height: '0'
-  				}
-  			},
-        'shimmer': {
-          '0%': { backgroundPosition: '-200% 0' },
-          '100%': { backgroundPosition: '200% 0' },
-        },
-        'float': {
-          '0%, 100%': { transform: 'translateY(0)' },
-          '50%': { transform: 'translateY(-10px)' },
-        },
-        'ping': {
-          '75%, 100%': { transform: 'scale(2)', opacity: '0' },
-        },
-        'glow': {
-          '0%, 100%': { boxShadow: '0 0 12px 2px rgba(56, 189, 248, 0.5)' },
-          '50%': { boxShadow: '0 0 24px 4px rgba(56, 189, 248, 0.9)' },
-        },
-        'spinSlow': {
-          '0%': { transform: 'rotate(0deg)' },
-          '100%': { transform: 'rotate(360deg)' },
-        }
-  		},
-  		animation: {
-  			'accordion-down': 'accordion-down 0.2s ease-out',
-  			'accordion-up': 'accordion-up 0.2s ease-out',
-        'shimmer': 'shimmer 4s linear infinite',
-        'float': 'float 4s ease-in-out infinite',
-        'glow': 'glow 2s ease-in-out infinite',
-        'spinSlow': 'spinSlow 8s linear infinite'
-  		},
-      boxShadow: {
-        'glow': '0 0 16px 2px rgba(56, 189, 248, 0.7)',
-        'glow-strong': '0 0 24px 4px rgba(56, 189, 248, 0.9)',
-        'inner-glow': 'inset 0 2px 24px 0 rgba(172, 224, 255, 0.2)',
-      },
-      backgroundImage: {
-        'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
-        'shimmer': 'linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.1), transparent)',
-        'hexagon-pattern': 'url("data:image/svg+xml,%3Csvg width=\'60\' height=\'60\' viewBox=\'0 0 60 60\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cpath d=\'M15 10h30l15 25.98L45 50H15L0 25.98L15 10z\' fill=\'%2338bdf8\' fill-opacity=\'0.05\' fill-rule=\'evenodd\'/%3E%3C/svg%3E")',
-      }
   	}
   },
   plugins: [require("tailwindcss-animate")],

@@ -1,14 +1,13 @@
-import type { PlayerStats, PlayerResources } from "@/lib/types"
+import type { PlayerStats } from "@/lib/types"
 import { getSubmarineByTier } from "@/lib/submarine-tiers"
 import { motion } from "framer-motion"
 
 interface PlayerHUDProps {
   stats: PlayerStats;
-  resources: PlayerResources;
   tier: number;
 }
 
-export function PlayerHUD({ stats, resources, tier }: PlayerHUDProps) {
+export function PlayerHUD({ stats, tier }: PlayerHUDProps) {
   const submarineData = getSubmarineByTier(tier);
   return (
     <motion.div

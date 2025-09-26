@@ -2,13 +2,14 @@
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { Play, Store, Settings, User, Waves, ChevronDown, Wifi, ShoppingBag, TrendingUp, Coins } from "lucide-react"
+import { Play, Store, User, Waves, ChevronDown, Wifi, ShoppingBag, TrendingUp } from "lucide-react"
 import SubmarineIcon from "./SubmarineIcon"
 import { getSubmarineByTier } from "@/lib/submarine-tiers"
 import { apiClient, createSignaturePayload } from "@/lib/api"
 import { WalletManager } from "@/lib/wallet"
 import { Button } from "./ui/button"
 import { Card, CardContent } from "./ui/card"
+// @ts-ignore
 import "../styles/user-home-animations.css"
 
 interface UserHomeProps {
@@ -97,6 +98,7 @@ export function UserHome({ playerData, onPlayClick, onSubmarineStoreClick }: Use
       document.addEventListener('click', handleClickOutside)
       return () => document.removeEventListener('click', handleClickOutside)
     }
+    return undefined
   }, [showNetworkDropdown])
 
   // Captain's log rotation

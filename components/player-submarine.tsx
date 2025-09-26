@@ -21,7 +21,7 @@ export function PlayerSubmarine({ position, rotation, tier, isMoving }: PlayerSu
   const submarineData = getSubmarineByTier(tier)
   const submarineColor = submarineData.color
 
-  useFrame((state, delta) => {
+  useFrame((_, delta) => {
     if (propellerRef.current) {
       // Rotate propeller faster when moving
       propellerRef.current.rotation.z += delta * (isMoving ? 10 : 3)

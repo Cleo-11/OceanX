@@ -1,3 +1,5 @@
+// Best Practice: Use mock data only in development or demo mode
+const MOCK_MODE = process.env.NEXT_PUBLIC_MOCK_MODE === 'true';
 "use client"
 
 import { useState, useEffect, Suspense } from "react"
@@ -28,26 +30,29 @@ interface OceanMiningSimulationProps {
   walletAddress?: string
 }
 
-// Mock data for other players - in a real app, this would come from a multiplayer backend
-const mockOtherPlayers: OtherPlayer[] = [
-  { id: "player1", position: [-5, 1, -8], rotation: [0, 0.5, 0], submarineType: 2, username: "DeepDiver" },
-  { id: "player2", position: [8, 2, 5], rotation: [0, -0.8, 0], submarineType: 4, username: "OceanExplorer" },
-  { id: "player3", position: [3, 1.5, -12], rotation: [0, 0.2, 0], submarineType: 3, username: "AbyssalMiner" },
-]
+// Mock data for other players - only used in development/demo mode
+const mockOtherPlayers: OtherPlayer[] = MOCK_MODE ? [
+  { id: "player1", position: { x: -5, y: 1 }, rotation: 0.5, submarineType: 2, username: "DeepDiver" },
+  { id: "player2", position: { x: 8, y: 2 }, rotation: -0.8, submarineType: 4, username: "OceanExplorer" },
+  { id: "player3", position: { x: 3, y: 1.5 }, rotation: 0.2, submarineType: 3, username: "AbyssalMiner" },
+] : [];
 
-// Generate initial resource nodes
+// Generate initial resource nodes - only in mock mode
 const generateInitialNodes = (): ResourceNode[] => {
-  const types = ["nickel", "cobalt", "copper", "manganese"] as const
+  if (!MOCK_MODE) return [];
+  const types = ["nickel", "cobalt", "copper", "manganese"] as const;
   return Array.from({ length: 20 }, (_, i) => ({
     id: `node-${i}`,
-    position: [Math.random() * 40 - 20, -0.5, Math.random() * 40 - 20],
+    position: { x: Math.random() * 40 - 20, y: Math.random() * 40 - 20 },
     type: types[Math.floor(Math.random() * types.length)],
     amount: Math.floor(Math.random() * 20) + 5,
     depleted: false,
-  }))
+    size: 20,
+  }));
 }
 
-async function tradeAllResources(resources, maxCapacities) {
+
+async function tradeAllResources(resources: PlayerResources, maxCapacities: PlayerResources) {
   const response = await fetch("/daily-trade", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -184,7 +189,7 @@ export function OceanMiningSimulation({
           setShowUpgradeModal(true)
           break
         case "i":
-          setSidebarOpen((prev) => !prev)
+          setSidebarOpen(!sidebarOpen)
           break
       }
     }
@@ -261,10 +266,9 @@ export function OceanMiningSimulation({
       // Check for nearby resource nodes
       const nearbyNode = resourceNodes.find((node) => {
         if (node.depleted) return false
-        const dx = node.position[0] - newX
-        const dy = node.position[1] - newY
-        const dz = node.position[2] - newZ
-        const distance = Math.sqrt(dx * dx + dy * dy + dz * dz)
+  const dx = node.position.x - newX
+  const dz = node.position.y - newZ
+  const distance = Math.sqrt(dx * dx + dz * dz)
         return distance < 3
       })
       setTargetNode(nearbyNode || null)
@@ -331,36 +335,36 @@ export function OceanMiningSimulation({
     }, 2000)
   }
 
-  const handleTrade = (resourceType: keyof PlayerResources) => {
-    if (resources[resourceType] <= 0) return
-
-    setGameState("trading")
-
-    setTimeout(() => {
-      const value = Math.floor(Math.random() * 10) + 5
-
-      setResources((prev) => ({
-        ...prev,
-        [resourceType]: prev[resourceType] - 1,
-      }))
-
-      setPlayerStats((prev) => ({
-        ...prev,
-        capacity: {
-          ...prev.capacity,
-          [resourceType]: prev.capacity[resourceType] - 1,
-        },
-      }))
-
-      setBalance((prev) => prev + value)
-
-      setGameState("resourceTraded")
-
-      setTimeout(() => {
-        setGameState("idle")
-      }, 2000)
-    }, 1500)
-  }
+  // const handleTrade = (resourceType: keyof PlayerResources) => {
+  //   if (resources[resourceType] <= 0) return
+  //
+  //   setGameState("trading")
+  //
+  //   setTimeout(() => {
+  //     const value = Math.floor(Math.random() * 10) + 5
+  //
+  //     setResources((prev) => ({
+  //       ...prev,
+  //       [resourceType]: prev[resourceType] - 1,
+  //     }))
+  //
+  //     setPlayerStats((prev) => ({
+  //       ...prev,
+  //       capacity: {
+  //         ...prev.capacity,
+  //         [resourceType]: prev.capacity[resourceType] - 1,
+  //       },
+  //     }))
+  //
+  //     setBalance((prev) => prev + value)
+  //
+  //     setGameState("resourceTraded")
+  //
+  //     setTimeout(() => {
+  //       setGameState("idle")
+  //     }, 2000)
+  //   }, 1500)
+  // }
 
   // Calculate total storage used and capacity
   const totalUsed = resources.nickel + resources.cobalt + resources.copper + resources.manganese;
@@ -456,10 +460,10 @@ export function OceanMiningSimulation({
       {/* HUD Overlay */}
       <div className="pointer-events-none absolute inset-0 z-10">
         {/* Player Stats HUD */}
-        <PlayerHUD stats={playerStats} resources={resources} tier={playerTier} />
+  <PlayerHUD stats={playerStats} tier={playerTier} />
 
         {/* Sonar/Mini-map */}
-        <SonarRadar playerPosition={playerPosition} resourceNodes={resourceNodes} otherPlayers={mockOtherPlayers} />
+  <SonarRadar playerPosition={{ x: playerPosition[0], y: playerPosition[2], rotation: playerRotation[1] }} resourceNodes={resourceNodes} otherPlayers={mockOtherPlayers} />
 
         {/* Wallet Info (when connected) */}
         {walletConnected && <WalletInfo balance={balance} />}
@@ -515,6 +519,7 @@ export function OceanMiningSimulation({
           gameState={gameState}
           playerStats={playerStats}
           walletAddress={walletAddress}
+          walletConnected={walletConnected}
         />
 
         {/* Mine Button - only show when near a resource */}

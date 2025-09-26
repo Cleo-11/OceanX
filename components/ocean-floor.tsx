@@ -3,7 +3,7 @@
 import { useState } from "react"
 
 import { useEffect, useRef } from "react"
-import { Rock, SeaPlant, UnderwaterVent, CaveEntrance } from "./decorative-elements"
+// import { Rock, SeaPlant, UnderwaterVent, CaveEntrance } from "./decorative-elements"
 
 export function OceanFloor() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -481,6 +481,7 @@ export function OceanFloor() {
         </mesh>
 
         {/* 3D Decorative elements */}
+        {/*
         {Array.from({ length: 30 }, (_, i) => {
           const x = Math.random() * 50 - 25
           const z = Math.random() * 50 - 25
@@ -511,6 +512,7 @@ export function OceanFloor() {
 
         <CaveEntrance position={[-8, -0.5, 15]} rotation={[0, Math.PI / 3, 0]} />
         <CaveEntrance position={[20, -0.5, -5]} rotation={[0, -Math.PI / 4, 0]} />
+        */}
       </group>
 
       <canvas ref={canvasRef} className="absolute inset-0 pointer-events-none" style={{ zIndex: 1 }} />

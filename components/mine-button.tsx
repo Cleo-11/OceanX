@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import type { GameState, ResourceType } from "@/lib/types"
-import { getResourceColor, getResourceEmoji } from "@/lib/resource-utils"
+import { getResourceColor } from "@/lib/resource-utils"
 
 interface MineButtonProps {
   onClick: () => void
@@ -26,11 +26,9 @@ export function MineButton({ onClick, disabled, gameState, resourceType, resourc
         opacity: 1,
         speed: Math.random() * 2 + 1
       }));
-      
       setParticles(newParticles);
-      
       const interval = setInterval(() => {
-        setParticles(prev => 
+        setParticles(prev =>
           prev
             .map(p => ({
               ...p,
@@ -40,10 +38,10 @@ export function MineButton({ onClick, disabled, gameState, resourceType, resourc
             .filter(p => p.opacity > 0)
         );
       }, 50);
-      
       return () => clearInterval(interval);
     } else {
       setParticles([]);
+      return () => {};
     }
   }, [isMining]);
   

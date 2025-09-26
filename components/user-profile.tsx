@@ -3,9 +3,9 @@
 import { useState, useEffect } from "react"
 import { supabase } from "@/lib/supabase"
 import { ContractManager } from "@/lib/contracts"
-import { getSubmarineByTier } from "@/lib/submarine-tiers"
+
 import type { PlayerResources } from "@/lib/types"
-import { Loader2, Ship, Coins, Package, Trophy, Clock, User } from "lucide-react"
+import { Loader2, Ship, Coins, Package, Trophy, User } from "lucide-react"
 
 interface UserProfileProps {
   walletAddress: string

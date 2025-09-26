@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+
 import type { GameState, PlayerStats, PlayerResources } from "@/lib/types"
 import { ResourceItem } from "./ResourceItem"
 import { UserProfile } from "./user-profile"

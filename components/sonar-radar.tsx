@@ -8,10 +8,9 @@ interface SonarRadarProps {
   playerPosition: PlayerPosition
   resourceNodes: ResourceNode[]
   otherPlayers: OtherPlayer[]
-  viewportOffset: { x: number; y: number }
 }
 
-export function SonarRadar({ playerPosition, resourceNodes, otherPlayers, viewportOffset }: SonarRadarProps) {
+export function SonarRadar({ playerPosition, resourceNodes, otherPlayers }: SonarRadarProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
   useEffect(() => {

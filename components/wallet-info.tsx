@@ -17,9 +17,9 @@ export function WalletInfo({ balance }: WalletInfoProps) {
         setIsBalanceChanged(false);
         setPrevBalance(balance);
       }, 2000);
-      
       return () => clearTimeout(timer);
     }
+    return undefined;
   }, [balance, prevBalance]);
   
   return (
