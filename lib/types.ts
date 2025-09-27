@@ -68,28 +68,49 @@ export interface Database {
     Tables: {
       players: {
         Row: {
-          id: number
-          wallet_address: string
+          id: string  // UUID
+          user_id: string
+          wallet_address: string | null  // Now nullable after migration
           username: string | null
-          submarine_tier: number
-          created_at: string
-          updated_at: string
+          submarine_tier: number | null
+          total_resources_mined: number | null
+          total_ocx_earned: number | null  // Your DB uses numeric, which is fine
+          last_reward_claim: string | null
+          last_login: string | null
+          created_at: string | null
+          updated_at: string | null
+          is_active: boolean | null
+          last_daily_trade: string | null
         }
         Insert: {
-          id?: number
-          wallet_address: string
+          id?: string
+          user_id: string
+          wallet_address?: string | null
           username?: string | null
-          submarine_tier?: number
-          created_at?: string
-          updated_at?: string
+          submarine_tier?: number | null
+          total_resources_mined?: number | null
+          total_ocx_earned?: number | null
+          last_reward_claim?: string | null
+          last_login?: string | null
+          created_at?: string | null
+          updated_at?: string | null
+          is_active?: boolean | null
+          last_daily_trade?: string | null
         }
         Update: {
-          id?: number
-          wallet_address?: string
+          id?: string
+          user_id?: string
+          wallet_address?: string | null
           username?: string | null
-          submarine_tier?: number
-          created_at?: string
-          updated_at?: string
+          submarine_tier?: number | null
+          total_resources_mined?: number | null
+          total_ocx_earned?: number | null
+          last_reward_claim?: string | null
+          last_login?: string | null
+          created_at?: string | null
+          updated_at?: string | null
+          is_active?: boolean | null
+          last_daily_trade?: string | null
         }
       }
       submarine_tiers: {

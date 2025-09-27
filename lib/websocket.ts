@@ -37,11 +37,17 @@ export class WebSocketManager {
     return WebSocketManager.instance
   }
 
-  // ✅ Fixed: Use process.env directly
+  // Use NEXT_PUBLIC_WS_URL if set, otherwise fallback to API URL
   private getServerUrl(): string {
+    const wsUrl = process.env.NEXT_PUBLIC_WS_URL;
+    if (wsUrl) {
+      console.log("WebSocket URL being used (env):", wsUrl);
+      return wsUrl;
+    }
     const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
-    console.log("WebSocket URL being used:", apiUrl.replace(/^http/, "ws"));
-    return apiUrl.replace(/^http/, "ws");
+    const fallback = apiUrl.replace(/^http/, "ws");
+    console.log("WebSocket URL being used (fallback):", fallback);
+    return fallback;
   }
 
   connect(serverUrl?: string): Promise<void> {

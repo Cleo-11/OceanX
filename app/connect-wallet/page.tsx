@@ -135,11 +135,21 @@ export default function ConnectWalletPage() {
         return
       }
 
-      const { data: existingPlayer } = await supabase
+      // First, check if wallet exists for any other user
+      const { data: existingPlayer, error: lookupError } = await supabase
         .from("players")
         .select("user_id, username")
         .eq("wallet_address", address)
         .single()
+
+      // Log the lookup for debugging
+      console.log("Existing player lookup:", existingPlayer, lookupError)
+
+      if (lookupError && lookupError.code !== 'PGRST116') {
+        // PGRST116 is "not found" error, which is expected for new wallets
+        console.error("Database lookup error:", lookupError)
+        throw new Error("Failed to check wallet status")
+      }
 
       if (existingPlayer && existingPlayer.user_id !== user?.id) {
         setPendingWalletAddress(address)
@@ -166,7 +176,8 @@ export default function ConnectWalletPage() {
       })
 
       if (upsertError) {
-        throw upsertError
+        console.error("Database upsert error:", upsertError)
+        throw new Error(`Database error: ${upsertError.message}`)
       }
 
       // Reset pending transfer state

@@ -7,16 +7,14 @@ const envSchema = z.object({
   NEXT_PUBLIC_SUPABASE_URL: z.string().url("Invalid Supabase URL"),
   NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string().min(1, "Supabase anon key is required"),
   NEXT_PUBLIC_API_URL: z.string().url().optional().default("http://localhost:5000"),
-  
+  NEXT_PUBLIC_WS_URL: z.string().url().optional(),
+
+  // Contract addresses (should be validated)
+  GAME_CONTRACT_ADDRESS: z.string().regex(/^0x[a-fA-F0-9]{40}$/, "Invalid contract address").optional(),
+
   // Server-side only environment variables
   DATABASE_URL: z.string().optional(),
   SUPABASE_SERVICE_ROLE_KEY: z.string().optional(),
-  
-  // Contract addresses (should be validated)
-  NEXT_PUBLIC_OCEAN_X_TOKEN_ADDRESS: z.string().regex(/^0x[a-fA-F0-9]{40}$/, "Invalid contract address").optional(),
-  NEXT_PUBLIC_PLAYER_PROFILE_ADDRESS: z.string().regex(/^0x[a-fA-F0-9]{40}$/, "Invalid contract address").optional(),
-  NEXT_PUBLIC_UPGRADE_MANAGER_ADDRESS: z.string().regex(/^0x[a-fA-F0-9]{40}$/, "Invalid contract address").optional(),
-  NEXT_PUBLIC_DAILY_MINER_ADDRESS: z.string().regex(/^0x[a-fA-F0-9]{40}$/, "Invalid contract address").optional(),
 })
 
 // Type for validated environment variables
@@ -26,21 +24,19 @@ export type Env = z.infer<typeof envSchema>
 export function validateEnv(): Env {
   try {
     return envSchema.parse({
-      // Client-side variables
-      NEXT_PUBLIC_SITE_URL: process.env.NEXT_PUBLIC_SITE_URL,
-      NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
-      NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-      NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL,
-      
-      // Server-side variables
-      DATABASE_URL: process.env.DATABASE_URL,
-      SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY,
-      
-      // Contract addresses
-      NEXT_PUBLIC_OCEAN_X_TOKEN_ADDRESS: process.env.NEXT_PUBLIC_OCEAN_X_TOKEN_ADDRESS,
-      NEXT_PUBLIC_PLAYER_PROFILE_ADDRESS: process.env.NEXT_PUBLIC_PLAYER_PROFILE_ADDRESS,
-      NEXT_PUBLIC_UPGRADE_MANAGER_ADDRESS: process.env.NEXT_PUBLIC_UPGRADE_MANAGER_ADDRESS,
-      NEXT_PUBLIC_DAILY_MINER_ADDRESS: process.env.NEXT_PUBLIC_DAILY_MINER_ADDRESS,
+  // Client-side variables
+  NEXT_PUBLIC_SITE_URL: process.env.NEXT_PUBLIC_SITE_URL,
+  NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
+  NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+  NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL,
+  NEXT_PUBLIC_WS_URL: process.env.NEXT_PUBLIC_WS_URL,
+
+  // Contract addresses
+  GAME_CONTRACT_ADDRESS: process.env.GAME_CONTRACT_ADDRESS,
+
+  // Server-side variables
+  DATABASE_URL: process.env.DATABASE_URL,
+  SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY,
     })
   } catch (error) {
     console.error("❌ Environment variable validation failed:")

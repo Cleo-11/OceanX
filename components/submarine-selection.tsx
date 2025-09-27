@@ -74,7 +74,7 @@ export function SubmarineSelection({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="fixed inset-0 w-screen h-screen max-w-none max-h-none bg-black/90 border-0 text-white submarine-selection-backdrop !rounded-none flex flex-col justify-center items-center p-0 !translate-x-0 !translate-y-0 !grid-none">
+      <DialogContent data-testid="submarine-selection-backdrop" className="fixed inset-0 w-screen h-screen max-w-none max-h-none bg-black/90 border-0 text-white submarine-selection-backdrop !rounded-none flex flex-col justify-center items-center p-0 !translate-x-0 !translate-y-0 !grid-none">
         <div className="caustics-overlay"></div>
         {/* Token balance at top right */}
         <div className="absolute top-6 right-10 z-30 flex items-center gap-2 text-cyan-200 text-lg font-semibold bg-black/60 px-4 py-2 rounded-xl border border-cyan-700 shadow-lg">
@@ -107,11 +107,12 @@ export function SubmarineSelection({
                         return (
                           <CarouselItem key={submarine.tier} className="md:basis-1/2 lg:basis-1/3">
                             <div className="p-1">
-                              <Card 
+                              <Card
+                                data-testid={`submarine-tier-${submarine.tier}`}
                                 className={cn(
                                   "border-2 transition-all duration-300 bg-black/60 submarine-glow",
-                                  selectedTier === submarine.tier 
-                                    ? "border-cyan-400 animate-glow active" 
+                                  selectedTier === submarine.tier
+                                    ? "border-cyan-400 animate-glow active"
                                     : "border-gray-600 hover:border-cyan-400/50"
                                 )}
                                 onClick={() => owned && setSelectedTier(submarine.tier)}
@@ -157,12 +158,12 @@ export function SubmarineSelection({
                                   )}
                                 </CardContent>
                                 <CardFooter className="flex flex-col p-4 pt-0 gap-2 border-t border-cyan-900/30">
-                                  <div className="grid grid-cols-2 gap-2 w-full">
+                                  <div className="grid grid-cols-2 gap-2 w-full" data-testid="submarine-stats">
                                     <div className="stat-item">
                                       <span className="stat-label">SPEED</span>
                                       <div className="flex items-center gap-1">
                                         <div className="submarine-stats-bar w-full">
-                                          <div 
+                                          <div
                                             className="fill"
                                             style={{ width: `${submarine.baseStats.speed * 20}%` }}
                                           />
@@ -176,10 +177,10 @@ export function SubmarineSelection({
                                       <span className="stat-label">STORAGE</span>
                                       <div className="flex items-center gap-1">
                                         <div className="submarine-stats-bar w-full">
-                                          <div 
+                                          <div
                                             className="fill"
-                                            style={{ 
-                                              width: `${(Object.values(submarine.baseStats.maxCapacity).reduce((a, b) => a + b, 0) / 1000) * 100}%` 
+                                            style={{
+                                              width: `${(Object.values(submarine.baseStats.maxCapacity).reduce((a, b) => a + b, 0) / 1000) * 100}%`
                                             }}
                                           />
                                         </div>
@@ -192,7 +193,7 @@ export function SubmarineSelection({
                                       <span className="stat-label">MINING</span>
                                       <div className="flex items-center gap-1">
                                         <div className="submarine-stats-bar w-full">
-                                          <div 
+                                          <div
                                             className="fill"
                                             style={{ width: `${submarine.baseStats.miningRate * 20}%` }}
                                           />
@@ -206,7 +207,7 @@ export function SubmarineSelection({
                                       <span className="stat-label">DEPTH</span>
                                       <div className="flex items-center gap-1">
                                         <div className="submarine-stats-bar w-full">
-                                          <div 
+                                          <div
                                             className="fill"
                                             style={{ width: `${(submarine.baseStats.depth / 5000) * 100}%` }}
                                           />
@@ -218,7 +219,7 @@ export function SubmarineSelection({
                                     </div>
                                   </div>
                                   {submarine.specialAbility && (
-                                    <div className="w-full mt-1">
+                                    <div className="w-full mt-1" data-testid={`submarine-addon-tier-${submarine.tier}`}> 
                                       <span className="text-xs text-gray-400">SPECIAL</span>
                                       <p className="text-xs text-cyan-300">{submarine.specialAbility}</p>
                                     </div>

@@ -4,8 +4,10 @@
   "description": "OceanX Game Server",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js",
-    "dev": "nodemon index.js"
+    "start": "node check-env.js && node index.js",
+    "dev": "nodemon index.js",
+    "check-env": "node check-env.js",
+    "start-no-check": "node index.js"
   },
   "dependencies": {
     "express": "^4.18.2",

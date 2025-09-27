@@ -1,4 +1,24 @@
 services:
+  # Frontend (Next.js Application)
+  - type: web
+    name: oceanx-frontend
+    env: node
+    plan: starter
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NEXT_PUBLIC_SITE_URL
+        value: https://oceanx-frontend.onrender.com  # Update this to your actual Render URL
+      - key: NEXT_PUBLIC_API_URL
+        value: https://oceanx-backend.onrender.com   # Update this to your backend URL
+      - key: NEXT_PUBLIC_SUPABASE_URL
+        sync: false  # Set in Render dashboard
+      - key: NEXT_PUBLIC_SUPABASE_ANON_KEY
+        sync: false  # Set in Render dashboard
+
+  # Backend API Server
   - type: web
     name: oceanx-backend
     env: node
@@ -9,11 +29,18 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
+      - key: PORT
+        fromService:
+          type: web
+          name: oceanx-backend
+          property: port
       - key: FRONTEND_URL
-        value: https://ocean-x.vercel.app
-      - key: RPC_URL
-        sync: false
+        value: https://oceanx-frontend.onrender.com  # Update this to your frontend URL
       - key: SUPABASE_URL
-        sync: false
+        sync: false  # Set in Render dashboard
       - key: SUPABASE_ANON_KEY
-        sync: false
+        sync: false  # Set in Render dashboard
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false  # Set in Render dashboard (if needed)
+      - key: RPC_URL
+        sync: false  # Set in Render dashboard

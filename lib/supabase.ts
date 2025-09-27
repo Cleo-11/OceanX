@@ -63,5 +63,12 @@ export const getSession = async () => {
     data: { session },
     error,
   } = await supabase.auth.getSession()
+  
+  // Try to refresh session if it's expired
+  if (!session && !error) {
+    const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession()
+    return { session: refreshData.session, error: refreshError }
+  }
+  
   return { session, error }
 }

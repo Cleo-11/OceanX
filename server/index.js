@@ -99,11 +99,21 @@ app.post("/player/submarine", async (req, res) => {
 
 // CORS configuration
 const allowedOrigins = [
+  // Production domains
+  /^https:\/\/oceanx-frontend.*\.onrender\.com$/,
   /^https:\/\/ocean.*\.vercel\.app$/,
+  // Development
   "http://localhost:3000",
   "https://localhost:3000",
+  // Legacy support
   "https://oceanx.onrender.com",
-];
+]
+
+// Add frontend URL from environment if provided
+if (process.env.FRONTEND_URL) {
+  allowedOrigins.push(process.env.FRONTEND_URL)
+  console.log("🔗 Added FRONTEND_URL to CORS:", process.env.FRONTEND_URL)
+};
 
 const corsOptions = {
   origin: (origin, callback) => {
