@@ -9,6 +9,7 @@ import {
   UserPlus, LogIn, ShieldCheck,
   BarChart3, Radar, Wrench, Twitter, Globe2, Lock, LineChart
 } from "lucide-react"
+import SubmarineIcon from "./SubmarineIcon"
 
 // Custom Icon Components
 function DiscordIcon(props: React.SVGProps<SVGSVGElement>) {
@@ -89,8 +90,8 @@ function Seaweed({ height = "h-24", left = "left-20", width = "w-4", color = "gr
     </div>
   );
 }
+
 import { useRouter } from "next/navigation"
-// ...existing code...
 
 export default function LandingPage() {
   const [isHovered, setIsHovered] = useState(false)
@@ -143,8 +144,24 @@ export default function LandingPage() {
     router.push("/auth?mode=signup")
   }
 
+  // Add floating and bounce animation for Leviathan submarine
+  const LeviathanFloatStyle = () => (
+    <style>{`
+      @keyframes leviathan-float {
+        0% { transform: translateY(0); }
+        50% { transform: translateY(-32px) scale(1.04); }
+        100% { transform: translateY(0); }
+      }
+      .animate-leviathan-float {
+        animation: leviathan-float 3.5s ease-in-out infinite;
+        will-change: transform;
+      }
+    `}</style>
+  )
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-950 via-blue-900 to-slate-900 text-white overflow-hidden">
+      <LeviathanFloatStyle />
       {/* Advanced Animated Background Elements */}
       <div className="absolute inset-0 overflow-hidden">
         {/* Deep ocean gradient overlay */}
@@ -541,93 +558,24 @@ export default function LandingPage() {
                 })}
               </div>
               
-              {/* Interactive Submarine */}
-              <div 
+              {/* Leviathan SVG Submarine (Tier 15) with floating and bounce animation */}
+              <div
                 className="absolute inset-0 flex items-center justify-center"
                 style={{
-                  transform: `translate(${parallaxOffset.x * 0.05}px, ${parallaxOffset.y * 0.05}px)`,
+                  transform: `translate(${parallaxOffset.x * 0.05}px, ${parallaxOffset.y * 0.05}px)`
                 }}
               >
-                <div className="relative w-[60%] h-[60%]">
-                  {/* Submarine engine glow */}
-                  <div className="absolute -right-5 top-1/2 w-16 h-16 bg-cyan-500/10 rounded-full blur-xl transform -translate-y-1/2 animate-pulse"></div>
-                  
-                  {/* Submarine Body */}
-                  <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-3/4 h-1/3 bg-gradient-to-b from-cyan-600 to-cyan-900 rounded-full shadow-glow">
-                    {/* Submarine texture overlay */}
-                    <div className="absolute inset-0 bg-[url('/water-caustics.png')] bg-cover opacity-20 mix-blend-overlay rounded-full"></div>
-                    
-                    {/* Metallic reflections */}
-                    <div className="absolute top-0 left-1/4 right-1/4 h-1/4 bg-gradient-to-r from-transparent via-cyan-300/20 to-transparent rounded-full"></div>
-                  </div>
-                  
-                  {/* Submarine Tower */}
-                  <div className="absolute top-1/3 left-1/2 transform -translate-x-1/2 w-1/5 h-2/5 bg-gradient-to-b from-cyan-700 to-cyan-950 rounded-t-lg shadow-lg overflow-hidden">
-                    {/* Tower highlights */}
-                    <div className="absolute top-0 left-0 right-0 h-1/4 bg-gradient-to-r from-transparent via-cyan-300/20 to-transparent"></div>
-                  </div>
-                  
-                  {/* Main Submarine Window with glow */}
-                  <div className="absolute top-1/2 left-[30%] transform -translate-y-1/2 group">
-                    <div className="absolute inset-0 rounded-full bg-cyan-400/30 blur-md scale-150 animate-pulse-slow"></div>
-                    <div className="w-12 h-12 bg-gradient-to-br from-cyan-200/60 to-cyan-400/60 rounded-full shadow-glow-strong relative">
-                      {/* Window interior */}
-                      <div className="absolute inset-2 bg-cyan-900/70 rounded-full">
-                        {/* Pilot silhouette */}
-                        <div className="absolute inset-3 top-1/4 bg-slate-900/70 rounded-full"></div>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  {/* Secondary Windows */}
-                  <div className="absolute top-1/2 left-[50%] transform -translate-y-1/2 w-6 h-6 bg-cyan-300/40 rounded-full shadow-md"></div>
-                  <div className="absolute top-1/2 left-[65%] transform -translate-y-1/2 w-6 h-6 bg-cyan-300/40 rounded-full shadow-md"></div>
-                  
-                  {/* Advanced Propeller System */}
-                  <div className="absolute top-1/2 right-[5%] transform -translate-y-1/2">
-                    {/* Propeller Housing */}
-                    <div className="w-10 h-10 rounded-full bg-cyan-800/70 flex items-center justify-center relative overflow-hidden">
-                      {/* Inner glow */}
-                      <div className="absolute inset-1 rounded-full bg-cyan-700/50"></div>
-                      
-                      {/* Spinning propeller */}
-                      <div className="relative w-8 h-8 animate-spin-slow">
-                        <div className="absolute top-1/2 left-0 right-0 h-1 bg-cyan-400/70 rounded-full transform -translate-y-1/2"></div>
-                        <div className="absolute top-0 bottom-0 left-1/2 w-1 bg-cyan-400/70 rounded-full transform -translate-x-1/2"></div>
-                        <div className="absolute top-0 left-0 w-full h-full border-2 border-cyan-400/10 rounded-full"></div>
-                      </div>
-                      
-                      {/* Water current effect */}
-                      {showParticles && [...Array(5)].map((_, i) => (
-                        <div 
-                          key={`propeller-current-${i}`}
-                          className="absolute right-0 w-1 h-1 bg-cyan-300/50 rounded-full"
-                          style={{
-                            top: `${20 + (i * 15)}%`,
-                            animation: `propellerCurrent 2s linear infinite ${i * 0.2}s`,
-                          }}
-                        ></div>
-                      ))}
-                    </div>
-                  </div>
-                  
-                  {/* Front Lights */}
-                  <div className="absolute top-1/2 left-[5%] transform -translate-y-1/2">
-                    <div className="relative w-8 h-8">
-                      <div className="absolute inset-2 rounded-full bg-yellow-400/70 animate-pulse"></div>
-                      <div className="absolute inset-0 rounded-full bg-yellow-300/20 animate-glow"></div>
-                      {/* Light beam */}
-                      <div 
-                        className="absolute top-1/2 left-0 w-32 h-16 bg-gradient-to-r from-yellow-400/40 to-transparent transform -translate-y-1/2 -translate-x-full blur-md"
-                        style={{
-                          clipPath: 'polygon(0 50%, 100% 0, 100% 100%)',
-                        }}
-                      ></div>
-                    </div>
-                  </div>
-                  
-                  {/* Navigation Lights */}
-                  <div className="absolute top-0 left-1/2 transform -translate-x-1/2 w-3 h-3 bg-red-500/70 rounded-full animate-pulse-slow"></div>
+                <div
+                  className="animate-leviathan-float"
+                  style={{
+                    width: '60%',
+                    height: '60%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <SubmarineIcon tier={15} size={320} className="drop-shadow-2xl" />
                 </div>
               </div>
               
@@ -1178,7 +1126,6 @@ export default function LandingPage() {
                 <p className="text-slate-300">Join miners from over 50 countries working together in guilds or competing for rare discoveries.</p>
               </div>
             </div>
-            
             {/* Right illumination */}
             <div className="absolute -right-10 top-1/2 transform -translate-y-1/2 w-20 h-64 bg-blue-500/10 rounded-full blur-3xl"></div>
           </div>
@@ -1254,7 +1201,7 @@ export default function LandingPage() {
             </div>
           </div>
         </div>
-  {/* ...existing code... */}
+      </section>
 
       {/* Enhanced Footer */}
       <footer className="relative z-10 border-t border-slate-800/50 pt-16 pb-12 px-6 bg-slate-900/80">
