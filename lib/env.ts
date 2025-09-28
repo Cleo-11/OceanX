@@ -10,6 +10,10 @@ const envSchema = z.object({
   NEXT_PUBLIC_WS_URL: z.string().url().optional(),
 
   // Contract addresses (should be validated)
+  NEXT_PUBLIC_OCEAN_X_TOKEN_ADDRESS: z.string().regex(/^0x[a-fA-F0-9]{40}$/, "Invalid contract address").optional(),
+  NEXT_PUBLIC_PLAYER_PROFILE_ADDRESS: z.string().regex(/^0x[a-fA-F0-9]{40}$/, "Invalid contract address").optional(),
+  NEXT_PUBLIC_UPGRADE_MANAGER_ADDRESS: z.string().regex(/^0x[a-fA-F0-9]{40}$/, "Invalid contract address").optional(),
+  NEXT_PUBLIC_DAILY_MINER_ADDRESS: z.string().regex(/^0x[a-fA-F0-9]{40}$/, "Invalid contract address").optional(),
   GAME_CONTRACT_ADDRESS: z.string().regex(/^0x[a-fA-F0-9]{40}$/, "Invalid contract address").optional(),
 
   // Server-side only environment variables
@@ -32,6 +36,10 @@ export function validateEnv(): Env {
   NEXT_PUBLIC_WS_URL: process.env.NEXT_PUBLIC_WS_URL,
 
   // Contract addresses
+  NEXT_PUBLIC_OCEAN_X_TOKEN_ADDRESS: process.env.NEXT_PUBLIC_OCEAN_X_TOKEN_ADDRESS,
+  NEXT_PUBLIC_PLAYER_PROFILE_ADDRESS: process.env.NEXT_PUBLIC_PLAYER_PROFILE_ADDRESS,
+  NEXT_PUBLIC_UPGRADE_MANAGER_ADDRESS: process.env.NEXT_PUBLIC_UPGRADE_MANAGER_ADDRESS,
+  NEXT_PUBLIC_DAILY_MINER_ADDRESS: process.env.NEXT_PUBLIC_DAILY_MINER_ADDRESS,
   GAME_CONTRACT_ADDRESS: process.env.GAME_CONTRACT_ADDRESS,
 
   // Server-side variables
