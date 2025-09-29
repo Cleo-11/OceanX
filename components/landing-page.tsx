@@ -11,6 +11,21 @@ import {
 } from "lucide-react"
 import SubmarineIcon from "./SubmarineIcon"
 
+// Add floating and bounce animation for Leviathan submarine
+const LeviathanFloatStyle = () => (
+  <style>{`
+    @keyframes leviathan-float {
+      0% { transform: translateY(0); }
+      50% { transform: translateY(-32px) scale(1.04); }
+      100% { transform: translateY(0); }
+    }
+    .animate-leviathan-float {
+      animation: leviathan-float 3.5s ease-in-out infinite;
+      will-change: transform;
+    }
+  `}</style>
+)
+
 // Custom Icon Components
 function DiscordIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
@@ -143,21 +158,6 @@ export default function LandingPage() {
   const handleSignUp = () => {
     router.push("/auth?mode=signup")
   }
-
-  // Add floating and bounce animation for Leviathan submarine
-  const LeviathanFloatStyle = () => (
-    <style>{`
-      @keyframes leviathan-float {
-        0% { transform: translateY(0); }
-        50% { transform: translateY(-32px) scale(1.04); }
-        100% { transform: translateY(0); }
-      }
-      .animate-leviathan-float {
-        animation: leviathan-float 3.5s ease-in-out infinite;
-        will-change: transform;
-      }
-    `}</style>
-  )
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-950 via-blue-900 to-slate-900 text-white overflow-hidden">
