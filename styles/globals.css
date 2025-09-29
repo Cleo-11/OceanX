@@ -93,12 +93,20 @@ body {
   }
 }
 
-@keyframes leviathan-float {
-  0% { transform: translateY(0); }
-  50% { transform: translateY(-32px) scale(1.04); }
-  100% { transform: translateY(0); }
+@keyframes submarine-float {
+  0% { transform: translateY(0) rotate(0deg) scale(1); }
+  25% { transform: translateY(-20px) rotate(-1deg) scale(1.02); }
+  50% { transform: translateY(-32px) rotate(0deg) scale(1.04); }
+  75% { transform: translateY(-20px) rotate(1deg) scale(1.02); }
+  100% { transform: translateY(0) rotate(0deg) scale(1); }
 }
-.animate-leviathan-float {
-  animation: leviathan-float 3.5s ease-in-out infinite;
+.animate-submarine-float {
+  animation: submarine-float 4s ease-in-out infinite;
   will-change: transform;
+}
+
+@keyframes exhaustPulse {
+  0% { opacity: 0.3; transform: translateY(-50%) scale(0.8); }
+  50% { opacity: 0.8; transform: translateY(-50%) scale(1.2); }
+  100% { opacity: 0.3; transform: translateY(-50%) scale(0.8); }
 }

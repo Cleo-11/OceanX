@@ -10,6 +10,7 @@ import {
   BarChart3, Radar, Wrench, Twitter, Globe2, Lock, LineChart
 } from "lucide-react"
 import SubmarineIcon from "./SubmarineIcon"
+import { CustomSubmarine } from './custom-submarine';
 
 // Custom Icon Components
 function DiscordIcon(props: React.SVGProps<SVGSVGElement>) {
@@ -542,7 +543,7 @@ export default function LandingPage() {
                 })}
               </div>
               
-              {/* Leviathan SVG Submarine (Tier 15) with floating and bounce animation */}
+              {/* Custom Submarine with floating and bounce animation */}
               <div
                 className="absolute inset-0 flex items-center justify-center"
                 style={{
@@ -550,7 +551,7 @@ export default function LandingPage() {
                 }}
               >
                 <div
-                  className="animate-leviathan-float"
+                  className="animate-submarine-float"
                   style={{
                     width: '60%',
                     height: '60%',
@@ -559,7 +560,7 @@ export default function LandingPage() {
                     justifyContent: 'center',
                   }}
                 >
-                  <SubmarineIcon tier={15} size={320} className="drop-shadow-2xl" />
+                  <CustomSubmarine size={320} className="drop-shadow-2xl" />
                 </div>
               </div>
               
