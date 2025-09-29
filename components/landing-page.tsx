@@ -1185,8 +1185,6 @@ export default function LandingPage() {
             </div>
           </div>
         </div>
-      </section>
-
       {/* Enhanced Footer */}
       <footer className="relative z-10 border-t border-slate-800/50 pt-16 pb-12 px-6 bg-slate-900/80">
         <div className="max-w-6xl mx-auto">
