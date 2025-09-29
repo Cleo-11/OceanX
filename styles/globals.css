@@ -92,3 +92,13 @@ body {
     @apply bg-background text-foreground;
   }
 }
+
+@keyframes leviathan-float {
+  0% { transform: translateY(0); }
+  50% { transform: translateY(-32px) scale(1.04); }
+  100% { transform: translateY(0); }
+}
+.animate-leviathan-float {
+  animation: leviathan-float 3.5s ease-in-out infinite;
+  will-change: transform;
+}
