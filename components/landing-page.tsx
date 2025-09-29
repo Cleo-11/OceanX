@@ -9,7 +9,6 @@ import {
   UserPlus, LogIn, ShieldCheck,
   BarChart3, Radar, Wrench, Twitter, Globe2, Lock, LineChart
 } from "lucide-react"
-import SubmarineIcon from "./SubmarineIcon"
 import { CustomSubmarine } from './custom-submarine';
 
 // Custom Icon Components
