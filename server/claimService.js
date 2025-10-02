@@ -20,11 +20,13 @@ try {
     abi: [
       {
         "inputs": [
-          { "internalType": "address", "name": "user", "type": "address" },
+          { "internalType": "address", "name": "player", "type": "address" },
           { "internalType": "uint256", "name": "amount", "type": "uint256" },
+          { "internalType": "uint256", "name": "nonce", "type": "uint256" },
+          { "internalType": "uint256", "name": "deadline", "type": "uint256" },
           { "internalType": "bytes", "name": "signature", "type": "bytes" }
         ],
-        "name": "claim",
+        "name": "claimReward",
         "outputs": [],
         "stateMutability": "nonpayable",
         "type": "function"
@@ -42,10 +44,25 @@ const gameContract = new ethers.Contract(
   backendSigner
 );
 
-async function claimTokens(userAddress, amount, signature) {
+async function claimTokens(userAddress, amount, nonce, deadline, signature) {
   try {
+    const normalizedAddress = ethers.getAddress(userAddress);
+    const parsedAmount = ethers.toBigInt(amount);
+    const parsedNonce = ethers.toBigInt(nonce);
+    const parsedDeadline = ethers.toBigInt(deadline);
+
+    if (parsedAmount <= 0n) {
+      throw new Error("Amount must be greater than zero");
+    }
+
     // Calls the claim function on the contract
-    const tx = await gameContract.claim(userAddress, amount, signature);
+    const tx = await gameContract.claimReward(
+      normalizedAddress,
+      parsedAmount,
+      parsedNonce,
+      parsedDeadline,
+      signature
+    );
     await tx.wait();
     return tx.hash;
   } catch (error) {

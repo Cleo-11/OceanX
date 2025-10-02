@@ -21,6 +21,7 @@ contract OCXToken is ERC20, ERC20Burnable, EIP712, Ownable {
     // Off-chain signer controlled by your backend
     address public authorizedSigner;
     mapping(address => uint256) public nonces;
+    mapping(bytes32 => bool) private usedClaims;
 
     bytes32 private constant CLAIM_TYPEHASH =
         keccak256("Claim(address account,uint256 amount,uint256 nonce,uint256 deadline)");
@@ -62,23 +63,31 @@ contract OCXToken is ERC20, ERC20Burnable, EIP712, Ownable {
      * @notice Users call this to mint tokens to themselves using a signature from your backend.
      * @dev User pays gas. This is the ONLY way for users to receive tokens after deployment.
      */
-    function claim(uint256 amount, uint256 deadline, uint8 v, bytes32 r, bytes32 s) external {
+    function claim(uint256 amount, uint256 nonce, uint256 deadline, uint8 v, bytes32 r, bytes32 s) external {
         require(block.timestamp <= deadline, "Signature expired");
+        require(amount > 0, "Amount zero");
 
-        uint256 nonce = nonces[msg.sender];
+        uint256 expectedNonce = nonces[msg.sender];
+        require(nonce == expectedNonce, "Invalid nonce");
 
         bytes32 structHash = keccak256(
             abi.encode(CLAIM_TYPEHASH, msg.sender, amount, nonce, deadline)
         );
         bytes32 digest = _hashTypedDataV4(structHash);
 
+        require(!usedClaims[digest], "Claim already used");
+
         address signer = ECDSA.recover(digest, v, r, s);
         require(signer == authorizedSigner, "Invalid signature");
 
-        nonces[msg.sender] = nonce + 1;
+        uint256 contractBalance = balanceOf(address(this));
+        require(contractBalance >= amount, "Insufficient claimable balance");
 
-        // Mint new tokens from the contract's locked supply to the user
-        _mint(msg.sender, amount);
+        usedClaims[digest] = true;
+        nonces[msg.sender] = expectedNonce + 1;
+
+        // Transfer tokens from the contract's locked supply to the user
+        _transfer(address(this), msg.sender, amount);
 
         emit Claimed(msg.sender, amount, nonce);
     }

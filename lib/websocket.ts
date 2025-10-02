@@ -1,6 +1,8 @@
 // @ts-ignore
 import { io, type Socket } from "socket.io-client"
 
+import { sanitizePlainText } from "./sanitize"
+
 export interface GameState {
   sessionId: string
   players: Player[]
@@ -10,18 +12,33 @@ export interface GameState {
 
 export interface Player {
   walletAddress: string
-  position: { x: number; y: number; rotation: number }
+  position: { x: number; y: number; rotation: number; z?: number }
   submarine: number
   joinedAt: string
 }
 
 export interface ResourceNode {
   id: string
-  position: { x: number; y: number }
+  position: { x: number; y: number; z?: number }
   type: "nickel" | "cobalt" | "copper" | "manganese"
   amount: number
   depleted: boolean
   size: number
+}
+
+export interface MineResourcePayload {
+  nodeId: string
+  sessionId: string
+  walletAddress: string
+  amount?: number
+  resourceType?: ResourceNode["type"]
+}
+
+export interface JoinGamePayload {
+  walletAddress: string
+  sessionId?: string
+  signature: string
+  message: string
 }
 
 export class WebSocketManager {
@@ -105,24 +122,62 @@ export class WebSocketManager {
     })
   }
 
-  joinSession(walletAddress: string, sessionId: string): void {
+  joinSession(payload: JoinGamePayload): void {
     if (!this.socket) {
       throw new Error("WebSocket not connected")
     }
-    const payload = { walletAddress, sessionId };
-    console.log(`[CLIENT] Emitting 'join-game' with payload:`, payload);
-    this.socket.emit("join-game", payload)
+    if (!payload?.walletAddress || !payload?.signature || !payload?.message) {
+      throw new Error("Incomplete join-game payload: walletAddress, signature, and message are required")
+    }
+
+    const walletAddress = sanitizePlainText(payload.walletAddress, 64).toLowerCase()
+    const sessionId = payload.sessionId ? sanitizePlainText(payload.sessionId, 128) : undefined
+    const signature = sanitizePlainText(payload.signature, 512)
+    const message = sanitizePlainText(payload.message, 2048)
+    const signaturePreview = signature ? `${signature.slice(0, 10)}...` : undefined
+    console.log(`[CLIENT] Emitting 'join-game' with payload:`, {
+      walletAddress,
+      sessionId,
+      signaturePreview,
+    })
+
+    this.socket.emit("join-game", { walletAddress, sessionId, signature, message })
   }
 
-  sendPlayerMove(position: { x: number; y: number; rotation: number }, walletAddress: string, sessionId: string): void {
+  sendPlayerMove(position: { x: number; y: number; rotation: number; z?: number }, walletAddress: string, sessionId: string): void {
     if (!this.socket) return
-    console.log("Sending player move:", { walletAddress, sessionId, position });
-    this.socket.emit("player-move", { walletAddress, sessionId, position })
+    const sanitizedWallet = sanitizePlainText(walletAddress, 64).toLowerCase()
+    const sanitizedSession = sanitizePlainText(sessionId, 128)
+    const sanitizedPosition = {
+      x: Number.isFinite(position.x) ? Number(position.x) : 0,
+      y: Number.isFinite(position.y) ? Number(position.y) : 0,
+      rotation: Number.isFinite(position.rotation) ? Number(position.rotation) : 0,
+      z: Number.isFinite(position.z ?? 0) ? Number(position.z) : 0,
+    }
+    console.log("Sending player move:", { walletAddress: sanitizedWallet, sessionId: sanitizedSession, position: sanitizedPosition })
+    this.socket.emit("player-move", {
+      walletAddress: sanitizedWallet,
+      sessionId: sanitizedSession,
+      position: sanitizedPosition,
+    })
   }
 
-  mineResource(nodeId: string): void {
+  mineResource(payload: MineResourcePayload): void {
     if (!this.socket) return
-    this.socket.emit("mine-resource", { nodeId })
+    if (!payload?.nodeId || !payload?.walletAddress || !payload?.sessionId) {
+      throw new Error("Invalid mine-resource payload")
+    }
+    const sanitizedPayload = {
+      nodeId: sanitizePlainText(payload.nodeId, 128),
+      sessionId: sanitizePlainText(payload.sessionId, 128),
+      walletAddress: sanitizePlainText(payload.walletAddress, 64).toLowerCase(),
+      resourceType: payload.resourceType,
+      amount:
+        typeof payload.amount === "number" && Number.isFinite(payload.amount)
+          ? Math.max(1, Math.min(50, Math.floor(payload.amount)))
+          : undefined,
+    }
+    this.socket.emit("mine-resource", sanitizedPayload)
   }
 
   on(event: string, callback: Function): void {

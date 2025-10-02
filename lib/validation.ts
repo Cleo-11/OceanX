@@ -1,5 +1,12 @@
 import { z } from "zod"
 
+const finiteNumberBetween = (min: number, max: number) =>
+  z
+    .number()
+    .min(min)
+    .max(max)
+    .refine((value) => Number.isFinite(value), "Value must be a finite number")
+
 // Validation schemas for API inputs and WebSocket messages
 
 // Resource type validation
@@ -15,22 +22,25 @@ export const playerResourcesSchema = z.object({
 
 // Player position validation
 export const playerPositionSchema = z.object({
-  x: z.number().min(0).max(2000), // Assuming map bounds
-  y: z.number().min(0).max(2000),
-  rotation: z.number().min(0).max(360).optional().default(0),
+  x: finiteNumberBetween(0, 2000), // Assuming map bounds
+  y: finiteNumberBetween(0, 2000),
+  rotation: finiteNumberBetween(0, 360).optional().default(0),
+  z: finiteNumberBetween(-10000, 10000).optional().default(0),
 })
 
 // Resource node validation
 export const resourceNodeSchema = z.object({
-  id: z.string().min(1),
+  id: z.string().min(1).max(128),
   position: z.object({
-    x: z.number().min(0).max(2000),
-    y: z.number().min(0).max(2000),
+    x: finiteNumberBetween(-2000, 2000),
+    y: finiteNumberBetween(-2000, 2000),
+    z: finiteNumberBetween(-1000, 1000).optional().default(0),
   }),
   type: resourceTypeSchema,
-  amount: z.number().int().min(0).max(100),
+  amount: z.number().int().min(0).max(1000),
   depleted: z.boolean().default(false),
-  size: z.number().min(10).max(50).optional().default(20),
+  size: finiteNumberBetween(5, 200).optional().default(20),
+  maxAmount: z.number().int().min(0).max(5000).optional(),
 })
 
 // Player stats validation
@@ -47,10 +57,10 @@ export const playerStatsSchema = z.object({
 
 // Mining request validation
 export const mineResourceRequestSchema = z.object({
-  nodeId: z.string().min(1),
+  nodeId: z.string().min(1).max(128),
   playerId: z.string().min(1),
   resourceType: resourceTypeSchema,
-  amount: z.number().int().min(1).max(10).optional().default(1),
+  amount: z.number().int().min(1).max(50).optional().default(1),
 })
 
 // WebSocket message validation
@@ -87,7 +97,10 @@ export const upgradeRequestSchema = z.object({
 })
 
 // Wallet address validation
-export const walletAddressSchema = z.string().regex(/^0x[a-fA-F0-9]{40}$/, "Invalid Ethereum address")
+export const walletAddressSchema = z
+  .string()
+  .regex(/^0x[a-fA-F0-9]{40}$/, "Invalid Ethereum address")
+  .transform((value) => value.toLowerCase())
 
 // Contract transaction validation
 export const contractTransactionSchema = z.object({
@@ -114,6 +127,23 @@ export const successResponseSchema = z.object({
 
 // API response validation
 export const apiResponseSchema = z.union([successResponseSchema, errorResponseSchema])
+
+// API response validation
+export const apiResponseSchema = z.union([successResponseSchema, errorResponseSchema])
+
+export const playerMovePayloadSchema = z.object({
+  sessionId: z.string().min(1),
+  walletAddress: walletAddressSchema,
+  position: playerPositionSchema,
+})
+
+export const mineResourcePayloadSchema = z.object({
+  sessionId: z.string().min(1),
+  walletAddress: walletAddressSchema,
+  nodeId: z.string().min(1).max(128),
+  resourceType: resourceTypeSchema.optional(),
+  amount: z.number().int().min(1).max(50).optional().default(1),
+})
 
 // Helper function to validate and sanitize input
 export function validateInput<T>(schema: z.ZodSchema<T>, input: unknown): T {

@@ -1,41 +1,262 @@
 // ...existing code...
 
+require("ts-node/register/transpile-only");
+
 const express = require("express");
 const http = require("http");
 const socketIo = require("socket.io");
 const cors = require("cors");
+const rateLimit = require("express-rate-limit");
 const { createClient } = require("@supabase/supabase-js");
+const {
+  verifyJoinSignature,
+  createAuthMiddleware,
+  ensureAuthenticationFresh,
+  DEFAULT_MAX_SIGNATURE_AGE_MS,
+} = require("./auth");
+const {
+  validateInput,
+  playerMovePayloadSchema,
+  mineResourcePayloadSchema,
+  playerPositionSchema,
+  resourceNodeSchema,
+  playerResourcesSchema,
+} = require("../lib/validation.ts");
+const { sanitizeHtml, sanitizePlainText } = require("../lib/sanitize.ts");
 require("dotenv").config();
+
+// Utility functions for input validation and sanitization
+function isValidWalletAddress(address) {
+  if (typeof address !== "string") return false;
+  // Ethereum address validation: 0x followed by 40 hex characters
+  return /^0x[a-fA-F0-9]{40}$/.test(address);
+}
+
+function isValidPosition(position) {
+  if (!position || typeof position !== "object") return false;
+  const { x, y, z, rotation } = position;
+  return (
+    isFiniteNumber(x) &&
+    isFiniteNumber(y) &&
+    isFiniteNumber(z) &&
+    (rotation === undefined || isFiniteNumber(rotation))
+  );
+}
+
+function sanitizePosition(position) {
+  return {
+    x: Math.max(-10000, Math.min(10000, position.x || 0)),
+    y: Math.max(-10000, Math.min(10000, position.y || 0)),
+    z: Math.max(-10000, Math.min(10000, position.z || 0)),
+    rotation: position.rotation !== undefined ? Math.max(-360, Math.min(360, position.rotation)) : 0,
+  };
+}
+
+function isFiniteNumber(value) {
+  return typeof value === "number" && Number.isFinite(value);
+}
 
 // Initialize express app BEFORE using it
 const app = express();
 const server = http.createServer(app);
 
-// Add body parser middleware
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// Add body parser middleware with conservative limits
+app.use(
+  express.json({
+    limit: "1mb",
+    strict: true,
+    verify: (req, res, buf) => {
+      if (buf && buf.length > 1024 * 1024) {
+        throw new Error("Payload too large")
+      }
+    },
+  })
+)
+app.use(
+  express.urlencoded({
+    extended: false,
+    limit: "1mb",
+    parameterLimit: 100,
+  })
+)
+
+const sanitizeRequestBody = (body) => {
+  if (!body || typeof body !== "object") {
+    return body
+  }
+
+  if (Array.isArray(body)) {
+    return body.slice(0, 100).map((item) => sanitizeRequestBody(item))
+  }
+
+  if (Object.getPrototypeOf(body) !== Object.prototype) {
+    return {}
+  }
+
+  return Object.entries(body).reduce((acc, [key, value]) => {
+    if (typeof value === "string") {
+      acc[key] = value.trim()
+    } else if (value && typeof value === "object") {
+      acc[key] = sanitizeRequestBody(value)
+    } else {
+      acc[key] = value
+    }
+    return acc
+  }, {})
+}
+
+app.use((req, res, next) => {
+  try {
+    if (req.body && typeof req.body === "object") {
+      req.body = sanitizeRequestBody(req.body)
+    }
+    next()
+  } catch (error) {
+    console.warn("❌ Failed to sanitize request body", { path: req.path, method: req.method, error: error?.message })
+    res.status(400).json({ error: "Invalid request payload" })
+  }
+})
+
+const respondWithError = (res, status, message, code) => {
+  res.status(status).json({ error: message, code })
+}
+
+const logServerError = (scope, error, context = {}) => {
+  const safeMessage = error instanceof Error ? error.message : String(error)
+  const payload = {
+    ...context,
+    scope,
+    message: safeMessage,
+  }
+  if (process.env.NODE_ENV !== "production" && error instanceof Error) {
+    payload.stack = error.stack
+  }
+  console.error("❌", payload)
+}
+
+const createRateLimiter = ({ windowMs, max, message, code, skip }) =>
+  rateLimit({
+    windowMs,
+    max,
+    standardHeaders: true,
+    legacyHeaders: false,
+    skip,
+    keyGenerator: (req) => {
+      const forwarded = req.headers["x-forwarded-for"]
+      if (typeof forwarded === "string") {
+        return forwarded.split(",")[0].trim()
+      }
+      return req.ip || req.socket.remoteAddress || "unknown"
+    },
+    handler: (req, res) => {
+      respondWithError(res, 429, message || "Too many requests. Please slow down.", code || "RATE_LIMIT")
+    },
+  })
+
+const globalApiLimiter = createRateLimiter({
+  windowMs: 60 * 1000,
+  max: 120,
+  message: "Too many requests. Please slow down.",
+  code: "GLOBAL_RATE_LIMIT",
+  skip: (req) => req.path === "/health",
+})
+
+const sensitiveActionLimiter = createRateLimiter({
+  windowMs: 60 * 60 * 1000,
+  max: 20,
+  message: "Too many claim attempts. Try again later.",
+  code: "CLAIM_RATE_LIMIT",
+})
+
+const playerDataLimiter = createRateLimiter({
+  windowMs: 60 * 1000,
+  max: 60,
+  message: "Too many player data requests.",
+  code: "PLAYER_RATE_LIMIT",
+})
+
+app.use(globalApiLimiter)
+
+const isSocketRateLimited = (socket, key, limit, intervalMs) => {
+  if (!socket._rateLimiters) {
+    socket._rateLimiters = {}
+  }
+
+  const now = Date.now()
+  const current = socket._rateLimiters[key] || { count: 0, expiresAt: now + intervalMs }
+
+  if (now > current.expiresAt) {
+    current.count = 0
+    current.expiresAt = now + intervalMs
+  }
+
+  current.count += 1
+  socket._rateLimiters[key] = current
+
+  return current.count > limit
+}
 
 
 console.log("🌊 Starting OceanX Backend Server...");
 console.log("Environment:", process.env.NODE_ENV || "development");
 console.log("Port:", process.env.PORT || 5000);
 
+const requirePlayerBalanceAuth = createAuthMiddleware({
+  expectedActions: ["get-balance", "get balance"],
+});
+
+const requirePlayerSubmarineAuth = createAuthMiddleware({
+  expectedActions: ["get-submarine", "get submarine"],
+});
+
+const claimBodyKeys = {
+  address: ["userAddress", "walletAddress", "address", "wallet"],
+  signature: ["authSignature", "signature"],
+  message: ["authMessage", "message"],
+};
+
+const claimHeaderKeys = {
+  address: ["x-wallet-address", "x-wallet", "x-user-address"],
+  signature: ["x-auth-signature", "x-wallet-signature", "x-signature"],
+  message: ["x-auth-message", "x-wallet-message", "x-signature-message"],
+};
+
+const requireClaimAuth = createAuthMiddleware({
+  expectedActions: ["claim", "claim-tokens", "claim tokens"],
+  bodyKeys: claimBodyKeys,
+  headerKeys: claimHeaderKeys,
+});
+
+const requireSessionsAuth = createAuthMiddleware({
+  expectedActions: ["sessions", "view-sessions", "admin"],
+});
+
+const requireSessionDetailAuth = createAuthMiddleware({
+  expectedActions: ["sessions", "session-detail", "view-session", "admin"],
+});
+
 // --- PLAYER API ENDPOINTS ---
 // Get player OCX token balance
-app.post("/player/balance", async (req, res) => {
-  const { address } = req.body;
-  if (!address) {
-    return res.status(400).json({ error: "Missing address" });
-  }
+app.post("/player/balance", playerDataLimiter, requirePlayerBalanceAuth, async (req, res) => {
   if (!supabase) {
     return res.status(500).json({ error: "Supabase not initialized" });
   }
+
+  const wallet = req?.auth?.wallet;
+  if (!wallet) {
+    return res.status(401).json({ error: "Wallet authentication required" });
+  }
+  const providedAddress = typeof req.body?.address === "string" ? req.body.address.toLowerCase().trim() : undefined;
+  if (providedAddress && wallet && providedAddress !== wallet) {
+    return res.status(401).json({ error: "Wallet mismatch" });
+  }
+
   try {
     // Query the players table for the wallet address (case-insensitive)
     const { data: player, error } = await supabase
       .from("players")
       .select("total_ocx_earned")
-      .ilike("wallet_address", address)
+      .ilike("wallet_address", wallet)
       .single();
     if (error || !player) {
       return res.status(404).json({ error: "Player not found" });
@@ -43,26 +264,32 @@ app.post("/player/balance", async (req, res) => {
     // Return OCX balance as string (assuming total_ocx_earned is numeric)
     res.json({ balance: player.total_ocx_earned.toString(), symbol: "OCX", network: "mainnet" });
   } catch (err) {
-    console.error("/player/balance error:", err);
-    res.status(500).json({ error: "Failed to fetch player balance" });
+    logServerError("player-balance", err, { wallet });
+    respondWithError(res, 500, "Unable to fetch player balance. Please try again later.", "BALANCE_FETCH_FAILED");
   }
 });
 
 // Get player submarine info
-app.post("/player/submarine", async (req, res) => {
-  const { address } = req.body;
-  if (!address) {
-    return res.status(400).json({ error: "Missing address" });
-  }
+app.post("/player/submarine", playerDataLimiter, requirePlayerSubmarineAuth, async (req, res) => {
   if (!supabase) {
     return res.status(500).json({ error: "Supabase not initialized" });
   }
+
+  const wallet = req?.auth?.wallet;
+  if (!wallet) {
+    return res.status(401).json({ error: "Wallet authentication required" });
+  }
+  const providedAddress = typeof req.body?.address === "string" ? req.body.address.toLowerCase().trim() : undefined;
+  if (providedAddress && wallet && providedAddress !== wallet) {
+    return res.status(401).json({ error: "Wallet mismatch" });
+  }
+
   try {
     // Query the players table for the wallet address (case-insensitive)
     const { data: player, error } = await supabase
       .from("players")
       .select("submarine_tier")
-      .ilike("wallet_address", address)
+      .ilike("wallet_address", wallet)
       .single();
     if (error || !player) {
       return res.status(404).json({ error: "Player not found" });
@@ -94,6 +321,70 @@ app.post("/player/submarine", async (req, res) => {
   } catch (err) {
     console.error("/player/submarine error:", err);
     res.status(500).json({ error: "Failed to fetch submarine info" });
+  }
+});
+
+// Daily claim endpoint
+app.post("/player/claim", claimLimiter, requireClaimAuth, async (req, res) => {
+  if (!supabase) {
+    return res.status(500).json({ error: "Supabase not initialized" });
+  }
+
+  const wallet = req?.auth?.wallet;
+  if (!wallet) {
+    return res.status(401).json({ error: "Wallet authentication required" });
+  }
+  const providedAddress = typeof req.body?.address === "string" ? req.body.address.toLowerCase().trim() : undefined;
+  if (providedAddress && wallet && providedAddress !== wallet) {
+    return res.status(401).json({ error: "Wallet mismatch" });
+  }
+
+  try {
+    const today = new Date().toISOString().split("T")[0];
+    const { data: player, error: fetchError } = await supabase
+      .from("players")
+      .select("*")
+      .ilike("wallet_address", wallet)
+      .single();
+
+    if (fetchError) {
+      console.error("[server] Error fetching player for claim:", fetchError.message);
+      return res.status(500).json({ error: "Error fetching player data" });
+    }
+
+    if (!player) {
+      return res.status(404).json({ error: "Player not found" });
+    }
+
+    // Check if already claimed today
+    if (player.last_daily_claim === today) {
+      return res.status(409).json({ error: "Already claimed today" });
+    }
+
+    const claimAmount = player.submarine_tier === "luxury" ? 1000 : 500;
+    const newBalance = player.balance + claimAmount;
+
+    const { error: updateError } = await supabase
+      .from("players")
+      .update({
+        balance: newBalance,
+        last_daily_claim: today,
+      })
+      .eq("wallet_address", wallet);
+
+    if (updateError) {
+      console.error("[server] Error updating player claim:", updateError.message);
+      return res.status(500).json({ error: "Error processing claim" });
+    }
+
+    res.json({
+      success: true,
+      amount: claimAmount,
+      new_balance: newBalance,
+    });
+  } catch (err) {
+    console.error("[server] Error in claim endpoint:", err.message);
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 
@@ -468,18 +759,57 @@ io.on("connection", (socket) => {
      * Handles a player's request to join the game.
      * This is the single entry point for a player to enter a world.
      */
-    socket.on("join-game", async (payload) => {
-        console.log(`[SERVER] Received 'join-game' with payload:`, payload);
-        const { walletAddress, sessionId } = payload || {};
-        
-        if (!walletAddress) {
-            socket.emit("error", { message: "Wallet address is required to join." });
-            return;
-        }
+  socket.on("join-game", async (payload = {}) => {
+    const signature = typeof payload?.signature === "string" ? payload.signature.trim() : undefined
+    const message = typeof payload?.message === "string" ? payload.message : undefined
+    const rawWalletAddress = typeof payload?.walletAddress === "string" ? payload.walletAddress : undefined
+    const rawSessionId = typeof payload?.sessionId === "string" ? payload.sessionId : undefined
 
-        // Check if player is already in a session
-        if (socket.walletAddress && socket.sessionId) {
-            console.log(`Player ${walletAddress} already in session ${socket.sessionId}`);
+    const sanitizedWallet = sanitizePlainText(rawWalletAddress ? rawWalletAddress.toLowerCase() : undefined)
+    const sanitizedSessionId = rawSessionId ? sanitizePlainText(rawSessionId) : undefined
+
+    if (!sanitizedWallet || !isValidWalletAddress(sanitizedWallet)) {
+      socket.emit("error", { message: "Valid wallet address is required to join." })
+      return
+    }
+
+    if (!signature || !message) {
+      socket.emit("error", { message: "Wallet signature is required to join." })
+      return
+    }
+
+    let verification
+    try {
+      verification = verifyJoinSignature({
+        walletAddress: sanitizedWallet,
+        sessionId: sanitizedSessionId,
+        signature,
+        message,
+      })
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : "Invalid wallet signature"
+      console.warn("Rejected join-game due to invalid signature", {
+        wallet: sanitizedWallet,
+        sessionId: sanitizedSessionId,
+        reason,
+      })
+      socket.emit("error", { message: reason })
+      return
+    }
+
+    const walletAddress = verification.wallet
+    const signatureSession = verification.session && verification.session !== "auto" ? verification.session : undefined
+    const sessionId = sanitizedSessionId && sanitizedSessionId !== "auto" ? sanitizedSessionId : signatureSession
+
+    socket.authenticatedWallet = walletAddress
+    socket.authenticatedAt = verification.timestamp
+    socket.authenticationMaxAgeMs = DEFAULT_MAX_SIGNATURE_AGE_MS
+
+    console.log(`[SERVER] Authenticated wallet ${walletAddress} requested session ${sessionId ?? "auto"}`)
+
+    // Check if player is already in a session
+    if (socket.walletAddress && socket.sessionId) {
+      console.log(`Player ${walletAddress} already in session ${socket.sessionId}`);
             const currentSession = gameSessions.get(socket.sessionId);
             if (currentSession) {
                 // Send current game state
@@ -589,7 +919,33 @@ io.on("connection", (socket) => {
      * Enhanced player movement handler with better validation.
      */
     socket.on("player-move", (data) => {
-        const { sessionId, walletAddress, position } = data;
+        // Sanitize input data
+        const rawSessionId = data?.sessionId;
+        const rawWalletAddress = data?.walletAddress;
+        const rawPosition = data?.position;
+        
+        const sessionId = typeof rawSessionId === "string" ? sanitizePlainText(rawSessionId.trim()) : null;
+        const walletAddress = typeof rawWalletAddress === "string" ? sanitizePlainText(rawWalletAddress.toLowerCase().trim()) : null;
+        
+        // Validate all required fields
+        if (!sessionId || !walletAddress || !rawPosition) {
+            console.log(`❌ Invalid player-move data:`, data);
+            return;
+        }
+        
+        // Validate wallet address format
+        if (!isValidWalletAddress(walletAddress)) {
+            console.log(`❌ Invalid wallet address format: ${walletAddress}`);
+            return;
+        }
+        
+        // Validate position data (ensure finite numbers)
+        if (!isValidPosition(rawPosition)) {
+            console.log(`❌ Invalid position data:`, rawPosition);
+            return;
+        }
+        
+        const position = sanitizePosition(rawPosition);
         
         // Validate all required fields
         if (!sessionId || !walletAddress || !position) {
@@ -604,6 +960,13 @@ io.on("connection", (socket) => {
         if (!session) {
             console.log(`❌ Session not found: ${actualSessionId}`);
             socket.emit("error", { message: "Session not found" });
+            return;
+        }
+        
+        // Verify that the wallet address matches the socket's authenticated address
+        if (socket.walletAddress && socket.walletAddress !== walletAddress) {
+            console.log(`❌ Wallet address mismatch: ${walletAddress} vs ${socket.walletAddress}`);
+            socket.emit("error", { message: "Wallet address mismatch" });
             return;
         }
         
@@ -722,16 +1085,68 @@ app.get("/sessions/:sessionId", (req, res) => {
 });
 
 // Endpoint to claim tokens (trigger contract claim)
-app.post("/claim", async (req, res) => {
+app.post("/claim", claimLimiter, requireClaimAuth, async (req, res) => {
     try {
-        const { userAddress, amount, signature } = req.body;
-        if (!userAddress || !amount || !signature) {
+        const wallet = req?.auth?.wallet;
+        if (!wallet) {
+            return res.status(401).json({ error: "Wallet authentication required" });
+        }
+        
+    const userAddress = typeof req.body?.userAddress === "string" ? req.body.userAddress.toLowerCase().trim() : undefined;
+    const rawAmount = req.body?.amount;
+    const rawNonce = req.body?.nonce;
+    const rawDeadline = req.body?.deadline;
+        
+    const parseUint = (value) => {
+      if (typeof value === "number") {
+        if (!Number.isFinite(value) || value < 0) return null;
+        return BigInt(Math.floor(value));
+      }
+      if (typeof value === "string") {
+        const trimmed = value.trim();
+        if (!trimmed || !/^\d+$/.test(trimmed)) return null;
+        try {
+          return BigInt(trimmed);
+        } catch (err) {
+          return null;
+        }
+      }
+      return null;
+    };
+
+    const amount = parseUint(rawAmount);
+    const nonce = parseUint(rawNonce);
+    const deadline = parseUint(rawDeadline);
+    const signature = typeof req.body?.signature === "string" ? req.body.signature.trim() : undefined;
+        
+    if (!userAddress || !signature || amount === null || amount <= 0n || nonce === null || deadline === null) {
             return res.status(400).json({ error: "Missing parameters" });
         }
+        
+    const deadlineMs = Number(deadline) * 1000;
+    if (!Number.isFinite(deadlineMs)) {
+      return res.status(400).json({ error: "Invalid deadline" });
+    }
+    if (deadlineMs < Date.now()) {
+      return res.status(400).json({ error: "Claim request expired" });
+    }
+        
+        // Verify wallet address matches authenticated user
+        if (userAddress !== wallet) {
+            return res.status(401).json({ error: "Wallet address mismatch" });
+        }
+        
         if (!claimService) {
             return res.status(503).json({ error: "Claim service not available" });
         }
-        const txHash = await claimService.claimTokens(userAddress, amount, signature);
+        
+    const txHash = await claimService.claimTokens(
+      userAddress,
+      amount.toString(),
+      nonce.toString(),
+      deadline.toString(),
+      signature
+    );
         res.json({ success: true, txHash });
     } catch (err) {
         console.error("Claim error:", err);
@@ -763,6 +1178,17 @@ setInterval(() => {
         */
     }
 }, 5 * 60 * 1000); // Run every 5 minutes
+
+// Global error handling middleware
+app.use((err, req, res, next) => {
+  console.error('[server] Unhandled error:', err.message);
+  res.status(500).json({ error: 'Internal server error' });
+});
+
+// 404 handler for unknown routes
+app.use((req, res) => {
+  res.status(404).json({ error: 'Route not found' });
+});
 
 // Start the server
 const PORT = process.env.PORT || 5000;
