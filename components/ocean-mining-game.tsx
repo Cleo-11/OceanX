@@ -167,7 +167,15 @@ export function OceanMiningGame({
         const connection = walletManager.getConnection();
         if (connection) {
           setWalletAddress(connection.address);
-          wsManager.joinSession(connection.address, "global");
+          // Join session with signed payload
+          const joinMessage = `Sign this message to join session global with your account ${connection.address}`;
+          const joinSignature = await walletManager.signMessage(joinMessage);
+          wsManager.joinSession({
+            walletAddress: connection.address,
+            sessionId: "global",
+            message: joinMessage,
+            signature: joinSignature,
+          });
           await loadPlayerData(connection.address);
         } else {
           console.warn("[OceanMiningGame] walletManager.getConnection() returned null or undefined");
@@ -917,8 +925,14 @@ export function OceanMiningGame({
 
     try {
       // Send mining request to server if connected
-      if (connectionStatus === "connected") {
-        wsManager.mineResource(node.id)
+      if (connectionStatus === "connected" && walletAddress && sessionId) {
+        wsManager.mineResource({
+          nodeId: node.id,
+          sessionId: sessionId,
+          walletAddress: walletAddress,
+          amount: amountToMine,
+          resourceType: node.type,
+        })
       }
 
       // Update local state optimistically

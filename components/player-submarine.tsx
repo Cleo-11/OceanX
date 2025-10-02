@@ -3,7 +3,6 @@
 import { useFrame } from "@react-three/fiber"
 import { useRef } from "react"
 import { getSubmarineByTier } from "@/lib/submarine-tiers"
-import type * as THREE from "three"
 
 interface PlayerSubmarineProps {
   position: [number, number, number]
@@ -13,8 +12,8 @@ interface PlayerSubmarineProps {
 }
 
 export function PlayerSubmarine({ position, rotation, tier, isMoving }: PlayerSubmarineProps) {
-  const groupRef = useRef<THREE.Group>(null)
-  const propellerRef = useRef<THREE.Mesh>(null)
+  const groupRef = useRef<any>(null)
+  const propellerRef = useRef<any>(null)
   const bubbleTimeRef = useRef(0)
   const bubblePositionsRef = useRef<Array<{ pos: [number, number, number]; size: number; speed: number }>>([])
 

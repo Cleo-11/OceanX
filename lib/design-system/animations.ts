@@ -1,7 +1,7 @@
 // Advanced Animation System for OceanX
 // GPU-optimized, orchestrated animations with proper timing
 
-import type { Variants, Transition } from 'framer-motion';
+import type { Variants } from 'framer-motion';
 
 // Animation Durations (based on Material Design and game feel)
 export const animationDurations = {

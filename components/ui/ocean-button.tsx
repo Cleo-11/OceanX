@@ -3,12 +3,13 @@
 
 import React from 'react';
 import { motion } from 'framer-motion';
+import type { MotionStyle, HTMLMotionProps } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { animationVariants } from '@/lib/design-system/animations';
 import { oceanColorSystem } from '@/lib/design-system/colors';
 import { typographyVariants } from '@/lib/design-system/typography';
 
-interface OceanButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+interface OceanButtonProps extends Omit<HTMLMotionProps<'button'>, 'ref'> {
   variant?: 'primary' | 'secondary' | 'danger' | 'ghost' | 'bioluminescent';
   size?: 'sm' | 'md' | 'lg' | 'xl';
   isLoading?: boolean;
@@ -40,7 +41,7 @@ const variantStyles = {
   ghost: {
     background: 'transparent',
     color: oceanColorSystem.bio.cyan,
-    border: `1px solid ${oceanColorSystem.glass.light}`,
+    border: `1px solid rgba(255, 255, 255, 0.1)`,
     boxShadow: 'none',
   },
   bioluminescent: {
@@ -84,10 +85,24 @@ export function OceanButton({
   className,
   children,
   disabled,
+  style: styleProp,
   ...props
 }: OceanButtonProps) {
-  const buttonStyle = variantStyles[variant];
-  const sizeStyle = sizeStyles[size];
+  const buttonStyle = variantStyles[variant] || variantStyles.primary;
+  const sizeStyle = sizeStyles[size] || sizeStyles.md;
+
+  const combinedStyle: MotionStyle = {
+    ...buttonStyle,
+    ...sizeStyle,
+    fontFamily: typographyVariants.button.fontFamily,
+    fontWeight: typographyVariants.button.fontWeight,
+    letterSpacing: typographyVariants.button.letterSpacing,
+  };
+
+  const mergedStyle: MotionStyle = {
+    ...combinedStyle,
+    ...(styleProp ? (styleProp as MotionStyle) : {}),
+  };
 
   return (
     <motion.button
@@ -103,13 +118,7 @@ export function OceanButton({
         isLoading && 'cursor-wait',
         className
       )}
-      style={{
-        ...buttonStyle,
-        ...sizeStyle,
-        fontFamily: typographyVariants.button.fontFamily,
-        fontWeight: typographyVariants.button.fontWeight,
-        letterSpacing: typographyVariants.button.letterSpacing,
-      }}
+  style={mergedStyle}
       variants={animationVariants.button}
       initial="idle"
       whileHover={!disabled ? "hover" : "idle"}

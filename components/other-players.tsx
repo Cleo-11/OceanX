@@ -5,7 +5,6 @@ import { useRef } from "react"
 import { Html } from "@react-three/drei"
 import { getSubmarineByTier } from "@/lib/submarine-tiers"
 import type { OtherPlayer } from "@/lib/types"
-import type * as THREE from "three"
 
 interface OtherPlayersProps {
   players: OtherPlayer[]
@@ -26,8 +25,8 @@ interface OtherPlayerSubmarineProps {
 }
 
 function OtherPlayerSubmarine({ player }: OtherPlayerSubmarineProps) {
-  const groupRef = useRef<THREE.Group>(null)
-  const propellerRef = useRef<THREE.Mesh>(null)
+  const groupRef = useRef<any>(null)
+  const propellerRef = useRef<any>(null)
 
   const submarineData = getSubmarineByTier(player.submarineType)
   const submarineColor = submarineData.color

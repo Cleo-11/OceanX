@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils';
 import { animationVariants, effectVariants } from '@/lib/design-system/animations';
 import { oceanColorSystem } from '@/lib/design-system/colors';
 import { typographyVariants } from '@/lib/design-system/typography';
+import { getResourceColor } from '@/lib/resource-utils';
 import type { PlayerStats } from '@/lib/types';
 import { getSubmarineByTier } from '@/lib/submarine-tiers';
 import { Battery, Zap, AlertTriangle, TrendingUp } from 'lucide-react';
@@ -284,25 +285,25 @@ export function EnhancedPlayerHUD({ stats, tier, className }: EnhancedPlayerHUDP
               label="NICKEL"
               value={stats.capacity.nickel}
               maxValue={stats.maxCapacity.nickel}
-              color={oceanColorSystem.mineral.nickel}
+              color={getResourceColor('nickel')}
             />
             <ResourceBar
               label="COBALT"
               value={stats.capacity.cobalt}
               maxValue={stats.maxCapacity.cobalt}
-              color={oceanColorSystem.mineral.cobalt}
+              color={getResourceColor('cobalt')}
             />
             <ResourceBar
               label="COPPER"
               value={stats.capacity.copper}
               maxValue={stats.maxCapacity.copper}
-              color={oceanColorSystem.mineral.copper}
+              color={getResourceColor('copper')}
             />
             <ResourceBar
               label="MANGANESE"
               value={stats.capacity.manganese}
               maxValue={stats.maxCapacity.manganese}
-              color={oceanColorSystem.mineral.manganese}
+              color={getResourceColor('manganese')}
             />
           </motion.div>
         </div>
@@ -313,7 +314,7 @@ export function EnhancedPlayerHUD({ stats, tier, className }: EnhancedPlayerHUDP
             { label: 'DEPTH', value: `${stats.depth}m`, icon: '⬇️' },
             { label: 'SPEED', value: `x${stats.speed.toFixed(1)}`, icon: '🚀' },
             { label: 'MINING', value: `x${stats.miningRate.toFixed(1)}`, icon: '⛏️' },
-          ].map((item, index) => (
+          ].map((item) => (
             <motion.div
               key={item.label}
               className="text-center p-2 rounded-lg bg-slate-800/30 border border-slate-600/30"

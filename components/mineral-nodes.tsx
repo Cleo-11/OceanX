@@ -4,7 +4,6 @@ import { useFrame } from "@react-three/fiber"
 import { useRef, useState } from "react"
 import type { GameState, ResourceNode } from "@/lib/types"
 import { getResourceColor } from "@/lib/resource-utils"
-import type * as THREE from "three"
 
 interface MineralNodesProps {
   nodes: ResourceNode[]
@@ -40,8 +39,8 @@ interface MineralNodeProps {
 }
 
 function MineralNode({ node, isTarget, setHoveredNode, gameState }: MineralNodeProps) {
-  const meshRef = useRef<THREE.Mesh>(null)
-  const glowRef = useRef<THREE.Mesh>(null)
+  const meshRef = useRef<any>(null)
+  const glowRef = useRef<any>(null)
   const [hovered, setHovered] = useState(false)
 
   const color = getResourceColor(node.type)

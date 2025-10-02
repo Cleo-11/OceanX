@@ -2,11 +2,10 @@
 
 import { useFrame } from "@react-three/fiber"
 import { useRef } from "react"
-import type * as THREE from "three"
 
 export function Submarine({ position = [0, 0, 0] }: { position?: [number, number, number] }) {
-  const groupRef = useRef<THREE.Group>(null)
-  const propellerRef = useRef<THREE.Mesh>(null)
+  const groupRef = useRef<any>(null)
+  const propellerRef = useRef<any>(null)
 
   useFrame((state, delta) => {
     if (groupRef.current) {

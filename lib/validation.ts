@@ -128,9 +128,6 @@ export const successResponseSchema = z.object({
 // API response validation
 export const apiResponseSchema = z.union([successResponseSchema, errorResponseSchema])
 
-// API response validation
-export const apiResponseSchema = z.union([successResponseSchema, errorResponseSchema])
-
 export const playerMovePayloadSchema = z.object({
   sessionId: z.string().min(1),
   walletAddress: walletAddressSchema,

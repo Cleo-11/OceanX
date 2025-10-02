@@ -1,14 +1,14 @@
 // Mobile-First Responsive Submarine Store Component
 "use client";
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { animationVariants } from '@/lib/design-system/animations';
 import { oceanColorSystem } from '@/lib/design-system/colors';
 import { typographyVariants } from '@/lib/design-system/typography';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { X, ShoppingCart, Zap, Shield, Anchor, ArrowRight } from 'lucide-react';
+import { X, ShoppingCart, Zap, Shield, ArrowRight } from 'lucide-react';
 import OceanButton from './ocean-button';
 
 interface ResponsiveSubmarineStoreProps {
@@ -310,7 +310,9 @@ export function ResponsiveSubmarineStore({
               onClick={onClose}
               icon={<X />}
               className="!p-2"
-            />
+            >
+              Close
+            </OceanButton>
           </motion.div>
 
           {/* Tier Filter */}
