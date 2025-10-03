@@ -73,7 +73,11 @@ export class WebSocketManager {
     return new Promise((resolve, reject) => {
       try {
         this.socket = io(url, {
-          transports: ["websocket", "polling"],
+          transports: ["websocket"], // Disable polling for production
+          reconnection: true,
+          reconnectionDelay: 1000,
+          reconnectionDelayMax: 5000,
+          reconnectionAttempts: 5,
         })
 
         this.socket.on("connect", () => {

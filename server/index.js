@@ -423,10 +423,15 @@ app.use(cors(corsOptions));
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
-// Socket.IO setup
+// Socket.IO setup with production optimizations
 const io = socketIo(server, {
   cors: corsOptions,
-  transports: ["websocket", "polling"],
+  transports: ["websocket"], // DISABLE POLLING for performance
+  maxHttpBufferSize: 1e6, // 1MB limit
+  pingTimeout: 60000,
+  pingInterval: 25000,
+  connectTimeout: 45000,
+  perMessageDeflate: false, // Disable compression for lower latency
 });
 
 // Initialize Supabase client
@@ -450,6 +455,32 @@ try {
 } catch (error) {
   console.error("⚠️ Claim service not available:", error.message);
 }
+
+// Track connections per IP for DDoS protection
+const connectionsByIP = new Map();
+const MAX_CONNECTIONS_PER_IP = 5;
+
+// Add connection limiting middleware
+io.use((socket, next) => {
+  const ip = socket.handshake.headers['x-forwarded-for']?.split(',')[0]?.trim() || 
+             socket.handshake.address;
+  
+  const count = connectionsByIP.get(ip) || 0;
+  
+  if (count >= MAX_CONNECTIONS_PER_IP) {
+    console.warn(`🚫 Connection limit exceeded for IP: ${ip}`);
+    return next(new Error('Too many connections from this IP'));
+  }
+  
+  connectionsByIP.set(ip, count + 1);
+  
+  socket.on('disconnect', () => {
+    const current = connectionsByIP.get(ip) || 0;
+    connectionsByIP.set(ip, Math.max(0, current - 1));
+  });
+  
+  next();
+});
 
 // Submarine tiers (UPDATED with the detailed structure)
 const SUBMARINE_TIERS = [
@@ -755,6 +786,32 @@ function generateInitialResourceNodes() {
 io.on("connection", (socket) => {
     console.log(`🔌 New socket connected: ${socket.id}`);
 
+    // Socket-level rate limiting middleware
+    socket.use((packet, next) => {
+      const [event] = packet;
+      
+      // Skip internal events
+      if (event === 'ping' || event === 'pong') return next();
+      
+      // Global rate limit per socket
+      if (isSocketRateLimited(socket, 'global', 100, 60000)) {
+        socket.emit('error', { message: 'Rate limit exceeded. Please slow down.' });
+        return;
+      }
+      
+      // Per-event rate limits
+      if (event === 'player-move' && isSocketRateLimited(socket, 'move', 30, 1000)) {
+        return; // Drop silently for movement spam
+      }
+      
+      if (event === 'mine-resource' && isSocketRateLimited(socket, 'mine', 10, 5000)) {
+        socket.emit('error', { message: 'Mining too fast. Please wait.' });
+        return;
+      }
+      
+      next();
+    });
+
     /**
      * Handles a player's request to join the game.
      * This is the single entry point for a player to enter a world.
@@ -881,9 +938,53 @@ io.on("connection", (socket) => {
             socketId: socket.id,
             position: { x: 0, y: 0, z: 0, rotation: 0 },
             resources: { nickel: 0, cobalt: 0, copper: 0, manganese: 0 },
-            submarineTier: 0, // Default tier, can be updated from DB
+            submarineTier: 1, // Default tier
             joinedAt: Date.now()
         };
+
+        // Initialize player in database if they don't exist
+        if (supabase) {
+          try {
+            const { data: existingPlayer, error: checkError } = await supabase
+              .from('players')
+              .select('wallet_address, submarine_tier')
+              .ilike('wallet_address', walletAddress)
+              .maybeSingle();
+
+            if (!existingPlayer && (!checkError || checkError.code === 'PGRST116')) {
+              // Player doesn't exist, create them
+              const { error: insertError } = await supabase
+                .from('players')
+                .insert({
+                  wallet_address: walletAddress,
+                  username: `Player_${walletAddress.substring(2, 8)}`,
+                  submarine_tier: 1,
+                  total_ocx_earned: 0,
+                  total_resources_mined: 0,
+                  last_login: new Date().toISOString(),
+                });
+              
+              if (insertError) {
+                console.error('❌ Failed to create player:', insertError);
+              } else {
+                console.log(`✅ Created new player: ${walletAddress}`);
+              }
+            } else if (existingPlayer) {
+              // Update player data from DB
+              player.submarineTier = existingPlayer.submarine_tier || 1;
+              
+              // Update last login
+              await supabase
+                .from('players')
+                .update({ last_login: new Date().toISOString() })
+                .ilike('wallet_address', walletAddress);
+              
+              console.log(`✅ Updated existing player: ${walletAddress}, tier: ${player.submarineTier}`);
+            }
+          } catch (dbError) {
+            console.error('❌ Database error during player initialization:', dbError);
+          }
+        }
 
         // Add player to the session
         sessionToJoin.players.set(walletAddress, player);

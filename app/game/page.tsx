@@ -11,6 +11,7 @@ import { OceanMiningGame } from "@/components/ocean-mining-game";
 import { SubmarineSelection } from "@/components/submarine-selection";
 import { SubmarineStore } from "@/components/submarine-store";
 import { walletManager } from "@/lib/wallet";
+import { ErrorBoundary } from "@/components/error-boundary";
 // ...existing code...
 import { GameState } from "@/lib/types";
 
@@ -251,58 +252,60 @@ export default function GamePage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-900">
-      {/* Submarine Selection Modal */}
-      <SubmarineSelection
-        isOpen={showSubmarineSelection && !hasSelectedSubmarine}
-        onClose={() => {
-          // Prevent closing without selection
-          if (selectedSubmarineTier === null && playerData?.submarine_tier) {
-            setSelectedSubmarineTier(playerData.submarine_tier);
-          }
-          setShowSubmarineSelection(false);
-        }}
-        onSelectSubmarine={(tier) => {
-          setSelectedSubmarineTier(tier);
-          setShowSubmarineSelection(false);
-          setHasSelectedSubmarine(true);
-        }}
-        initialSelectedTier={playerData?.submarine_tier || 1}
-      />
-
-      {/* Submarine Store Modal */}
-      <SubmarineStore
-        isOpen={showSubmarineStore}
-        onClose={() => setShowSubmarineStore(false)}
-        currentTier={selectedSubmarineTier || playerData?.submarine_tier || 1}
-        resources={{
-          nickel: playerData?.nickel || 0,
-          cobalt: playerData?.cobalt || 0,
-          copper: playerData?.copper || 0,
-          manganese: playerData?.manganese || 0
-        }}
-        balance={playerData?.balance || 0}
-        onPurchase={(targetTier) => {
-          // Handle submarine purchase logic here
-          console.log('Purchasing submarine tier:', targetTier);
-          // TODO: Implement purchase logic
-          setShowSubmarineStore(false);
-        }}
-        gameState={gameState}
-      />
-
-      {/* Only render game after submarine is selected */}
-      {selectedSubmarineTier !== null && hasSelectedSubmarine && (
-        <OceanMiningGame
-          walletConnected={walletConnected}
-          gameState={gameState}
-          setGameState={setGameState}
-          sidebarOpen={sidebarOpen}
-          setSidebarOpen={setSidebarOpen}
-          onFullDisconnect={handleFullDisconnect}
-          onConnectWallet={handleConnectWallet}
+    <ErrorBoundary>
+      <div className="min-h-screen bg-slate-900">
+        {/* Submarine Selection Modal */}
+        <SubmarineSelection
+          isOpen={showSubmarineSelection && !hasSelectedSubmarine}
+          onClose={() => {
+            // Prevent closing without selection
+            if (selectedSubmarineTier === null && playerData?.submarine_tier) {
+              setSelectedSubmarineTier(playerData.submarine_tier);
+            }
+            setShowSubmarineSelection(false);
+          }}
+          onSelectSubmarine={(tier) => {
+            setSelectedSubmarineTier(tier);
+            setShowSubmarineSelection(false);
+            setHasSelectedSubmarine(true);
+          }}
+          initialSelectedTier={playerData?.submarine_tier || 1}
         />
-      )}
-    </div>
+
+        {/* Submarine Store Modal */}
+        <SubmarineStore
+          isOpen={showSubmarineStore}
+          onClose={() => setShowSubmarineStore(false)}
+          currentTier={selectedSubmarineTier || playerData?.submarine_tier || 1}
+          resources={{
+            nickel: playerData?.nickel || 0,
+            cobalt: playerData?.cobalt || 0,
+            copper: playerData?.copper || 0,
+            manganese: playerData?.manganese || 0
+          }}
+          balance={playerData?.balance || 0}
+          onPurchase={(targetTier) => {
+            // Handle submarine purchase logic here
+            console.log('Purchasing submarine tier:', targetTier);
+            // TODO: Implement purchase logic
+            setShowSubmarineStore(false);
+          }}
+          gameState={gameState}
+        />
+
+        {/* Only render game after submarine is selected */}
+        {selectedSubmarineTier !== null && hasSelectedSubmarine && (
+          <OceanMiningGame
+            walletConnected={walletConnected}
+            gameState={gameState}
+            setGameState={setGameState}
+            sidebarOpen={sidebarOpen}
+            setSidebarOpen={setSidebarOpen}
+            onFullDisconnect={handleFullDisconnect}
+            onConnectWallet={handleConnectWallet}
+          />
+        )}
+      </div>
+    </ErrorBoundary>
   );
 }
