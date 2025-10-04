@@ -27,8 +27,19 @@ function AuthPageContent() {
   useEffect(() => {
     setMounted(true)
 
-    if (authError === "auth_error") {
-      setError("Authentication failed. Please try again.")
+    // Handle different error types from the callback
+    if (authError) {
+      const errorMessages: Record<string, string> = {
+        'auth_error': 'Authentication failed. Please try again.',
+        'session_error': 'Failed to create session. Please try again.',
+        'no_session': 'Session could not be established. Please try again.',
+        'session_not_persisted': 'Session not saved properly. Please try again.',
+        'unexpected_error': 'An unexpected error occurred. Please try again.',
+        'missing_code': 'Invalid authentication callback. Please try again.',
+      }
+      
+      setError(errorMessages[authError] || 'Authentication failed. Please try again.')
+      console.error("[auth-page-client] Auth error:", authError)
     }
   }, [authError])
 
