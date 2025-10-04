@@ -21,8 +21,18 @@ export const signInWithGoogle = async () => {
     provider: "google",
     options: {
       redirectTo: `${getSiteUrl()}/auth/callback`,
+      queryParams: {
+        access_type: 'offline',
+        prompt: 'consent',
+      },
     },
   })
+  
+  console.log("[supabase] Google OAuth initiated", {
+    redirectTo: `${getSiteUrl()}/auth/callback`,
+    error: error?.message,
+  })
+  
   return { data, error }
 }
 
