@@ -6,11 +6,17 @@ export async function middleware(req: NextRequest) {
   const res = NextResponse.next()
   const supabase = createMiddlewareClient({ req, res })
 
+  const pathname = req.nextUrl.pathname
+
+  // Skip middleware for auth callback to allow it to complete
+  if (pathname.startsWith('/auth/callback')) {
+    console.log("[middleware] Skipping middleware for /auth/callback")
+    return res
+  }
+
   const {
     data: { session },
   } = await supabase.auth.getSession()
-
-  const pathname = req.nextUrl.pathname
 
   console.log("[middleware]", {
     pathname,
@@ -31,8 +37,7 @@ export async function middleware(req: NextRequest) {
   }
 
   // Redirect to connect-wallet if authenticated but trying to access auth
-  // BUT skip this redirect if we're coming from the callback to prevent loops
-  if (pathname.startsWith('/auth') && session && !pathname.startsWith('/auth/callback')) {
+  if (pathname.startsWith('/auth') && session) {
     console.log("[middleware] Has session on /auth, redirecting to /connect-wallet")
     return NextResponse.redirect(new URL('/connect-wallet', req.url))
   }

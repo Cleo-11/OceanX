@@ -30,7 +30,10 @@ export default function CallbackClient() {
           console.log("[callback-client] Session already exists", {
             userId: data.session.user.id,
           })
-          router.push('/connect-wallet')
+          console.log("[callback-client] Redirecting to /connect-wallet")
+          
+          // Use window.location for more reliable redirect
+          window.location.href = '/connect-wallet'
           return
         }
 
@@ -68,7 +71,8 @@ export default function CallbackClient() {
               userId: sessionData.session?.user?.id
             })
 
-            router.push('/connect-wallet')
+            console.log("[callback-client] Redirecting to /connect-wallet")
+            window.location.href = '/connect-wallet'
             return
           }
         }
@@ -100,7 +104,8 @@ export default function CallbackClient() {
             userId: sessionData.session?.user?.id
           })
 
-          router.push('/connect-wallet')
+          console.log("[callback-client] Redirecting to /connect-wallet")
+          window.location.href = '/connect-wallet'
           return
         }
 
