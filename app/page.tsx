@@ -1,77 +1,29 @@
-"use client"
-
-import { useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
-import { Loader2 } from "lucide-react"
-import { getSession, getCurrentUser } from "@/lib/supabase"
-import { supabase } from "@/lib/supabase"
+import { cookies } from "next/headers"
+import { redirect } from "next/navigation"
+import { createServerComponentClient } from "@supabase/auth-helpers-nextjs"
 import LandingPage from "@/components/landing-page"
-// ...existing code...
+import type { Database } from "@/lib/types"
 
-export default function HomePage() {
-  const [isLoading, setIsLoading] = useState(true)
-  // Removed unused isAuthenticated and hasWallet state
-  const router = useRouter()
+export default async function HomePage() {
+  const supabase = createServerComponentClient<Database>({ cookies })
 
+  const {
+    data: { session },
+  } = await supabase.auth.getSession()
 
-  useEffect(() => {
-    // Delay checkUserStatus to ensure hydration before redirect
-    setTimeout(() => {
-      checkUserStatus()
-    }, 0)
-  }, [])
-
-  const checkUserStatus = async () => {
-    try {
-      // Check authentication status
-      const { session } = await getSession()
-
-      if (!session) {
-        // User not authenticated, show landing page
-  // ...existing code...
-        setIsLoading(false)
-        return
-      }
-
-  // ...existing code...
-
-      // Check if user has wallet connected
-      const { user } = await getCurrentUser()
-      if (user) {
-        const { data: playerData } = await supabase
-          .from("players")
-          .select("wallet_address")
-          .eq("user_id", user.id)
-          .single()
-
-        if (playerData?.wallet_address) {
-          // User has wallet, redirect to home page
-          router.replace("/home")
-          return
-        } else {
-          // User authenticated but no wallet, redirect to connect wallet
-          router.replace("/connect-wallet")
-          return
-        }
-      }
-    } catch (error) {
-      console.error("Error checking user status:", error)
-    } finally {
-      setIsLoading(false)
-    }
+  if (!session) {
+    return <LandingPage />
   }
 
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-b from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center">
-        <div className="text-center">
-          <Loader2 className="w-8 h-8 text-cyan-400 animate-spin mx-auto mb-4" />
-          <p className="text-slate-400">Loading AbyssX...</p>
-        </div>
-      </div>
-    )
+  const { data: playerData } = await supabase
+    .from("players")
+    .select("wallet_address")
+    .eq("user_id", session.user.id)
+    .maybeSingle()
+
+  if (playerData?.wallet_address) {
+    redirect("/home")
   }
 
-  // Show landing page for unauthenticated users
-  return <LandingPage />
+  redirect("/connect-wallet")
 }

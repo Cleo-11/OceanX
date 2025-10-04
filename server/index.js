@@ -8,6 +8,8 @@ const socketIo = require("socket.io");
 const cors = require("cors");
 const rateLimit = require("express-rate-limit");
 const { createClient } = require("@supabase/supabase-js");
+const { ethers } = require("ethers");
+const crypto = require("crypto");
 const {
   verifyJoinSignature,
   createAuthMiddleware,
@@ -23,6 +25,8 @@ const {
   playerResourcesSchema,
 } = require("../lib/validation.ts");
 const { sanitizeHtml, sanitizePlainText } = require("../lib/sanitize.ts");
+const upgradeManagerAbi = require("./abis/UpgradeManager.json");
+const oceanXTokenAbi = require("./abis/OceanXToken.json");
 require("dotenv").config();
 
 // Utility functions for input validation and sanitization
@@ -455,6 +459,72 @@ try {
 } catch (error) {
   console.error("⚠️ Claim service not available:", error.message);
 }
+
+// --- Blockchain configuration ---
+const rpcUrl =
+  process.env.RPC_URL ||
+  process.env.ANVIL_RPC_URL ||
+  process.env.NEXT_PUBLIC_RPC_URL ||
+  process.env.ALCHEMY_RPC_URL ||
+  process.env.INFURA_RPC_URL;
+
+let provider = null;
+if (rpcUrl) {
+  try {
+    provider = new ethers.JsonRpcProvider(rpcUrl);
+    console.log("✅ Connected to RPC", rpcUrl);
+  } catch (error) {
+    console.error("❌ Failed to initialize RPC provider", error?.message || error);
+  }
+} else {
+  console.warn("⚠️ RPC_URL not set. On-chain upgrade and trading features disabled");
+}
+
+const upgradeManagerAddress = process.env.UPGRADE_MANAGER_ADDRESS?.toLowerCase();
+const oceanXTokenAddress =
+  process.env.OCEANX_TOKEN_ADDRESS?.toLowerCase() || process.env.NEXT_PUBLIC_OCEANX_TOKEN_ADDRESS?.toLowerCase();
+
+let upgradeManagerContract = null;
+if (provider && upgradeManagerAddress) {
+  try {
+    upgradeManagerContract = new ethers.Contract(upgradeManagerAddress, upgradeManagerAbi, provider);
+    console.log("✅ UpgradeManager contract ready", upgradeManagerAddress);
+  } catch (error) {
+    console.error("❌ Failed to instantiate UpgradeManager contract", error?.message || error);
+  }
+} else if (upgradeManagerAddress) {
+  console.warn("⚠️ UpgradeManager address provided but RPC provider unavailable");
+}
+
+let oceanXTokenContract = null;
+if (provider && oceanXTokenAddress) {
+  try {
+    oceanXTokenContract = new ethers.Contract(oceanXTokenAddress, oceanXTokenAbi, provider);
+    console.log("✅ OceanX token contract ready", oceanXTokenAddress);
+  } catch (error) {
+    console.error("❌ Failed to instantiate OceanX token contract", error?.message || error);
+  }
+} else if (oceanXTokenAddress) {
+  console.warn("⚠️ OceanX token address provided but RPC provider unavailable");
+}
+
+const backendPrivateKey = process.env.BACKEND_PRIVATE_KEY || process.env.PRIVATE_KEY || process.env.SIGNER_PRIVATE_KEY;
+let backendSigner = null;
+if (backendPrivateKey) {
+  try {
+    backendSigner = provider
+      ? new ethers.Wallet(backendPrivateKey, provider)
+      : new ethers.Wallet(backendPrivateKey);
+    console.log("✅ Backend signer initialized");
+  } catch (error) {
+    console.error("❌ Failed to initialize backend signer", error?.message || error);
+  }
+}
+
+const chainIdFromEnv = process.env.CHAIN_ID ? Number(process.env.CHAIN_ID) : undefined;
+
+const pendingUpgradeQuotes = new Map();
+const pendingTradeReceipts = new Map();
 
 // Track connections per IP for DDoS protection
 const connectionsByIP = new Map();

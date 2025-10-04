@@ -1,13 +1,59 @@
 [
   {
-    "inputs": [{ "internalType": "uint256", "name": "submarineType", "type": "uint256" }],
-    "name": "getUpgradeCost",
-    "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
+    "inputs": [
+      { "internalType": "address", "name": "token", "type": "address" },
+      { "internalType": "address", "name": "treasury_", "type": "address" }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "constructor"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      { "indexed": true, "internalType": "address", "name": "player", "type": "address" },
+      { "indexed": false, "internalType": "uint256", "name": "previousTier", "type": "uint256" },
+      { "indexed": false, "internalType": "uint256", "name": "newTier", "type": "uint256" },
+      { "indexed": false, "internalType": "uint256", "name": "costPaid", "type": "uint256" },
+      { "indexed": false, "internalType": "uint256", "name": "timestamp", "type": "uint256" }
+    ],
+    "name": "SubmarineUpgraded",
+    "type": "event"
+  },
+  {
+    "inputs": [
+      { "internalType": "address", "name": "player", "type": "address" }
+    ],
+    "name": "getCurrentTier",
+    "outputs": [
+      { "internalType": "uint256", "name": "", "type": "uint256" }
+    ],
     "stateMutability": "view",
     "type": "function"
   },
   {
-    "inputs": [{ "internalType": "uint256", "name": "targetSubmarine", "type": "uint256" }],
+    "inputs": [
+      { "internalType": "uint256", "name": "targetTier", "type": "uint256" }
+    ],
+    "name": "getUpgradeCost",
+    "outputs": [
+      { "internalType": "uint256", "name": "", "type": "uint256" }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "treasury",
+    "outputs": [
+      { "internalType": "address", "name": "", "type": "address" }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      { "internalType": "uint256", "name": "targetTier", "type": "uint256" }
+    ],
     "name": "upgradeSubmarine",
     "outputs": [],
     "stateMutability": "nonpayable",

@@ -23,6 +23,9 @@ contract OCXToken is ERC20, ERC20Burnable, EIP712, Ownable {
     mapping(address => uint256) public nonces;
     mapping(bytes32 => bool) private usedClaims;
 
+    // Allowlisted contracts permitted to orchestrate transfers (e.g. upgrade manager)
+    mapping(address => bool) public transferAgents;
+
     bytes32 private constant CLAIM_TYPEHASH =
         keccak256("Claim(address account,uint256 amount,uint256 nonce,uint256 deadline)");
 
@@ -57,6 +60,19 @@ contract OCXToken is ERC20, ERC20Burnable, EIP712, Ownable {
 
         authorizedSigner = _authorizedSigner;
         emit SignerUpdated(_authorizedSigner);
+
+        // Token contract itself must always be able to move funds (claims, burns, etc.)
+        transferAgents[address(this)] = true;
+    }
+
+    /**
+     * @notice Owner grants or revokes permission for a contract to orchestrate token transfers.
+     *         When upgrades or rewards require pulling funds via transferFrom, the orchestrating
+     *         contract must first be allowlisted here.
+     */
+    function setTransferAgent(address agent, bool allowed) external onlyOwner {
+        require(agent != address(0), "Agent zero");
+        transferAgents[agent] = allowed;
     }
 
     /**
@@ -99,18 +115,11 @@ contract OCXToken is ERC20, ERC20Burnable, EIP712, Ownable {
      * when they are being minted (from address(0)) or burned (to address(0)).
      */
     function _update(address from, address to, uint256 value) internal override {
-        // Allow minting (from zero address) and burning (to zero address)
-        if (from == address(0) || to == address(0)) {
-            // Also allow the initial distribution from the contract itself
-            if (from == address(this)) {
-                 super._update(from, to, value);
-            } else {
-                 super._update(from, to, value);
-            }
-        } else {
-            // Revert any other transfer attempt (i.e., wallet-to-wallet)
-            revert("OCXToken: Transfers are disabled");
+        if (from != address(0) && to != address(0)) {
+            require(transferAgents[msg.sender], "OCXToken: Transfers are disabled");
         }
+
+        super._update(from, to, value);
     }
 
     // --- Admin Functions ---
