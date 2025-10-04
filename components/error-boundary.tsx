@@ -10,20 +10,20 @@ interface Props {
 
 interface State {
   hasError: boolean
-  error?: Error
+  error: Error | null
 }
 
 export class ErrorBoundary extends Component<Props, State> {
   constructor(props: Props) {
     super(props)
-    this.state = { hasError: false }
+  this.state = { hasError: false, error: null }
   }
 
   static getDerivedStateFromError(error: Error): State {
     return { hasError: true, error }
   }
 
-  componentDidCatch(error: Error, errorInfo: any) {
+  componentDidCatch(error: Error, errorInfo: unknown) {
     console.error('React Error Boundary caught:', error, errorInfo)
   }
 
@@ -42,7 +42,7 @@ export class ErrorBoundary extends Component<Props, State> {
             <div className="mt-6 flex gap-3">
               <button
                 onClick={() => {
-                  this.setState({ hasError: false, error: undefined })
+                  this.setState({ hasError: false, error: null })
                 }}
                 className="flex-1 rounded-lg bg-gray-700 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-gray-600"
               >
