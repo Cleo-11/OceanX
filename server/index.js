@@ -1384,47 +1384,38 @@ app.post("/claim", claimLimiter, requireClaimAuth, async (req, res) => {
             return res.status(401).json({ error: "Wallet authentication required" });
         }
         
-    const userAddress = typeof req.body?.userAddress === "string" ? req.body.userAddress.toLowerCase().trim() : undefined;
-    const rawAmount = req.body?.amount;
-    const rawNonce = req.body?.nonce;
-    const rawDeadline = req.body?.deadline;
+        const userAddress = typeof req.body?.userAddress === "string" 
+            ? req.body.userAddress.toLowerCase().trim() 
+            : wallet.toLowerCase();
         
-    const parseUint = (value) => {
-      if (typeof value === "number") {
-        if (!Number.isFinite(value) || value < 0) return null;
-        return BigInt(Math.floor(value));
-      }
-      if (typeof value === "string") {
-        const trimmed = value.trim();
-        if (!trimmed || !/^\d+$/.test(trimmed)) return null;
-        try {
-          return BigInt(trimmed);
-        } catch (err) {
+        // Amount should come from backend logic (e.g., based on player tier or daily reward)
+        const rawAmount = req.body?.amount;
+        
+        const parseUint = (value) => {
+          if (typeof value === "number") {
+            if (!Number.isFinite(value) || value < 0) return null;
+            return BigInt(Math.floor(value));
+          }
+          if (typeof value === "string") {
+            const trimmed = value.trim();
+            if (!trimmed || !/^\d+$/.test(trimmed)) return null;
+            try {
+              return BigInt(trimmed);
+            } catch (err) {
+              return null;
+            }
+          }
           return null;
-        }
-      }
-      return null;
-    };
+        };
 
-    const amount = parseUint(rawAmount);
-    const nonce = parseUint(rawNonce);
-    const deadline = parseUint(rawDeadline);
-    const signature = typeof req.body?.signature === "string" ? req.body.signature.trim() : undefined;
+        const amount = parseUint(rawAmount);
         
-    if (!userAddress || !signature || amount === null || amount <= 0n || nonce === null || deadline === null) {
-            return res.status(400).json({ error: "Missing parameters" });
+        if (!userAddress || amount === null || amount <= 0n) {
+            return res.status(400).json({ error: "Missing or invalid parameters" });
         }
-        
-    const deadlineMs = Number(deadline) * 1000;
-    if (!Number.isFinite(deadlineMs)) {
-      return res.status(400).json({ error: "Invalid deadline" });
-    }
-    if (deadlineMs < Date.now()) {
-      return res.status(400).json({ error: "Claim request expired" });
-    }
         
         // Verify wallet address matches authenticated user
-        if (userAddress !== wallet) {
+        if (userAddress !== wallet.toLowerCase()) {
             return res.status(401).json({ error: "Wallet address mismatch" });
         }
         
@@ -1432,13 +1423,12 @@ app.post("/claim", claimLimiter, requireClaimAuth, async (req, res) => {
             return res.status(503).json({ error: "Claim service not available" });
         }
         
-    const txHash = await claimService.claimTokens(
-      userAddress,
-      amount.toString(),
-      nonce.toString(),
-      deadline.toString(),
-      signature
-    );
+        // FIXED: Backend now generates signature internally
+        const txHash = await claimService.claimTokens(
+          userAddress,
+          amount.toString()
+        );
+        
         res.json({ success: true, txHash });
     } catch (err) {
         console.error("Claim error:", err);

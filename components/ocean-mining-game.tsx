@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useMemo } from "react"
 import { PlayerHUD } from "./player-hud"
 // import { Compass } from "./compass"
 import { SonarRadar } from "./sonar-radar"
@@ -86,7 +86,8 @@ export function OceanMiningGame({
   // Multiplayer disabled: Only single player state is used
   // const [otherPlayers, setOtherPlayers] = useState<OtherPlayer[]>([])
   const [walletAddress, setWalletAddress] = useState<string>("")
-  const submarineData = getSubmarineByTier(playerTier)
+  // CRITICAL FIX: Recalculate submarine data whenever playerTier changes
+  const submarineData = useMemo(() => getSubmarineByTier(playerTier), [playerTier])
 
   const [playerStats, setPlayerStats] = useState<PlayerStats>({
     ...submarineData.baseStats,
@@ -560,12 +561,12 @@ export function OceanMiningGame({
   // ...existing code...
 
   const renderGame = () => {
-
-    const canvas = canvasRef.current
-    if (!canvas) return
-    const ctx = canvas.getContext("2d")
-    if (!ctx) return
-    const time = Date.now() / 1000
+    try {
+      const canvas = canvasRef.current
+      if (!canvas) return
+      const ctx = canvas.getContext("2d")
+      if (!ctx) return
+      const time = Date.now() / 1000
 
     // --- SCREEN SHAKE ---
     let shakeX = 0, shakeY = 0
@@ -760,6 +761,10 @@ export function OceanMiningGame({
         ctx.arc(bubbleX, bubbleY, bubbleSize, 0, Math.PI * 2)
         ctx.fill()
       }
+    }
+    } catch (error) {
+      console.error("Render error:", error);
+      // Graceful degradation - continue rendering on next frame
     }
   }
 
@@ -1048,32 +1053,63 @@ export function OceanMiningGame({
       throw new Error("Wallet not connected")
     }
 
-    const upgradePayload = await createSignaturePayload(connection.address, "upgrade submarine")
-    const upgradeResponse = await apiClient.upgradeSubmarine(
-      connection.address,
-      upgradePayload.signature,
-      upgradePayload.message,
-      targetTierOverride,
-    )
+    const targetTier = targetTierOverride ?? playerTier + 1
+    const tierDefinition = getSubmarineByTier(targetTier)
+    const upgradeCost = tierDefinition.upgradeCost.tokens
 
-    if (!upgradeResponse.success || !upgradeResponse.data) {
-      const errorMessage =
-        upgradeResponse.error || upgradeResponse.data?.message || "Failed to process upgrade via API"
-      throw new Error(errorMessage)
+    try {
+      // STEP 1: Approve token spending (if using ERC20 tokens for upgrades)
+      console.log(`🔐 Approving ${upgradeCost} tokens for upgrade...`)
+      const approvalTx = await ContractManager.approveTokens(upgradeCost.toString())
+      await approvalTx.wait()
+      console.log("✅ Token approval successful")
+
+      // STEP 2: Call smart contract upgradeSubmarine()
+      console.log(`⛓️ Calling smart contract upgradeSubmarine(${targetTier})...`)
+      const contractTx = await ContractManager.upgradeSubmarine(targetTier)
+      await contractTx.wait()
+      console.log("✅ Smart contract upgrade successful")
+
+      // STEP 3: Update backend state (after on-chain confirmation)
+      const upgradePayload = await createSignaturePayload(connection.address, "upgrade submarine")
+      const upgradeResponse = await apiClient.upgradeSubmarine(
+        connection.address,
+        upgradePayload.signature,
+        upgradePayload.message,
+        targetTier,
+      )
+
+      if (!upgradeResponse.success || !upgradeResponse.data) {
+        const errorMessage =
+          upgradeResponse.error || upgradeResponse.data?.message || "Failed to process upgrade via API"
+        throw new Error(errorMessage)
+      }
+
+      const upgradeData = upgradeResponse.data
+      applyUpgradeStateFromResponse(upgradeData)
+
+      console.info("✅ Submarine upgrade confirmed", {
+        wallet: upgradeData.wallet,
+        tier: upgradeData.newTier,
+        coinsRemaining: upgradeData.coins,
+      })
+
+      await loadPlayerData(connection.address)
+
+      return upgradeData
+    } catch (error: any) {
+      // Handle specific errors
+      if (error.code === 'ACTION_REJECTED') {
+        throw new Error("Transaction rejected by user")
+      }
+      if (error.message?.includes("insufficient funds")) {
+        throw new Error("Insufficient ETH for gas fees")
+      }
+      if (error.message?.includes("sequential only")) {
+        throw new Error("Submarines must be upgraded sequentially")
+      }
+      throw error
     }
-
-    const upgradeData = upgradeResponse.data
-    applyUpgradeStateFromResponse(upgradeData)
-
-    console.info("✅ Submarine upgrade confirmed", {
-      wallet: upgradeData.wallet,
-      tier: upgradeData.newTier,
-      coinsRemaining: upgradeData.coins,
-    })
-
-    await loadPlayerData(connection.address)
-
-    return upgradeData
   }
 
   const handleUpgradeSubmarine = async () => {
