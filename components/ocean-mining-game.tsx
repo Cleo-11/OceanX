@@ -10,7 +10,7 @@ import { MineButton } from "./mine-button"
 import { UpgradeModal } from "./upgrade-modal"
 import { StorageFullAlert } from "./storage-full-alert"
 import { EnergyDepletedAlert } from "./energy-depleted-alert"
-import { apiClient } from "@/lib/api"
+import { apiClient, type SubmarineUpgradeResult } from "@/lib/api"
 import { walletManager } from "@/lib/wallet"
 import { wsManager } from "@/lib/websocket"
 import { ContractManager } from "@/lib/contracts"
@@ -247,7 +247,10 @@ export function OceanMiningGame({
       // Load player balance
       const balanceResponse = await apiClient.getPlayerBalance(walletAddress, balancePayload.signature, balancePayload.message)
       if (balanceResponse.success && balanceResponse.data) {
-        setBalance(Number.parseFloat(balanceResponse.data.balance))
+        const coinsValue = typeof balanceResponse.data.coins === "number" ? balanceResponse.data.coins : Number.parseFloat(balanceResponse.data.balance)
+        if (Number.isFinite(coinsValue)) {
+          setBalance(coinsValue)
+        }
       }
 
       const submarinePayload = await createSignaturePayload(
@@ -1011,37 +1014,75 @@ export function OceanMiningGame({
     }
   };
 
+  const applyUpgradeStateFromResponse = (upgradeData: SubmarineUpgradeResult) => {
+    const tierNumber = upgradeData.tierDetails?.tier ?? upgradeData.newTier
+
+    if (tierNumber) {
+      setPlayerTier(tierNumber)
+    }
+
+    const statsSource = upgradeData.tierDetails?.baseStats ?? getSubmarineByTier(tierNumber)?.baseStats
+
+    if (statsSource) {
+      setPlayerStats((prev) => ({
+        ...prev,
+        health: statsSource.health ?? prev.health,
+        energy: statsSource.energy ?? prev.energy,
+        capacity: { ...prev.capacity },
+        maxCapacity: statsSource.maxCapacity ? { ...statsSource.maxCapacity } : { ...prev.maxCapacity },
+        depth: statsSource.depth ?? prev.depth,
+        speed: statsSource.speed ?? prev.speed,
+        miningRate: statsSource.miningRate ?? prev.miningRate,
+        tier: tierNumber ?? prev.tier,
+      }))
+    }
+
+    if (typeof upgradeData.coins === "number" && Number.isFinite(upgradeData.coins)) {
+      setBalance(upgradeData.coins)
+    }
+  }
+
+  const executeSubmarineUpgrade = async (targetTierOverride?: number): Promise<SubmarineUpgradeResult> => {
+    const connection = walletManager.getConnection()
+    if (!connection) {
+      throw new Error("Wallet not connected")
+    }
+
+    const upgradePayload = await createSignaturePayload(connection.address, "upgrade submarine")
+    const upgradeResponse = await apiClient.upgradeSubmarine(
+      connection.address,
+      upgradePayload.signature,
+      upgradePayload.message,
+      targetTierOverride,
+    )
+
+    if (!upgradeResponse.success || !upgradeResponse.data) {
+      const errorMessage =
+        upgradeResponse.error || upgradeResponse.data?.message || "Failed to process upgrade via API"
+      throw new Error(errorMessage)
+    }
+
+    const upgradeData = upgradeResponse.data
+    applyUpgradeStateFromResponse(upgradeData)
+
+    console.info("✅ Submarine upgrade confirmed", {
+      wallet: upgradeData.wallet,
+      tier: upgradeData.newTier,
+      coinsRemaining: upgradeData.coins,
+    })
+
+    await loadPlayerData(connection.address)
+
+    return upgradeData
+  }
+
   const handleUpgradeSubmarine = async () => {
     if (playerTier >= 15) return
 
     setGameState("upgrading")
 
     try {
-      const connection = walletManager.getConnection()
-      if (!connection) {
-        throw new Error("Wallet not connected")
-      }
-
-      const upgradePayload = await createSignaturePayload(connection.address, "upgrade submarine")
-      const upgradeResponse = await apiClient.upgradeSubmarine(connection.address, upgradePayload.signature, upgradePayload.message)
-
-      if (!upgradeResponse.success || !upgradeResponse.data) {
-        throw new Error(upgradeResponse.error || "Failed to get upgrade info")
-      }
-
-      const { newTier } = upgradeResponse.data
-
-      const tx = await ContractManager.upgradeSubmarine(newTier.id)
-      await tx.wait()
-
-      const nextSubmarineData = getSubmarineByTier(newTier.id)
-      setPlayerTier(newTier.id)
-      setPlayerStats({
-        ...nextSubmarineData.baseStats,
-        capacity: { ...playerStats.capacity },
-      })
-
-      await loadPlayerData(connection.address)
+      await executeSubmarineUpgrade(playerTier + 1)
 
       setGameState("upgraded")
 
@@ -1051,6 +1092,10 @@ export function OceanMiningGame({
       }, 2000)
     } catch (error) {
       console.error("Upgrade failed:", error)
+      const message = error instanceof Error ? error.message : "Upgrade failed. Please try again."
+      if (typeof window !== "undefined") {
+        window.alert(message)
+      }
       setGameState("idle")
     }
   }
@@ -1061,29 +1106,7 @@ export function OceanMiningGame({
     setGameState("upgrading")
 
     try {
-      const connection = walletManager.getConnection()
-      if (!connection) {
-        throw new Error("Wallet not connected")
-      }
-
-      const upgradePayload = await createSignaturePayload(connection.address, "upgrade submarine")
-      const upgradeResponse = await apiClient.upgradeSubmarine(connection.address, upgradePayload.signature, upgradePayload.message)
-
-      if (!upgradeResponse.success || !upgradeResponse.data) {
-        throw new Error(upgradeResponse.error || "Failed to get upgrade info")
-      }
-
-      const tx = await ContractManager.upgradeSubmarine(targetTier)
-      await tx.wait()
-
-      const nextSubmarineData = getSubmarineByTier(targetTier)
-      setPlayerTier(targetTier)
-      setPlayerStats({
-        ...nextSubmarineData.baseStats,
-        capacity: { ...playerStats.capacity },
-      })
-
-      await loadPlayerData(connection.address)
+      await executeSubmarineUpgrade(targetTier)
 
       setGameState("upgraded")
 
@@ -1093,6 +1116,10 @@ export function OceanMiningGame({
       }, 2000)
     } catch (error) {
       console.error("Submarine purchase failed:", error)
+      const message = error instanceof Error ? error.message : "Submarine purchase failed. Please try again."
+      if (typeof window !== "undefined") {
+        window.alert(message)
+      }
       setGameState("idle")
     }
   }

@@ -8,8 +8,6 @@ const socketIo = require("socket.io");
 const cors = require("cors");
 const rateLimit = require("express-rate-limit");
 const { createClient } = require("@supabase/supabase-js");
-const { ethers } = require("ethers");
-const crypto = require("crypto");
 const {
   verifyJoinSignature,
   createAuthMiddleware,
@@ -25,8 +23,6 @@ const {
   playerResourcesSchema,
 } = require("../lib/validation.ts");
 const { sanitizeHtml, sanitizePlainText } = require("../lib/sanitize.ts");
-const upgradeManagerAbi = require("./abis/UpgradeManager.json");
-const oceanXTokenAbi = require("./abis/OceanXToken.json");
 require("dotenv").config();
 
 // Utility functions for input validation and sanitization
@@ -213,6 +209,10 @@ const requirePlayerSubmarineAuth = createAuthMiddleware({
   expectedActions: ["get-submarine", "get submarine"],
 });
 
+const requireSubmarineUpgradeAuth = createAuthMiddleware({
+  expectedActions: ["upgrade submarine", "upgrade-submarine", "submarine-upgrade", "upgrade"],
+});
+
 const claimBodyKeys = {
   address: ["userAddress", "walletAddress", "address", "wallet"],
   signature: ["authSignature", "signature"],
@@ -259,14 +259,22 @@ app.post("/player/balance", playerDataLimiter, requirePlayerBalanceAuth, async (
     // Query the players table for the wallet address (case-insensitive)
     const { data: player, error } = await supabase
       .from("players")
-      .select("total_ocx_earned")
+      .select("coins, total_ocx_earned")
       .ilike("wallet_address", wallet)
       .single();
     if (error || !player) {
       return res.status(404).json({ error: "Player not found" });
     }
-    // Return OCX balance as string (assuming total_ocx_earned is numeric)
-    res.json({ balance: player.total_ocx_earned.toString(), symbol: "OCX", network: "mainnet" });
+    const coinsValue = Number(player.coins ?? 0);
+    const ocxValue = player.total_ocx_earned != null ? player.total_ocx_earned.toString() : "0";
+
+    res.json({
+      coins: Number.isFinite(coinsValue) ? coinsValue : 0,
+      balance: coinsValue.toString(),
+      symbol: "COIN",
+      network: "offchain",
+      legacyTokenBalance: ocxValue,
+    });
   } catch (err) {
     logServerError("player-balance", err, { wallet });
     respondWithError(res, 500, "Unable to fetch player balance. Please try again later.", "BALANCE_FETCH_FAILED");
@@ -325,6 +333,135 @@ app.post("/player/submarine", playerDataLimiter, requirePlayerSubmarineAuth, asy
   } catch (err) {
     console.error("/player/submarine error:", err);
     res.status(500).json({ error: "Failed to fetch submarine info" });
+  }
+});
+
+app.post("/submarine/upgrade", sensitiveActionLimiter, requireSubmarineUpgradeAuth, async (req, res) => {
+  if (!supabase) {
+    return respondWithError(res, 500, "Supabase not initialized", "SUPABASE_OFFLINE");
+  }
+
+  const wallet = req?.auth?.wallet;
+  if (!wallet) {
+    return respondWithError(res, 401, "Wallet authentication required", "WALLET_REQUIRED");
+  }
+
+  const normalizedWallet = wallet.toLowerCase();
+  const providedAddress = typeof req.body?.address === "string" ? req.body.address.toLowerCase().trim() : undefined;
+  if (providedAddress && providedAddress !== normalizedWallet) {
+    return respondWithError(res, 401, "Wallet mismatch", "WALLET_MISMATCH");
+  }
+
+  const requestedPlayerIdRaw = typeof req.body?.playerId === "string" ? req.body.playerId.trim() : undefined;
+
+  let playerRecord;
+  try {
+    let query = supabase
+      .from("players")
+      .select("id, wallet_address, submarine_tier, coins")
+      .limit(1);
+
+    if (requestedPlayerIdRaw) {
+      query = query.eq("id", requestedPlayerIdRaw);
+    } else {
+      query = query.ilike("wallet_address", normalizedWallet);
+    }
+
+    const { data, error } = await query.single();
+
+    if (error || !data) {
+      return respondWithError(res, 404, "Player record not found", "PLAYER_NOT_FOUND");
+    }
+
+    const playerWallet = typeof data.wallet_address === "string" ? data.wallet_address.toLowerCase() : null;
+    if (playerWallet && playerWallet !== normalizedWallet) {
+      return respondWithError(res, 403, "Player record does not belong to authenticated wallet", "PLAYER_OWNERSHIP_MISMATCH");
+    }
+
+    playerRecord = data;
+  } catch (error) {
+    logServerError("submarine-upgrade-player-fetch", error, { wallet: normalizedWallet });
+    return respondWithError(res, 500, "Unable to load player profile", "PLAYER_FETCH_FAILED");
+  }
+
+  const currentTierRaw = Number.parseInt(playerRecord?.submarine_tier, 10);
+  const currentTier = Number.isFinite(currentTierRaw) && currentTierRaw >= 1 ? currentTierRaw : 1;
+
+  if (currentTier >= MAX_SUBMARINE_TIER) {
+    return respondWithError(res, 409, "Maximum submarine tier already reached", "TIER_MAXED");
+  }
+
+  const requestedTier = parseTierInput(req.body?.targetTier ?? req.body?.requestedTier);
+  const targetTier = requestedTier ?? currentTier + 1;
+
+  if (!Number.isInteger(targetTier) || targetTier <= 0) {
+    return respondWithError(res, 400, "Invalid target tier provided", "INVALID_TIER");
+  }
+
+  if (targetTier !== currentTier + 1) {
+    return respondWithError(res, 409, "Submarines must be upgraded sequentially", "NON_SEQUENTIAL_TIER");
+  }
+
+  if (targetTier > MAX_SUBMARINE_TIER) {
+    return respondWithError(res, 400, "Requested tier exceeds configured maximum", "TIER_OUT_OF_RANGE");
+  }
+
+  const tierDefinition = getTierDefinition(targetTier);
+  if (!tierDefinition) {
+    return respondWithError(res, 404, "Requested tier definition not found", "TIER_DEFINITION_MISSING");
+  }
+
+  const currentCoinsRaw = playerRecord?.coins;
+  const currentCoinsValue = Number(currentCoinsRaw);
+  const currentCoins = Number.isFinite(currentCoinsValue) ? currentCoinsValue : 0;
+  const upgradeCost = (currentTier + 1) * 100;
+
+  if (currentCoins < upgradeCost) {
+    return respondWithError(res, 402, "Not enough coins to upgrade submarine", "INSUFFICIENT_COINS");
+  }
+
+  const newCoins = currentCoins - upgradeCost;
+  const timestamp = new Date().toISOString();
+
+  try {
+    const { data: updatedPlayer, error: updateError } = await supabase
+      .from("players")
+      .update({
+        submarine_tier: targetTier,
+        coins: newCoins,
+        updated_at: timestamp,
+      })
+      .eq("id", playerRecord.id)
+      .select("id, submarine_tier, coins")
+      .single();
+
+    if (updateError || !updatedPlayer) {
+      throw updateError || new Error("Failed to persist upgrade");
+    }
+
+    const newTierPayload = buildSubmarineResponse(tierDefinition);
+
+    const updatedCoinsValue = Number(updatedPlayer.coins);
+
+    res.json({
+      playerId: updatedPlayer.id,
+      wallet: normalizedWallet,
+      previousTier: currentTier,
+      newTier: newTierPayload?.tier ?? updatedPlayer.submarine_tier,
+      tierDetails: newTierPayload,
+      coins: Number.isFinite(updatedCoinsValue) ? updatedCoinsValue : newCoins,
+      cost: {
+        coins: upgradeCost,
+      },
+      timestamp,
+      message: `Submarine upgraded to tier ${targetTier}`,
+    });
+  } catch (error) {
+    logServerError("submarine-upgrade-persist", error, {
+      wallet: normalizedWallet,
+      playerId: playerRecord.id,
+    });
+    return respondWithError(res, 500, "Failed to apply submarine upgrade", "UPGRADE_PERSIST_FAILED");
   }
 });
 
@@ -459,72 +596,6 @@ try {
 } catch (error) {
   console.error("⚠️ Claim service not available:", error.message);
 }
-
-// --- Blockchain configuration ---
-const rpcUrl =
-  process.env.RPC_URL ||
-  process.env.ANVIL_RPC_URL ||
-  process.env.NEXT_PUBLIC_RPC_URL ||
-  process.env.ALCHEMY_RPC_URL ||
-  process.env.INFURA_RPC_URL;
-
-let provider = null;
-if (rpcUrl) {
-  try {
-    provider = new ethers.JsonRpcProvider(rpcUrl);
-    console.log("✅ Connected to RPC", rpcUrl);
-  } catch (error) {
-    console.error("❌ Failed to initialize RPC provider", error?.message || error);
-  }
-} else {
-  console.warn("⚠️ RPC_URL not set. On-chain upgrade and trading features disabled");
-}
-
-const upgradeManagerAddress = process.env.UPGRADE_MANAGER_ADDRESS?.toLowerCase();
-const oceanXTokenAddress =
-  process.env.OCEANX_TOKEN_ADDRESS?.toLowerCase() || process.env.NEXT_PUBLIC_OCEANX_TOKEN_ADDRESS?.toLowerCase();
-
-let upgradeManagerContract = null;
-if (provider && upgradeManagerAddress) {
-  try {
-    upgradeManagerContract = new ethers.Contract(upgradeManagerAddress, upgradeManagerAbi, provider);
-    console.log("✅ UpgradeManager contract ready", upgradeManagerAddress);
-  } catch (error) {
-    console.error("❌ Failed to instantiate UpgradeManager contract", error?.message || error);
-  }
-} else if (upgradeManagerAddress) {
-  console.warn("⚠️ UpgradeManager address provided but RPC provider unavailable");
-}
-
-let oceanXTokenContract = null;
-if (provider && oceanXTokenAddress) {
-  try {
-    oceanXTokenContract = new ethers.Contract(oceanXTokenAddress, oceanXTokenAbi, provider);
-    console.log("✅ OceanX token contract ready", oceanXTokenAddress);
-  } catch (error) {
-    console.error("❌ Failed to instantiate OceanX token contract", error?.message || error);
-  }
-} else if (oceanXTokenAddress) {
-  console.warn("⚠️ OceanX token address provided but RPC provider unavailable");
-}
-
-const backendPrivateKey = process.env.BACKEND_PRIVATE_KEY || process.env.PRIVATE_KEY || process.env.SIGNER_PRIVATE_KEY;
-let backendSigner = null;
-if (backendPrivateKey) {
-  try {
-    backendSigner = provider
-      ? new ethers.Wallet(backendPrivateKey, provider)
-      : new ethers.Wallet(backendPrivateKey);
-    console.log("✅ Backend signer initialized");
-  } catch (error) {
-    console.error("❌ Failed to initialize backend signer", error?.message || error);
-  }
-}
-
-const chainIdFromEnv = process.env.CHAIN_ID ? Number(process.env.CHAIN_ID) : undefined;
-
-const pendingUpgradeQuotes = new Map();
-const pendingTradeReceipts = new Map();
 
 // Track connections per IP for DDoS protection
 const connectionsByIP = new Map();
@@ -820,6 +891,56 @@ const SUBMARINE_TIERS = [
     specialAbility: "Omnimining: Can mine all resources simultaneously",
   },
 ];
+
+const SUBMARINE_TIER_LOOKUP = new Map(SUBMARINE_TIERS.map((tier) => [tier.tier, tier]));
+const MAX_SUBMARINE_TIER = Math.max(...SUBMARINE_TIERS.map((tier) => tier.tier));
+
+const parseTierInput = (value) => {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return Math.trunc(value);
+  }
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed.length) {
+      return undefined;
+    }
+    const parsed = Number.parseInt(trimmed, 10);
+    if (Number.isFinite(parsed)) {
+      return parsed;
+    }
+  }
+  return undefined;
+};
+
+const getTierDefinition = (tier) => SUBMARINE_TIER_LOOKUP.get(tier) || null;
+
+const buildSubmarineResponse = (tierDefinition) => {
+  if (!tierDefinition) {
+    return null;
+  }
+
+  const baseStats = tierDefinition.baseStats || {};
+  const upgradeCost = tierDefinition.upgradeCost || {};
+  const storageCapacity =
+    baseStats.maxCapacity?.nickel ?? baseStats.capacity?.nickel ?? 0;
+
+  return {
+    id: tierDefinition.tier,
+    tier: tierDefinition.tier,
+    name: tierDefinition.name,
+    description: tierDefinition.description,
+    cost: upgradeCost.tokens ?? 0,
+    speed: baseStats.speed ?? 0,
+    storage: storageCapacity,
+    miningPower: baseStats.miningRate ?? 0,
+    hull: baseStats.health ?? 0,
+    energy: baseStats.energy ?? 0,
+    color: tierDefinition.color,
+    specialAbility: tierDefinition.specialAbility,
+    baseStats,
+    upgradeCost,
+  };
+};
 
 // Game state management
 const gameSessions = new Map(); // Map<sessionId, { id, players: Map<walletAddress, playerData>, resourceNodes }>

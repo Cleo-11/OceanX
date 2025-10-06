@@ -30,6 +30,9 @@ contract UpgradeManager is Ownable {
     /// @dev Cost (in OCX wei) for reaching the given tier
     mapping(uint256 => uint256) public upgradeCosts;
 
+    /// @dev Operators allowed to execute upgrades on behalf of players
+    mapping(address => bool) public operators;
+
     event SubmarineUpgraded(
         address indexed player,
         uint256 previousTier,
@@ -41,6 +44,12 @@ contract UpgradeManager is Ownable {
     event TreasuryUpdated(address indexed newTreasury);
     event UpgradeCostUpdated(uint256 indexed tier, uint256 cost);
     event TierSynced(address indexed player, uint256 tier);
+    event OperatorUpdated(address indexed operator, bool active);
+    modifier onlyOperator() {
+        require(msg.sender == owner() || operators[msg.sender], "UpgradeManager: not operator");
+        _;
+    }
+
 
     constructor(address token, address treasury_) Ownable(msg.sender) {
         require(token != address(0), "UpgradeManager: token zero");
@@ -80,6 +89,12 @@ contract UpgradeManager is Ownable {
         emit UpgradeCostUpdated(tier, cost);
     }
 
+    function setOperator(address operator, bool active) external onlyOwner {
+        require(operator != address(0), "UpgradeManager: operator zero");
+        operators[operator] = active;
+        emit OperatorUpdated(operator, active);
+    }
+
     function syncTier(address player, uint256 tier) external onlyOwner {
         require(player != address(0), "UpgradeManager: player zero");
         require(tier >= MIN_TIER && tier <= MAX_TIER, "UpgradeManager: invalid tier");
@@ -92,18 +107,12 @@ contract UpgradeManager is Ownable {
     // ---------------------------------------------------------------------
 
     function upgradeSubmarine(uint256 targetTier) external {
-        uint256 current = getCurrentTier(msg.sender);
-        require(targetTier == current + 1, "UpgradeManager: sequential only");
-        require(targetTier <= MAX_TIER, "UpgradeManager: tier too high");
+        _applyUpgrade(msg.sender, targetTier);
+    }
 
-        uint256 cost = upgradeCosts[targetTier];
-        if (cost > 0) {
-            ocxToken.safeTransferFrom(msg.sender, treasury, cost);
-        }
-
-        _currentTier[msg.sender] = targetTier;
-
-        emit SubmarineUpgraded(msg.sender, current, targetTier, cost, block.timestamp);
+    function upgradeSubmarineFor(address player, uint256 targetTier) external onlyOperator {
+        require(player != address(0), "UpgradeManager: player zero");
+        _applyUpgrade(player, targetTier);
     }
 
     function getUpgradeCost(uint256 targetTier) external view returns (uint256) {
@@ -113,6 +122,21 @@ contract UpgradeManager is Ownable {
     // ---------------------------------------------------------------------
     // Internal helpers
     // ---------------------------------------------------------------------
+
+    function _applyUpgrade(address player, uint256 targetTier) internal {
+        uint256 current = getCurrentTier(player);
+        require(targetTier == current + 1, "UpgradeManager: sequential only");
+        require(targetTier <= MAX_TIER, "UpgradeManager: tier too high");
+
+        uint256 cost = upgradeCosts[targetTier];
+        if (cost > 0) {
+            ocxToken.safeTransferFrom(player, treasury, cost);
+        }
+
+        _currentTier[player] = targetTier;
+
+        emit SubmarineUpgraded(player, current, targetTier, cost, block.timestamp);
+    }
 
     function _bootstrapCosts() internal {
         // Default OCX costs expressed in 18 decimal wei. Tier 1 is free (starting tier).

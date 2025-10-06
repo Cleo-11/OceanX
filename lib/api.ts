@@ -1,4 +1,5 @@
 import { env } from "./env"
+import type { PlayerResources } from "./types"
 
 const API_BASE_URL = env.NEXT_PUBLIC_API_URL
 
@@ -16,6 +17,7 @@ export interface PlayerProgress {
   selected_submarine: number
   total_tokens_earned: number
   total_play_time: number
+  coins?: number
   resources: {
     nickel: number
     cobalt: number
@@ -37,6 +39,38 @@ export interface SubmarineData {
   miningPower: number
   hull: number
   energy: number
+}
+
+export interface SubmarineUpgradePayload extends SubmarineData {
+  tier: number
+  description?: string
+  color?: string
+  specialAbility?: string
+  baseStats?: {
+    health?: number
+    energy?: number
+    capacity?: PlayerResources
+    maxCapacity?: PlayerResources
+    depth?: number
+    speed?: number
+    miningRate?: number
+    tier?: number
+  }
+  upgradeCost?: PlayerResources & { tokens: number }
+}
+
+export interface SubmarineUpgradeResult {
+  playerId: string
+  wallet: string
+  previousTier: number
+  newTier: number
+  tierDetails?: SubmarineUpgradePayload | null
+  coins: number
+  cost: {
+    coins: number
+  }
+  timestamp: string
+  message: string
 }
 
 export interface GameSession {
@@ -78,6 +112,14 @@ export interface DailyTradeStatus {
   timeUntilNextTrade: number
   hoursUntilNext: number
   nextTradeAvailable: string
+}
+
+export interface PlayerBalanceResponse {
+  coins: number
+  balance: string
+  symbol: string
+  network: string
+  legacyTokenBalance?: string
 }
 
 class ApiClient {
@@ -173,10 +215,20 @@ class ApiClient {
     walletAddress: string,
     signature: string,
     message: string,
-  ): Promise<ApiResponse<{ newTier: SubmarineData; message: string }>> {
+    targetTier?: number,
+    playerId?: string,
+  ): Promise<ApiResponse<SubmarineUpgradeResult>> {
+    const payload: Record<string, unknown> = { address: walletAddress, signature, message }
+    if (typeof targetTier === "number" && Number.isFinite(targetTier)) {
+      payload.targetTier = targetTier
+    }
+    if (typeof playerId === "string" && playerId.trim().length > 0) {
+      payload.playerId = playerId.trim()
+    }
+
     return this.request("/submarine/upgrade", {
       method: "POST",
-      body: JSON.stringify({ address: walletAddress, signature, message }),
+      body: JSON.stringify(payload),
     })
   }
 
@@ -185,7 +237,7 @@ class ApiClient {
     walletAddress: string,
     signature: string,
     message: string,
-  ): Promise<ApiResponse<{ balance: string; symbol: string; network: string }>> {
+  ): Promise<ApiResponse<PlayerBalanceResponse>> {
     return this.request("/player/balance", {
       method: "POST",
       body: JSON.stringify({ address: walletAddress, signature, message }),

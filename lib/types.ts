@@ -73,6 +73,7 @@ export interface Database {
           wallet_address: string | null  // Now nullable after migration
           username: string | null
           submarine_tier: number | null
+          coins: number | null
           total_resources_mined: number | null
           total_ocx_earned: number | null  // Your DB uses numeric, which is fine
           last_reward_claim: string | null
@@ -88,6 +89,7 @@ export interface Database {
           wallet_address?: string | null
           username?: string | null
           submarine_tier?: number | null
+          coins?: number | null
           total_resources_mined?: number | null
           total_ocx_earned?: number | null
           last_reward_claim?: string | null
@@ -103,6 +105,7 @@ export interface Database {
           wallet_address?: string | null
           username?: string | null
           submarine_tier?: number | null
+          coins?: number | null
           total_resources_mined?: number | null
           total_ocx_earned?: number | null
           last_reward_claim?: string | null

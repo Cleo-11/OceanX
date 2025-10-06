@@ -56,6 +56,19 @@ CREATE POLICY "Users can insert their own player data" ON players
   FOR INSERT WITH CHECK (auth.uid() = user_id);
 ```
 
+#### Player tier defaults and audit trail
+After applying RLS, run the migration script `scripts/20241004-update-player-submarine-tier.sql` against your production database. This script:
+
+- Forces `players.submarine_tier` to default to tier `1`
+- Backfills any existing zero/NULL tiers to `1`
+- Adds a trigger to keep `updated_at` in sync on each write
+
+#### Player currency balances
+Run the migration script `scripts/20251004-add-player-coins.sql` to add the `players.coins` column used by the upgrade flow. The script:
+
+- Adds a non-null `coins` column with a default balance of `0`
+- Backfills any existing player records to ensure consistent data
+
 ### 4. **API Keys for Production**
 
 You'll need these from your Supabase dashboard:
