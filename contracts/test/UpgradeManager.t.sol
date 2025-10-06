@@ -63,6 +63,38 @@ contract UpgradeManagerTest is Test {
         assertEq(manager.treasury(), address(0xAA));
     }
 
+    function testOwnerCanAssignOperator() public {
+        address operator = address(0xABCD);
+        manager.setOperator(operator, true);
+        assertTrue(manager.operators(operator));
+
+        manager.setOperator(operator, false);
+        assertFalse(manager.operators(operator));
+    }
+
+    function testOperatorCanUpgradeForPlayer() public {
+        address operator = address(0xFEE1);
+        manager.setOperator(operator, true);
+
+        uint256 treasuryBefore = token.balanceOf(TREASURY);
+
+        vm.expectEmit(true, false, false, false);
+        emit UpgradeManager.SubmarineUpgraded(PLAYER, 1, 2, 100 ether, block.timestamp);
+
+        vm.prank(operator);
+        manager.upgradeSubmarineFor(PLAYER, 2);
+
+        assertEq(manager.getCurrentTier(PLAYER), 2);
+        assertEq(token.balanceOf(TREASURY), treasuryBefore + 100 ether);
+    }
+
+    function testUpgradeForRequiresAuthorization() public {
+        address intruder = address(0xDEAD);
+        vm.prank(intruder);
+        vm.expectRevert(bytes("UpgradeManager: not operator"));
+        manager.upgradeSubmarineFor(PLAYER, 2);
+    }
+
     function testSyncTierAllowsMigration() public {
         manager.syncTier(PLAYER, 5);
         assertEq(manager.getCurrentTier(PLAYER), 5);
