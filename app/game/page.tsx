@@ -12,6 +12,7 @@ import { SubmarineSelection } from "@/components/submarine-selection";
 import { SubmarineStore } from "@/components/submarine-store";
 import { walletManager } from "@/lib/wallet";
 import { ErrorBoundary } from "@/components/error-boundary";
+import { StyleWrapper } from "@/components/style-wrapper";
 // ...existing code...
 import { GameState } from "@/lib/types";
 
@@ -32,6 +33,34 @@ interface PlayerData {
   balance?: number;
 }
 
+function logCssDiagnostics(context: string) {
+  if (typeof window === "undefined") {
+    return
+  }
+
+  const body = document.body
+  const computedStyle = window.getComputedStyle(body)
+  const stylesheets = Array.from(document.styleSheets).map((sheet, index) => {
+    try {
+      return sheet.href ? `${index}: ${sheet.href}` : `${index}: inline`
+    } catch (error) {
+      return `${index}: <inaccessible>`
+    }
+  })
+
+  console.log("🚢 [GamePage] CSS diagnostics", {
+    context,
+    pathname: window.location.pathname,
+    stylesheetCount: document.styleSheets.length,
+    stylesheets,
+    bodyClasses: Array.from(body.classList),
+    background: computedStyle.backgroundColor,
+    fontFamily: computedStyle.fontFamily,
+    hasTailwindVars: computedStyle.getPropertyValue("--tw-ring-inset") !== "",
+    hasGlobalVars: computedStyle.getPropertyValue("--background") !== "",
+  })
+}
+
 export default function GamePage() {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string>("")
@@ -48,6 +77,10 @@ export default function GamePage() {
   const router = useRouter()
 
   useEffect(() => {
+    console.log("🎮 [GamePage] Component mounted", {
+      pathname: window.location.pathname,
+    })
+    logCssDiagnostics("mount")
     initializeGame()
   }, [])
 
@@ -171,10 +204,10 @@ export default function GamePage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-b from-depth-950 via-depth-900 to-depth-950 flex items-center justify-center">
         <div className="text-center">
-          <Loader2 className="w-8 h-8 text-cyan-400 animate-spin mx-auto mb-4" />
-          <p className="text-slate-400">Loading your submarine...</p>
+          <Loader2 className="w-8 h-8 text-ocean-400 animate-spin mx-auto mb-4" />
+          <p className="text-depth-400">Loading your submarine...</p>
         </div>
       </div>
     )
@@ -182,7 +215,7 @@ export default function GamePage() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center px-4">
+      <div className="min-h-screen bg-gradient-to-b from-depth-950 via-depth-900 to-depth-950 flex items-center justify-center px-4">
         <div className="w-full max-w-md text-center">
           <AlertCircle className="w-16 h-16 text-red-400 mx-auto mb-6" />
           <h2 className="text-2xl font-bold text-white mb-4">Game Loading Error</h2>
@@ -194,14 +227,14 @@ export default function GamePage() {
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Button
               onClick={handleRetry}
-              className="bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white"
+              className="bg-gradient-to-r from-ocean-500 to-abyss-600 hover:from-ocean-600 hover:to-abyss-700 text-white"
             >
               Try Again
             </Button>
             <Button
               variant="outline"
               onClick={handleSignOut}
-              className="border-slate-600 text-slate-300 hover:bg-slate-800 bg-transparent"
+              className="border-depth-600 text-depth-300 hover:bg-depth-800 bg-transparent"
             >
               <LogOut className="w-4 h-4 mr-2" />
               Sign Out
@@ -215,9 +248,9 @@ export default function GamePage() {
 
   if (!playerData) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-b from-depth-950 via-depth-900 to-depth-950 flex items-center justify-center">
         <div className="text-center">
-          <p className="text-slate-400">No player data found</p>
+          <p className="text-depth-400">No player data found</p>
         </div>
       </div>
     )
@@ -225,11 +258,11 @@ export default function GamePage() {
 
   if (walletPrompt) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-b from-depth-950 via-depth-900 to-depth-950 flex items-center justify-center">
         <div className="text-center">
-          <p className="text-cyan-300 mb-4 text-xl font-bold">Connect your wallet to play</p>
+          <p className="text-ocean-300 mb-4 text-xl font-bold">Connect your wallet to play</p>
           <button
-            className="rounded-lg bg-gradient-to-r from-teal-500 to-cyan-600 px-6 py-3 font-medium text-white shadow-lg hover:from-teal-600 hover:to-cyan-700"
+            className="rounded-lg bg-gradient-to-r from-ocean-500 to-abyss-600 px-6 py-3 font-medium text-white shadow-lg hover:from-ocean-600 hover:to-abyss-700"
             onClick={async () => {
               try {
                 const connection = await walletManager.connectWallet();
@@ -252,21 +285,22 @@ export default function GamePage() {
   }
 
   return (
-    <ErrorBoundary>
-      <div className="min-h-screen bg-slate-900">
-        {/* Submarine Selection Modal */}
-        <SubmarineSelection
-          isOpen={showSubmarineSelection && !hasSelectedSubmarine}
-          onClose={() => {
-            // Prevent closing without selection
-            if (selectedSubmarineTier === null && playerData?.submarine_tier) {
-              setSelectedSubmarineTier(playerData.submarine_tier);
-            }
-            setShowSubmarineSelection(false);
-          }}
-          onSelectSubmarine={(tier) => {
-            setSelectedSubmarineTier(tier);
-            setShowSubmarineSelection(false);
+    <StyleWrapper>
+      <ErrorBoundary>
+        <div className="min-h-screen bg-depth-900">
+          {/* Submarine Selection Modal */}
+          <SubmarineSelection
+            isOpen={showSubmarineSelection && !hasSelectedSubmarine}
+            onClose={() => {
+              // Prevent closing without selection
+              if (selectedSubmarineTier === null && playerData?.submarine_tier) {
+                setSelectedSubmarineTier(playerData.submarine_tier);
+              }
+              setShowSubmarineSelection(false);
+            }}
+            onSelectSubmarine={(tier) => {
+              setSelectedSubmarineTier(tier);
+              setShowSubmarineSelection(false);
             setHasSelectedSubmarine(true);
           }}
           initialSelectedTier={playerData?.submarine_tier || 1}
@@ -305,7 +339,8 @@ export default function GamePage() {
             onConnectWallet={handleConnectWallet}
           />
         )}
-      </div>
-    </ErrorBoundary>
+        </div>
+      </ErrorBoundary>
+    </StyleWrapper>
   );
 }

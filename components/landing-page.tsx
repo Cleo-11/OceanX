@@ -230,19 +230,21 @@ export default function LandingPage() {
           </>
         )}
         
-        {/* Animated bubbles */}
+        {/* Optimized animated bubbles - reduced from 25 to 12 for performance */}
         {showParticles && (
           <>
             {[...Array(12)].map((_, i) => (
               <div 
                 key={i}
-                className="absolute w-2 h-2 rounded-full bg-white/20 pointer-events-none"
+                className="absolute rounded-full bg-white/20 pointer-events-none"
                 style={{
+                  width: `${Math.random() * 16 + 6}px`,
+                  height: `${Math.random() * 16 + 6}px`,
                   left: `${Math.random() * 100}%`,
                   bottom: `-20px`,
                   animation: `bubbleRise ${Math.random() * 15 + 10}s linear infinite ${Math.random() * 10}s`,
-                  opacity: Math.random() * 0.5 + 0.1,
-                  willChange: 'transform',
+                  opacity: Math.random() * 0.4 + 0.15,
+                  willChange: 'transform', // GPU acceleration hint
                 }}
               />
             ))}
@@ -250,11 +252,10 @@ export default function LandingPage() {
         )}
       </div>
 
-      {/* Immersive Floating Navigation Header */}
-      <header className={`fixed w-full top-0 left-0 z-30 transition-all duration-300 ${scrolled ? 'bg-depth-900/80 backdrop-blur-xl border-b border-depth-700/50' : 'bg-gradient-to-b from-depth-900/50 to-transparent backdrop-blur-sm'}`}>
-        
-        <nav className="flex items-center justify-between max-w-7xl mx-auto px-6 py-4">
-          {/* Logo with clean hover effect */}
+      {/* Clean, professional navigation header */}
+      <header className={`fixed w-full top-0 left-0 z-30 transition-all duration-300 ${scrolled ? 'bg-depth-900/80 backdrop-blur-xl shadow-lg border-b border-ocean-500/20' : 'bg-gradient-to-b from-depth-900/50 to-transparent backdrop-blur-sm'}`}>
+        <nav className="flex items-center justify-between max-w-7xl mx-auto px-6 py-4 relative">
+          {/* Clean logo without gimmicks */}
           <div className="flex items-center space-x-3 group">
             <Anchor className="w-8 h-8 text-ocean-400 group-hover:text-ocean-300 transition-colors duration-200" />
             <span className="text-2xl font-bold text-white">
@@ -262,20 +263,23 @@ export default function LandingPage() {
             </span>
           </div>
           
-          {/* Always visible navigation */}
+          {/* Always visible navigation links */}
           <div className="hidden md:flex items-center space-x-8">
-            <a href="#features" className="text-depth-300 hover:text-white transition-colors duration-200 text-sm font-medium">
+            <a href="#features" className="text-depth-300 hover:text-white transition-colors duration-200 text-sm font-medium relative group">
               Features
+              <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-ocean-400/70 group-hover:w-full transition-all duration-200"></span>
             </a>
-            <a href="#resources" className="text-depth-300 hover:text-white transition-colors duration-200 text-sm font-medium">
+            <a href="#resources" className="text-depth-300 hover:text-white transition-colors duration-200 text-sm font-medium relative group">
               Resources
+              <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-ocean-400/70 group-hover:w-full transition-all duration-200"></span>
             </a>
-            <a href="#about" className="text-depth-300 hover:text-white transition-colors duration-200 text-sm font-medium">
+            <a href="#about" className="text-depth-300 hover:text-white transition-colors duration-200 text-sm font-medium relative group">
               About
+              <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-ocean-400/70 group-hover:w-full transition-all duration-200"></span>
             </a>
           </div>
 
-          {/* Auth buttons with enhanced effects */}
+          {/* Clean auth buttons with clear hierarchy */}
           <div className="flex items-center space-x-3">
             <Button
               variant="ghost"
@@ -288,7 +292,9 @@ export default function LandingPage() {
             
             <Button
               onClick={handleSignUp}
-              className="bg-gradient-to-r from-ocean-500 to-abyss-600 hover:from-ocean-400 hover:to-abyss-500 text-white transition-all duration-200"
+              className="bg-gradient-to-r from-ocean-500 to-abyss-600 hover:from-ocean-400 hover:to-abyss-500 
+                text-white shadow-lg shadow-ocean-500/25 hover:shadow-ocean-400/30 
+                transition-all duration-200"
             >
               <UserPlus className="w-4 h-4 mr-2" />
               <span>Sign Up</span>
@@ -337,13 +343,14 @@ export default function LandingPage() {
               }}
             ></div>
             
-            <h1 className={`text-4xl sm:text-5xl lg:text-6xl xl:text-7xl font-bold mb-6 leading-[1.1] tracking-tight relative z-10 ${animationLoaded ? 'opacity-100' : 'opacity-0'} transition-opacity duration-1000`}>
+            <h1 className={`text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-black mb-8 leading-[1.1] tracking-tight relative z-10 ${animationLoaded ? 'opacity-100' : 'opacity-0'} transition-opacity duration-1000`}>
               <span className="block relative mb-2 text-white">
                 <span className="relative">Dive Into the</span>
               </span>
               
               <span className="block relative">
                 <span className="bg-gradient-to-br from-ocean-300 via-abyss-400 to-ocean-500 bg-clip-text text-transparent">Ocean's Depths</span>
+                <span className="absolute -bottom-2 left-0 w-full h-1.5 bg-gradient-to-r from-ocean-400 via-abyss-500 to-ocean-400 rounded-full transform origin-left scale-x-0 animate-grow-x"></span>
               </span>
             </h1>
             
@@ -362,19 +369,28 @@ export default function LandingPage() {
             ></div>
           </div>
 
-          {/* Enhanced subheading with dynamic interactive typography */}
+          {/* Enhanced subheading with custom color palette */}
           <div 
             className={`transition-all duration-1000 ${animationLoaded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}
             style={{ transitionDelay: '600ms' }}
           >
-            <p className="text-lg md:text-xl text-depth-300 mb-10 max-w-2xl mx-auto leading-relaxed">
-              The first <span className="text-ocean-400 font-semibold">blockchain-verified</span> underwater 
-              mining game where your discoveries have <span className="text-abyss-400 font-semibold">real value</span>. 
-              No grinding. Just pure strategy and rewards.
+            <p className="text-lg md:text-xl text-depth-300 mb-12 max-w-3xl mx-auto leading-relaxed">
+              Command your <span className="text-ocean-400 font-semibold relative inline-block group">
+                submarine fleet
+                <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-ocean-400/70 group-hover:w-full transition-all duration-300"></span>
+              </span>, mine precious resources from the 
+              <span className="text-abyss-400 font-semibold relative inline-block group">
+                <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-abyss-400/70 group-hover:w-full transition-all duration-300"></span>
+                &nbsp;ocean floor
+              </span>, and compete with players worldwide in this 
+              <span className="text-ocean-300 font-semibold relative inline-block group">
+                <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-ocean-300/70 group-hover:w-full transition-all duration-300"></span>
+                &nbsp;blockchain-powered adventure
+              </span>.
             </p>
           </div>
 
-          {/* Spectacular CTA buttons with advanced interactive effects */}
+          {/* Clean, modern CTA buttons with clear hierarchy */}
           <div 
             className={`flex flex-col sm:flex-row gap-6 justify-center items-center mb-16 transition-all duration-1000 ${animationLoaded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}
             style={{ transitionDelay: '900ms' }}
@@ -382,7 +398,10 @@ export default function LandingPage() {
             <Button
               size="lg"
               onClick={handleSignUp}
-              className="relative bg-gradient-to-r from-ocean-500 to-abyss-600 hover:from-ocean-400 hover:to-abyss-500 text-white px-12 py-4 text-base font-semibold rounded-xl shadow-2xl shadow-ocean-500/25 hover:shadow-ocean-400/40 hover:-translate-y-0.5 transition-all duration-200 group"
+              className="relative bg-gradient-to-r from-ocean-500 to-abyss-600 hover:from-ocean-400 hover:to-abyss-500 
+                text-white px-12 py-4 text-base font-semibold rounded-xl 
+                shadow-2xl shadow-ocean-500/25 hover:shadow-ocean-400/40 
+                hover:-translate-y-0.5 transition-all duration-200 group"
             >
               <Play className="w-5 h-5 mr-3" />
               <span>Start Your Journey</span>
@@ -393,19 +412,20 @@ export default function LandingPage() {
               size="lg"
               variant="ghost"
               onClick={handleLogin}
-              className="text-depth-200 hover:text-white px-8 py-4 text-base hover:bg-white/5 transition-all duration-200"
+              className="text-depth-200 hover:text-white px-8 py-4 text-base 
+                hover:bg-white/5 transition-all duration-200"
             >
               <LogIn className="w-5 h-5 mr-2" />
               <span>Sign In</span>
             </Button>
           </div>
 
-          {/* Advanced Interactive Submarine Scene */}
+          {/* Advanced Interactive Submarine Scene with responsive sizing */}
           <div 
             className={`relative my-16 max-w-6xl mx-auto transition-all duration-1000 transform ${animationLoaded ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}`}
             style={{ transitionDelay: '1200ms' }}
           >
-            <div className="relative w-full h-64 sm:h-80 lg:h-96 xl:h-[420px] overflow-hidden rounded-3xl bg-gradient-to-b from-blue-900/30 to-slate-900/30 backdrop-blur-sm border border-blue-500/10">
+            <div className="relative w-full h-64 sm:h-80 md:h-96 lg:h-[420px] overflow-hidden rounded-3xl bg-gradient-to-b from-depth-900/30 to-depth-950/30 backdrop-blur-sm border border-ocean-500/10">
               {/* Ocean background with dynamic caustic effect */}
               <div 
                 className="absolute inset-0 bg-cover bg-center opacity-30"
@@ -525,128 +545,204 @@ export default function LandingPage() {
 
           {/* Enhanced Feature Presentation */}
           <div id="features" className={`mt-24 mb-12 text-center transition-all duration-1000 ${animationLoaded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}>
-            <h2 className="text-3xl md:text-4xl font-bold mb-4">
-              <span className="bg-gradient-to-br from-ocean-300 via-abyss-400 to-ocean-500 bg-clip-text text-transparent">
+            <h2 className="text-3xl md:text-4xl font-bold mb-4 relative inline-block">
+              <span className="bg-gradient-to-br from-cyan-300 via-blue-400 to-teal-300 bg-clip-text text-transparent">
                 Explore the Ocean's Depths
               </span>
+              <span className="absolute -bottom-2 left-0 w-full h-1 bg-gradient-to-r from-cyan-400 to-blue-400 rounded-full transform origin-left"></span>
             </h2>
-            <p className="text-depth-300 max-w-2xl mx-auto mb-12 text-lg">
+            <p className="text-slate-300 max-w-2xl mx-auto mb-12 text-lg">
               Discover an immersive underwater experience with cutting-edge blockchain technology
             </p>
           </div>
           
-          <div className="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto px-4">
+          <div className="grid md:grid-cols-3 gap-10 max-w-6xl mx-auto px-4">
             {/* Mine Resources Card */}
-            <Card className="group relative bg-gradient-to-b from-depth-800/90 to-depth-900/90 border border-depth-700/50 backdrop-blur-xl hover:border-ocean-500/30 hover:shadow-xl hover:shadow-ocean-500/10 transition-all duration-300 rounded-2xl overflow-hidden">
+            <Card className="group bg-gradient-to-br from-blue-950/70 to-slate-900/70 border-0 backdrop-blur-lg hover:shadow-xl transition-all duration-500 overflow-hidden relative h-full">
+              {/* Animated border effect */}
+              <div className="absolute inset-0 p-px rounded-2xl overflow-hidden z-0">
+                <div className="absolute inset-0 bg-gradient-to-br from-cyan-600/30 via-transparent to-cyan-600/30 animate-rotate-gradient"></div>
+              </div>
               
-              <CardContent className="p-8">
-                {/* Icon with simple glow */}
-                <div className="mb-6">
-                  <div className="w-16 h-16 mx-auto rounded-2xl bg-gradient-to-br from-ocean-500/20 to-abyss-600/20 flex items-center justify-center group-hover:from-ocean-500/30 group-hover:to-abyss-600/30 transition-colors duration-300">
-                    <Gem className="w-8 h-8 text-ocean-400" />
+              <CardContent className="p-8 relative z-10 flex flex-col h-full">
+                {/* Animated background effect */}
+                <div className="absolute inset-0 bg-gradient-to-br from-cyan-600/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700"></div>
+                
+                {/* Floating Icon */}
+                <div className="relative mb-8">
+                  <div className="absolute -inset-2 rounded-full bg-gradient-to-br from-cyan-500/20 to-transparent blur-xl opacity-0 group-hover:opacity-100 transition-all duration-700 group-hover:animate-pulse-slow"></div>
+                  <div className="relative w-20 h-20 mx-auto rounded-full bg-gradient-to-br from-cyan-900/70 to-blue-900/70 flex items-center justify-center shadow-inner-glow">
+                    <div className="absolute inset-0.5 rounded-full bg-gradient-to-br from-cyan-700/50 to-blue-900/50 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+                    <Gem className="w-10 h-10 text-cyan-400 group-hover:text-cyan-300 relative z-10 transition-all duration-500 transform group-hover:scale-110" />
                   </div>
+                  
+                  {/* Animated particles around icon */}
+                  {[...Array(3)].map((_, i) => (
+                    <div
+                      key={`gem-particle-${i}`}
+                      className="absolute rounded-full bg-cyan-400/40 opacity-0 group-hover:opacity-100"
+                      style={{
+                        width: `${Math.random() * 4 + 2}px`,
+                        height: `${Math.random() * 4 + 2}px`,
+                        top: `${Math.random() * 100}%`,
+                        left: `${Math.random() * 100}%`,
+                        transition: 'opacity 300ms ease-out',
+                        animation: `floatAround 3s ease-in-out infinite ${Math.random() * 2}s`,
+                      }}
+                    ></div>
+                  ))}
                 </div>
                 
                 {/* Enhanced Content */}
-                <h3 className="text-xl font-semibold mb-3 text-white text-center">
+                <h3 className="text-2xl font-bold mb-3 text-white text-center group-hover:text-cyan-300 transition-colors duration-300">
                   Mine Resources
                 </h3>
                 
-                <p className="text-depth-300 text-center leading-relaxed mb-6">
+                <p className="text-slate-300 group-hover:text-slate-200 text-center transition-colors duration-300 leading-relaxed flex-grow">
                   Extract valuable minerals from the ocean floor using advanced submarine equipment. Collect rare resources to build your underwater empire with blockchain-verified authenticity.
                 </p>
                 
                 {/* Feature highlights */}
-                <ul className="space-y-2.5 text-sm text-left">
-                  <li className="flex items-start text-depth-400">
-                    <div className="w-1 h-1 rounded-full bg-ocean-400 mt-2 mr-3 flex-shrink-0"></div>
+                <div className="mt-6 space-y-2 text-sm text-left">
+                  <div className="flex items-center text-cyan-300/80">
+                    <div className="w-1.5 h-1.5 rounded-full bg-cyan-400 mr-2"></div>
                     <span>Discover 15+ rare mineral types</span>
-                  </li>
-                  <li className="flex items-start text-depth-400">
-                    <div className="w-1 h-1 rounded-full bg-ocean-400 mt-2 mr-3 flex-shrink-0"></div>
+                  </div>
+                  <div className="flex items-center text-cyan-300/80">
+                    <div className="w-1.5 h-1.5 rounded-full bg-cyan-400 mr-2"></div>
                     <span>NFT-backed resource ownership</span>
-                  </li>
-                  <li className="flex items-start text-depth-400">
-                    <div className="w-1 h-1 rounded-full bg-ocean-400 mt-2 mr-3 flex-shrink-0"></div>
+                  </div>
+                  <div className="flex items-center text-cyan-300/80">
+                    <div className="w-1.5 h-1.5 rounded-full bg-cyan-400 mr-2"></div>
                     <span>Dynamic resource distribution</span>
-                  </li>
-                </ul>
+                  </div>
+                </div>
               </CardContent>
             </Card>
 
             {/* Upgrade Fleet Card */}
-            <Card className="group relative bg-gradient-to-b from-depth-800/90 to-depth-900/90 border border-depth-700/50 backdrop-blur-xl hover:border-abyss-500/30 hover:shadow-xl hover:shadow-abyss-500/10 transition-all duration-300 rounded-2xl overflow-hidden">
+            <Card className="group bg-gradient-to-br from-blue-950/70 to-slate-900/70 border-0 backdrop-blur-lg hover:shadow-xl transition-all duration-500 overflow-hidden relative h-full">
+              {/* Animated border effect */}
+              <div className="absolute inset-0 p-px rounded-2xl overflow-hidden z-0">
+                <div className="absolute inset-0 bg-gradient-to-br from-blue-600/30 via-transparent to-blue-600/30 animate-rotate-gradient"></div>
+              </div>
               
-              <CardContent className="p-8">
-                {/* Icon with simple glow */}
-                <div className="mb-6">
-                  <div className="w-16 h-16 mx-auto rounded-2xl bg-gradient-to-br from-abyss-500/20 to-ocean-600/20 flex items-center justify-center group-hover:from-abyss-500/30 group-hover:to-ocean-600/30 transition-colors duration-300">
-                    <Wrench className="w-8 h-8 text-abyss-400" />
+              <CardContent className="p-8 relative z-10 flex flex-col h-full">
+                {/* Animated background effect */}
+                <div className="absolute inset-0 bg-gradient-to-br from-blue-600/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700"></div>
+                
+                {/* Floating Icon */}
+                <div className="relative mb-8">
+                  <div className="absolute -inset-2 rounded-full bg-gradient-to-br from-blue-500/20 to-transparent blur-xl opacity-0 group-hover:opacity-100 transition-all duration-700 group-hover:animate-pulse-slow"></div>
+                  <div className="relative w-20 h-20 mx-auto rounded-full bg-gradient-to-br from-blue-900/70 to-indigo-900/70 flex items-center justify-center shadow-inner-glow">
+                    <div className="absolute inset-0.5 rounded-full bg-gradient-to-br from-blue-700/50 to-indigo-900/50 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+                    <Wrench className="w-10 h-10 text-blue-400 group-hover:text-blue-300 relative z-10 transition-all duration-500 transform group-hover:scale-110" />
                   </div>
+                  
+                  {/* Animated particles around icon */}
+                  {[...Array(3)].map((_, i) => (
+                    <div
+                      key={`wrench-particle-${i}`}
+                      className="absolute rounded-full bg-blue-400/40 opacity-0 group-hover:opacity-100"
+                      style={{
+                        width: `${Math.random() * 4 + 2}px`,
+                        height: `${Math.random() * 4 + 2}px`,
+                        top: `${Math.random() * 100}%`,
+                        left: `${Math.random() * 100}%`,
+                        transition: 'opacity 300ms ease-out',
+                        animation: `floatAround 3s ease-in-out infinite ${Math.random() * 2}s`,
+                      }}
+                    ></div>
+                  ))}
                 </div>
                 
                 {/* Enhanced Content */}
-                <h3 className="text-xl font-semibold mb-3 text-white text-center">
+                <h3 className="text-2xl font-bold mb-3 text-white text-center group-hover:text-blue-300 transition-colors duration-300">
                   Upgrade Fleet
                 </h3>
                 
-                <p className="text-depth-300 text-center leading-relaxed mb-6">
+                <p className="text-slate-300 group-hover:text-slate-200 text-center transition-colors duration-300 leading-relaxed flex-grow">
                   Enhance your submarine fleet with cutting-edge technology and equipment. Improve mining efficiency, depth capabilities, and storage to maximize your underwater operations.
                 </p>
                 
                 {/* Feature highlights */}
-                <ul className="space-y-2.5 text-sm text-left">
-                  <li className="flex items-start text-depth-400">
-                    <div className="w-1 h-1 rounded-full bg-abyss-400 mt-2 mr-3 flex-shrink-0"></div>
+                <div className="mt-6 space-y-2 text-sm text-left">
+                  <div className="flex items-center text-blue-300/80">
+                    <div className="w-1.5 h-1.5 rounded-full bg-blue-400 mr-2"></div>
                     <span>Multiple submarine tiers</span>
-                  </li>
-                  <li className="flex items-start text-depth-400">
-                    <div className="w-1 h-1 rounded-full bg-abyss-400 mt-2 mr-3 flex-shrink-0"></div>
+                  </div>
+                  <div className="flex items-center text-blue-300/80">
+                    <div className="w-1.5 h-1.5 rounded-full bg-blue-400 mr-2"></div>
                     <span>Customizable equipment loadouts</span>
-                  </li>
-                  <li className="flex items-start text-depth-400">
-                    <div className="w-1 h-1 rounded-full bg-abyss-400 mt-2 mr-3 flex-shrink-0"></div>
+                  </div>
+                  <div className="flex items-center text-blue-300/80">
+                    <div className="w-1.5 h-1.5 rounded-full bg-blue-400 mr-2"></div>
                     <span>Specialized mining capabilities</span>
-                  </li>
-                </ul>
+                  </div>
+                </div>
               </CardContent>
             </Card>
 
             {/* Compete Globally Card */}
-            <Card className="group relative bg-gradient-to-b from-depth-800/90 to-depth-900/90 border border-depth-700/50 backdrop-blur-xl hover:border-cyan-500/30 hover:shadow-xl hover:shadow-cyan-500/10 transition-all duration-300 rounded-2xl overflow-hidden">
+            <Card className="group bg-gradient-to-br from-blue-950/70 to-slate-900/70 border-0 backdrop-blur-lg hover:shadow-xl transition-all duration-500 overflow-hidden relative h-full">
+              {/* Animated border effect */}
+              <div className="absolute inset-0 p-px rounded-2xl overflow-hidden z-0">
+                <div className="absolute inset-0 bg-gradient-to-br from-teal-600/30 via-transparent to-teal-600/30 animate-rotate-gradient"></div>
+              </div>
               
-              <CardContent className="p-8">
-                {/* Icon with simple glow */}
-                <div className="mb-6">
-                  <div className="w-16 h-16 mx-auto rounded-2xl bg-gradient-to-br from-cyan-500/20 to-teal-600/20 flex items-center justify-center group-hover:from-cyan-500/30 group-hover:to-teal-600/30 transition-colors duration-300">
-                    <BarChart3 className="w-8 h-8 text-cyan-400" />
+              <CardContent className="p-8 relative z-10 flex flex-col h-full">
+                {/* Animated background effect */}
+                <div className="absolute inset-0 bg-gradient-to-br from-teal-600/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700"></div>
+                
+                {/* Floating Icon */}
+                <div className="relative mb-8">
+                  <div className="absolute -inset-2 rounded-full bg-gradient-to-br from-teal-500/20 to-transparent blur-xl opacity-0 group-hover:opacity-100 transition-all duration-700 group-hover:animate-pulse-slow"></div>
+                  <div className="relative w-20 h-20 mx-auto rounded-full bg-gradient-to-br from-teal-900/70 to-emerald-900/70 flex items-center justify-center shadow-inner-glow">
+                    <div className="absolute inset-0.5 rounded-full bg-gradient-to-br from-teal-700/50 to-emerald-900/50 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+                    <BarChart3 className="w-10 h-10 text-teal-400 group-hover:text-teal-300 relative z-10 transition-all duration-500 transform group-hover:scale-110" />
                   </div>
+                  
+                  {/* Animated particles around icon */}
+                  {[...Array(3)].map((_, i) => (
+                    <div
+                      key={`chart-particle-${i}`}
+                      className="absolute rounded-full bg-teal-400/40 opacity-0 group-hover:opacity-100"
+                      style={{
+                        width: `${Math.random() * 4 + 2}px`,
+                        height: `${Math.random() * 4 + 2}px`,
+                        top: `${Math.random() * 100}%`,
+                        left: `${Math.random() * 100}%`,
+                        transition: 'opacity 300ms ease-out',
+                        animation: `floatAround 3s ease-in-out infinite ${Math.random() * 2}s`,
+                      }}
+                    ></div>
+                  ))}
                 </div>
                 
                 {/* Enhanced Content */}
-                <h3 className="text-xl font-semibold mb-3 text-white text-center">
+                <h3 className="text-2xl font-bold mb-3 text-white text-center group-hover:text-teal-300 transition-colors duration-300">
                   Compete Globally
                 </h3>
                 
-                <p className="text-depth-300 text-center leading-relaxed mb-6">
+                <p className="text-slate-300 group-hover:text-slate-200 text-center transition-colors duration-300 leading-relaxed flex-grow">
                   Challenge players from around the world in this competitive underwater ecosystem. Climb the global leaderboards and earn exclusive rewards for your achievements.
                 </p>
                 
                 {/* Feature highlights */}
-                <ul className="space-y-2.5 text-sm text-left">
-                  <li className="flex items-start text-depth-400">
-                    <div className="w-1 h-1 rounded-full bg-cyan-400 mt-2 mr-3 flex-shrink-0"></div>
+                <div className="mt-6 space-y-2 text-sm text-left">
+                  <div className="flex items-center text-teal-300/80">
+                    <div className="w-1.5 h-1.5 rounded-full bg-teal-400 mr-2"></div>
                     <span>Seasonal tournaments & prizes</span>
-                  </li>
-                  <li className="flex items-start text-depth-400">
-                    <div className="w-1 h-1 rounded-full bg-cyan-400 mt-2 mr-3 flex-shrink-0"></div>
+                  </div>
+                  <div className="flex items-center text-teal-300/80">
+                    <div className="w-1.5 h-1.5 rounded-full bg-teal-400 mr-2"></div>
                     <span>Guild system for team play</span>
-                  </li>
-                  <li className="flex items-start text-depth-400">
-                    <div className="w-1 h-1 rounded-full bg-cyan-400 mt-2 mr-3 flex-shrink-0"></div>
+                  </div>
+                  <div className="flex items-center text-teal-300/80">
+                    <div className="w-1.5 h-1.5 rounded-full bg-teal-400 mr-2"></div>
                     <span>Exclusive reward NFTs</span>
-                  </li>
-                </ul>
+                  </div>
+                </div>
               </CardContent>
             </Card>
           </div>
@@ -656,10 +752,12 @@ export default function LandingPage() {
             <div className="absolute -left-16 -top-16 w-32 h-32 bg-blue-500/20 rounded-full blur-3xl"></div>
             <div className="absolute -right-16 -bottom-16 w-32 h-32 bg-cyan-500/20 rounded-full blur-3xl"></div>
             
-            <h2 className="text-center text-3xl md:text-4xl font-bold mb-16">
-              <span className="bg-gradient-to-br from-ocean-300 via-abyss-400 to-cyan-300 bg-clip-text text-transparent">
+            <h2 className="text-center text-3xl md:text-4xl font-bold mb-16 relative inline-block w-full">
+              <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-24 h-24 bg-cyan-500/10 rounded-full blur-3xl"></div>
+              <span className="relative bg-gradient-to-br from-blue-300 via-cyan-400 to-teal-300 bg-clip-text text-transparent">
                 Thriving Underwater Ecosystem
               </span>
+              <div className="absolute -bottom-4 left-1/2 transform -translate-x-1/2 w-32 h-1 bg-gradient-to-r from-transparent via-cyan-400 to-transparent"></div>
             </h2>
             
             <div className="relative w-full h-[500px] rounded-3xl overflow-hidden bg-gradient-to-b from-blue-900/20 to-slate-900/30 backdrop-blur-sm border border-cyan-500/10">
@@ -832,64 +930,81 @@ export default function LandingPage() {
           
           {/* Section header with shimmering effect */}
           <div className="relative p-8 text-center mb-12">
-            <h2 className="text-3xl md:text-4xl font-bold mb-6">
-              <span className="bg-gradient-to-br from-ocean-300 via-abyss-300 to-cyan-300 bg-clip-text text-transparent">
+            <h2 className="text-3xl md:text-4xl font-bold relative inline-block mb-6">
+              <span className="bg-gradient-to-br from-cyan-300 via-blue-300 to-teal-300 bg-clip-text text-transparent animate-shimmer">
                 Explore the Underwater Economy
               </span>
+              <div className="absolute -bottom-3 left-0 w-full h-1 bg-gradient-to-r from-transparent via-cyan-400 to-transparent"></div>
             </h2>
-            <p className="text-depth-300 max-w-2xl mx-auto text-base">
+            <p className="text-slate-300 max-w-2xl mx-auto">
               Join thousands of explorers in this thriving blockchain-powered underwater ecosystem
             </p>
           </div>
           
           {/* Stats Grid with Enhanced Styling and Hover Effects */}
-            <div className="relative grid grid-cols-2 lg:grid-cols-4 gap-8 lg:gap-12 text-center px-8 pb-12">
+            <div className="relative grid grid-cols-2 md:grid-cols-4 gap-8 text-center px-8 pb-12">
               {/* Active Miners Stat */}
               <div className="group relative">
+                <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/5 to-transparent rounded-lg opacity-0 group-hover:opacity-100 transform scale-90 group-hover:scale-100 transition-all duration-500"></div>
+                <div className="absolute inset-0 p-px rounded-lg overflow-hidden z-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500">
+                  <div className="absolute inset-0 bg-gradient-to-br from-cyan-600/30 via-transparent to-cyan-600/30 animate-rotate-gradient"></div>
+                </div>
                 <div className="relative py-8 px-4">
-                  <div className="mb-4 mx-auto w-12 h-12 rounded-full bg-gradient-to-br from-ocean-900/50 to-abyss-900/50 flex items-center justify-center">
-                    <Users className="w-6 h-6 text-ocean-400" />
+                  <div className="mb-4 mx-auto w-12 h-12 rounded-full bg-gradient-to-br from-cyan-900/50 to-blue-900/50 flex items-center justify-center">
+                    <Users className="w-6 h-6 text-cyan-400" />
                   </div>
-                  <div className="text-5xl lg:text-6xl font-bold mb-2">
-                    <span className="bg-gradient-to-br from-ocean-300 to-abyss-400 bg-clip-text text-transparent">10K+</span>
+                  <div className="text-4xl font-extrabold mb-1">
+                    <span className="bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent">10K+</span>
                   </div>
-                  <div className="text-base text-depth-400 font-medium">Active Miners</div>
+                  <div className="text-slate-300 font-medium">Active Miners</div>
                 </div>
               </div>
               {/* Resources Mined Stat */}
               <div className="group relative">
+                <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-transparent rounded-lg opacity-0 group-hover:opacity-100 transform scale-90 group-hover:scale-100 transition-all duration-500"></div>
+                <div className="absolute inset-0 p-px rounded-lg overflow-hidden z-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500">
+                  <div className="absolute inset-0 bg-gradient-to-br from-blue-600/30 via-transparent to-blue-600/30 animate-rotate-gradient"></div>
+                </div>
                 <div className="relative py-8 px-4">
-                  <div className="mb-4 mx-auto w-12 h-12 rounded-full bg-gradient-to-br from-abyss-900/50 to-ocean-900/50 flex items-center justify-center">
-                    <Gem className="w-6 h-6 text-abyss-400" />
+                  <div className="mb-4 mx-auto w-12 h-12 rounded-full bg-gradient-to-br from-blue-900/50 to-indigo-900/50 flex items-center justify-center">
+                    <Gem className="w-6 h-6 text-blue-400" />
                   </div>
-                  <div className="text-5xl lg:text-6xl font-bold mb-2">
-                    <span className="bg-gradient-to-br from-abyss-300 to-ocean-400 bg-clip-text text-transparent">50M+</span>
+                  <div className="text-4xl font-extrabold mb-1">
+                    <span className="bg-gradient-to-r from-blue-400 to-indigo-400 bg-clip-text text-transparent">50M+</span>
                   </div>
-                  <div className="text-base text-depth-400 font-medium">Resources Mined</div>
+                  <div className="text-slate-300 font-medium">Resources Mined</div>
                 </div>
               </div>
               {/* Submarines Stat */}
               <div className="group relative">
+                <div className="absolute inset-0 bg-gradient-to-br from-teal-500/5 to-transparent rounded-lg opacity-0 group-hover:opacity-100 transform scale-90 group-hover:scale-100 transition-all duration-500"></div>
+                <div className="absolute inset-0 p-px rounded-lg overflow-hidden z-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500">
+                  <div className="absolute inset-0 bg-gradient-to-br from-teal-600/30 via-transparent to-teal-600/30 animate-rotate-gradient"></div>
+                </div>
                 <div className="relative py-8 px-4">
-                  <div className="mb-4 mx-auto w-12 h-12 rounded-full bg-gradient-to-br from-cyan-900/50 to-teal-900/50 flex items-center justify-center">
-                    <Anchor className="w-6 h-6 text-cyan-400" />
+                  <div className="mb-4 mx-auto w-12 h-12 rounded-full bg-gradient-to-br from-teal-900/50 to-emerald-900/50 flex items-center justify-center">
+                    <Anchor className="w-6 h-6 text-teal-400" />
                   </div>
-                  <div className="text-5xl lg:text-6xl font-bold mb-2">
-                    <span className="bg-gradient-to-br from-cyan-300 to-teal-400 bg-clip-text text-transparent">8K+</span>
+                  <div className="text-4xl font-extrabold mb-1">
+                    <span className="bg-gradient-to-r from-teal-400 to-emerald-400 bg-clip-text text-transparent">8K+</span>
                   </div>
-                  <div className="text-base text-depth-400 font-medium">Submarines Built</div>
+                  <div className="text-slate-300 font-medium">Submarines Built</div>
                 </div>
               </div>
               {/* Trading Volume */}
               <div className="group relative">
+                <div className="absolute inset-0 bg-gradient-to-br from-purple-500/5 to-transparent rounded-lg opacity-0 group-hover:opacity-100 transform scale-90 group-hover:scale-100 transition-all duration-500"></div>
+                <div className="absolute inset-0 p-px rounded-lg overflow-hidden z-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500">
+                  <div className="absolute inset-0 bg-gradient-to-br from-purple-600/30 via-transparent to-purple-600/30 animate-rotate-gradient"></div>
+                </div>
                 <div className="relative py-8 px-4">
                   <div className="mb-4 mx-auto w-12 h-12 rounded-full bg-gradient-to-br from-purple-900/50 to-indigo-900/50 flex items-center justify-center">
                     <BarChart3 className="w-6 h-6 text-purple-400" />
                   </div>
-                  <div className="text-5xl lg:text-6xl font-bold mb-2">
-                    <span className="bg-gradient-to-br from-purple-300 to-indigo-400 bg-clip-text text-transparent">120K</span>
+                  <div className="text-4xl font-extrabold mb-1">
+                    <span className="bg-gradient-to-r from-purple-400 to-indigo-400 bg-clip-text text-transparent">120K</span>
                   </div>
-                  <div className="text-base text-depth-400 font-medium">Daily Trades</div>
+                  <div className="text-slate-300 font-medium">Daily Trades</div>
                 </div>
               </div>
             </div>
@@ -1010,90 +1125,89 @@ export default function LandingPage() {
           </div>
         </div>
       {/* Enhanced Footer */}
-      <footer className="relative z-10 border-t border-depth-800 bg-depth-950 pt-12 pb-8 px-6">
+      <footer className="relative z-10 border-t border-slate-800/50 pt-16 pb-12 px-6 bg-slate-900/80">
         <div className="max-w-6xl mx-auto">
           {/* Footer Top Section */}
-          <div className="grid md:grid-cols-12 gap-12 mb-12">
-            {/* Brand - takes more space */}
-            <div className="md:col-span-4">
+          <div className="grid md:grid-cols-4 gap-10 mb-12">
+            {/* Brand */}
+            <div className="md:col-span-1">
               <div className="flex items-center space-x-2 mb-4">
-                <Anchor className="w-7 h-7 text-ocean-400" />
-                <span className="text-xl font-bold text-white">AbyssX</span>
+                <Anchor className="w-8 h-8 text-cyan-400" />
+                <span className="text-2xl font-bold bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent">
+                  AbyssX
+                </span>
               </div>
-              <p className="text-depth-400 text-sm leading-relaxed mb-6">
+              <p className="text-slate-400 mb-6">
                 The next-generation blockchain-powered deep sea mining adventure.
               </p>
               <div className="flex space-x-4">
-                <a href="#" className="text-depth-400 hover:text-ocean-400 transition-colors duration-200">
+                <a href="#" className="text-slate-400 hover:text-cyan-400 transition-colors duration-300">
                   <Twitter className="w-5 h-5" />
                 </a>
-                <a href="#" className="text-depth-400 hover:text-ocean-400 transition-colors duration-200">
+                <a href="#" className="text-slate-400 hover:text-cyan-400 transition-colors duration-300">
                   <DiscordIcon className="w-5 h-5" />
                 </a>
               </div>
             </div>
             
-            {/* Links - condensed */}
-            <div className="md:col-span-8 grid grid-cols-2 sm:grid-cols-3 gap-8">
-              {/* Quick Links */}
-              <div>
-                <h4 className="text-white font-semibold mb-4 text-sm">Quick Links</h4>
-                <ul className="space-y-2.5">
-                  <li>
-                    <a href="#" className="text-depth-400 hover:text-ocean-400 transition-colors duration-200 text-sm">Features</a>
-                  </li>
-                  <li>
-                    <a href="#" className="text-depth-400 hover:text-ocean-400 transition-colors duration-200 text-sm">Leaderboard</a>
-                  </li>
-                  <li>
-                    <a href="#" className="text-depth-400 hover:text-ocean-400 transition-colors duration-200 text-sm">Marketplace</a>
-                  </li>
-                  <li>
-                    <a href="#" className="text-depth-400 hover:text-ocean-400 transition-colors duration-200 text-sm">Roadmap</a>
-                  </li>
-                </ul>
-              </div>
-              
-              {/* Resources */}
-              <div>
-                <h4 className="text-white font-semibold mb-4 text-sm">Resources</h4>
-                <ul className="space-y-2.5">
-                  <li>
-                    <a href="#" className="text-depth-400 hover:text-ocean-400 transition-colors duration-200 text-sm">Documentation</a>
-                  </li>
-                  <li>
-                    <a href="#" className="text-depth-400 hover:text-ocean-400 transition-colors duration-200 text-sm">Tutorials</a>
-                  </li>
-                  <li>
-                    <a href="#" className="text-depth-400 hover:text-ocean-400 transition-colors duration-200 text-sm">FAQs</a>
-                  </li>
-                  <li>
-                    <a href="#" className="text-depth-400 hover:text-ocean-400 transition-colors duration-200 text-sm">Support</a>
-                  </li>
-                </ul>
-              </div>
-              
-              {/* Legal */}
-              <div>
-                <h4 className="text-white font-semibold mb-4 text-sm">Legal</h4>
-                <ul className="space-y-2.5">
-                  <li>
-                    <a href="#" className="text-depth-400 hover:text-ocean-400 transition-colors duration-200 text-sm">Privacy</a>
-                  </li>
-                  <li>
-                    <a href="#" className="text-depth-400 hover:text-ocean-400 transition-colors duration-200 text-sm">Terms</a>
-                  </li>
-                  <li>
-                    <a href="#" className="text-depth-400 hover:text-ocean-400 transition-colors duration-200 text-sm">Cookies</a>
-                  </li>
-                </ul>
+            {/* Quick Links */}
+            <div>
+              <h4 className="text-white font-semibold mb-4">Quick Links</h4>
+              <ul className="space-y-2">
+                <li>
+                  <a href="#" className="text-slate-400 hover:text-cyan-400 transition-colors duration-300">Features</a>
+                </li>
+                <li>
+                  <a href="#" className="text-slate-400 hover:text-cyan-400 transition-colors duration-300">Leaderboard</a>
+                </li>
+                <li>
+                  <a href="#" className="text-slate-400 hover:text-cyan-400 transition-colors duration-300">Marketplace</a>
+                </li>
+                <li>
+                  <a href="#" className="text-slate-400 hover:text-cyan-400 transition-colors duration-300">Roadmap</a>
+                </li>
+              </ul>
+            </div>
+            
+            {/* Resources */}
+            <div>
+              <h4 className="text-white font-semibold mb-4">Resources</h4>
+              <ul className="space-y-2">
+                <li>
+                  <a href="#" className="text-slate-400 hover:text-cyan-400 transition-colors duration-300">Documentation</a>
+                </li>
+                <li>
+                  <a href="#" className="text-slate-400 hover:text-cyan-400 transition-colors duration-300">Tutorials</a>
+                </li>
+                <li>
+                  <a href="#" className="text-slate-400 hover:text-cyan-400 transition-colors duration-300">FAQs</a>
+                </li>
+                <li>
+                  <a href="#" className="text-slate-400 hover:text-cyan-400 transition-colors duration-300">Support</a>
+                </li>
+              </ul>
+            </div>
+            
+            {/* Newsletter */}
+            <div>
+              <h4 className="text-white font-semibold mb-4">Stay Updated</h4>
+              <p className="text-slate-400 mb-4">Subscribe to our newsletter for the latest updates and features.</p>
+              <div className="flex">
+                <input 
+                  type="email" 
+                  placeholder="Your email" 
+                  className="bg-slate-800 text-slate-200 px-4 py-2 rounded-l-md border border-slate-700 focus:outline-none focus:border-cyan-500 w-full"
+                />
+                <Button className="rounded-l-none bg-cyan-500 hover:bg-cyan-600">
+                  Subscribe
+                </Button>
               </div>
             </div>
           </div>
           
           {/* Copyright */}
-          <div className="pt-8 border-t border-depth-800 text-center">
-            <p className="text-depth-500 text-sm">© 2025 AbyssX. All rights reserved.</p>
+          <div className="pt-8 border-t border-slate-800 text-center">
+            <p className="text-slate-400 text-sm">© 2025 AbyssX. Dive deep, mine smart, conquer the seas.</p>
           </div>
         </div>
       </footer>

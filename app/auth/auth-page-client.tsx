@@ -45,10 +45,10 @@ function AuthPageContent() {
 
   if (!mounted) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-b from-depth-950 via-depth-900 to-depth-950 flex items-center justify-center">
         <div className="text-center">
-          <Loader2 className="w-8 h-8 text-cyan-400 animate-spin mx-auto mb-4" />
-          <p className="text-slate-400">Loading...</p>
+          <Loader2 className="w-8 h-8 text-ocean-400 animate-spin mx-auto mb-4" />
+          <p className="text-depth-400">Loading...</p>
         </div>
       </div>
     )
@@ -115,32 +115,32 @@ function AuthPageContent() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center px-4">
+    <div className="min-h-screen bg-gradient-to-b from-depth-950 via-depth-900 to-depth-950 flex items-center justify-center px-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <Button
             variant="ghost"
             onClick={() => router.push("/")}
-            className="inline-flex items-center text-slate-400 hover:text-white mb-6 transition-colors"
+            className="inline-flex items-center text-depth-400 hover:text-white mb-6 transition-colors"
           >
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back to Home
           </Button>
 
           <div className="flex items-center justify-center mb-4">
-            <Anchor className="w-8 h-8 text-cyan-400 mr-2" />
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent">
+            <Anchor className="w-8 h-8 text-ocean-400 mr-2" />
+            <h1 className="text-3xl font-bold bg-gradient-to-r from-ocean-400 to-abyss-400 bg-clip-text text-transparent">
               AbyssX
             </h1>
           </div>
 
           <h2 className="text-2xl font-bold text-white mb-2">{isSignUp ? "Create Account" : "Welcome Back"}</h2>
-          <p className="text-slate-400">
+          <p className="text-depth-400">
             {isSignUp ? "Join the deep sea mining adventure" : "Sign in to continue your journey"}
           </p>
         </div>
 
-        <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl p-6 border border-slate-700">
+        <div className="bg-depth-800/50 backdrop-blur-sm rounded-xl p-6 border border-depth-700">
           {error && (
             <Alert className="mb-4 border-red-500/30 bg-red-900/50">
               <AlertCircle className="h-4 w-4" />
@@ -186,38 +186,38 @@ function AuthPageContent() {
 
           <div className="relative mb-4">
             <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-slate-600"></div>
+              <div className="w-full border-t border-depth-600"></div>
             </div>
             <div className="relative flex justify-center text-sm">
-              <span className="px-2 bg-slate-800 text-slate-400">or</span>
+              <span className="px-2 bg-depth-800 text-depth-400">or</span>
             </div>
           </div>
 
           <form onSubmit={handleEmailAuth} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="email" className="text-slate-300">
+              <Label htmlFor="email" className="text-depth-300">
                 Email
               </Label>
               <div className="relative">
-                <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-4 h-4" />
+                <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-depth-400 w-4 h-4" />
                 <Input
                   id="email"
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
-                  className="pl-10 bg-slate-700 border-slate-600 text-white placeholder-slate-400 focus:border-cyan-500 focus:ring-cyan-500"
+                  className="pl-10 bg-depth-700 border-depth-600 text-white placeholder-depth-400 focus:border-ocean-500 focus:ring-ocean-500"
                   placeholder="Enter your email"
                 />
               </div>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="password" className="text-slate-300">
+              <Label htmlFor="password" className="text-depth-300">
                 Password
               </Label>
               <div className="relative">
-                <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-4 h-4" />
+                <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-depth-400 w-4 h-4" />
                 <Input
                   id="password"
                   type={showPassword ? "text" : "password"}
@@ -225,7 +225,7 @@ function AuthPageContent() {
                   onChange={(e) => setPassword(e.target.value)}
                   required
                   minLength={6}
-                  className="pl-10 pr-10 bg-slate-700 border-slate-600 text-white placeholder-slate-400 focus:border-cyan-500 focus:ring-cyan-500"
+                  className="pl-10 pr-10 bg-depth-700 border-depth-600 text-white placeholder-depth-400 focus:border-ocean-500 focus:ring-ocean-500"
                   placeholder="Enter your password"
                 />
                 <Button
@@ -235,7 +235,7 @@ function AuthPageContent() {
                   className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
                   onClick={() => setShowPassword(!showPassword)}
                 >
-                  {showPassword ? <EyeOff className="h-4 w-4 text-slate-400" /> : <Eye className="h-4 w-4 text-slate-400" />}
+                  {showPassword ? <EyeOff className="h-4 w-4 text-depth-400" /> : <Eye className="h-4 w-4 text-depth-400" />}
                 </Button>
               </div>
             </div>
@@ -243,7 +243,7 @@ function AuthPageContent() {
             <Button
               type="submit"
               disabled={isLoading}
-              className="w-full bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white font-medium"
+              className="w-full bg-gradient-to-r from-ocean-500 to-abyss-600 hover:from-ocean-600 hover:to-abyss-700 text-white font-medium"
             >
               {isLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
               {isSignUp ? "Create Account" : "Sign In"}
@@ -251,13 +251,13 @@ function AuthPageContent() {
           </form>
 
           <div className="mt-6 text-center">
-            <Button variant="link" onClick={toggleMode} className="text-cyan-400 hover:text-cyan-300 text-sm p-0">
+            <Button variant="link" onClick={toggleMode} className="text-ocean-400 hover:text-ocean-300 text-sm p-0">
               {isSignUp ? "Already have an account? Sign in" : "Don't have an account? Sign up"}
             </Button>
           </div>
         </div>
 
-        <p className="text-xs text-slate-500 text-center mt-6">
+        <p className="text-xs text-depth-500 text-center mt-6">
           By continuing, you agree to our Terms of Service and Privacy Policy
         </p>
       </div>
@@ -269,10 +269,10 @@ export default function AuthPageClient() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen bg-gradient-to-b from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center">
+        <div className="min-h-screen bg-gradient-to-b from-depth-950 via-depth-900 to-depth-950 flex items-center justify-center">
           <div className="text-center">
-            <Loader2 className="w-8 h-8 text-cyan-400 animate-spin mx-auto mb-4" />
-            <p className="text-slate-400">Loading...</p>
+            <Loader2 className="w-8 h-8 text-ocean-400 animate-spin mx-auto mb-4" />
+            <p className="text-depth-400">Loading...</p>
           </div>
         </div>
       }

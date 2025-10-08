@@ -2,7 +2,9 @@ import type { Config } from "tailwindcss";
 
 const config: Config = {
 		darkMode: ["class"],
-		safelist: [
+			 safelist: [
+				// Core body/layout classes to prevent purge removal
+				'min-h-screen', 'bg-depth-950', 'font-sans', 'antialiased',
 			// For AnimatedFish and Seaweed dynamic color classes
 			'bg-cyan-500/40', 'bg-cyan-400/70', 'bg-cyan-300/40',
 			'bg-blue-500/40', 'bg-blue-400/70', 'bg-blue-300/40',
@@ -15,12 +17,14 @@ const config: Config = {
 			'bg-green-600/40', 'bg-green-400/30', 'bg-green-400/20',
 			'bg-emerald-600/40', 'bg-emerald-400/30', 'bg-emerald-400/20',
 		],
-    content: [
-    "./pages/**/*.{js,ts,jsx,tsx,mdx}",
-    "./components/**/*.{js,ts,jsx,tsx,mdx}",
-    "./app/**/*.{js,ts,jsx,tsx,mdx}",
-    "*.{js,ts,jsx,tsx,mdx}"
-  ],
+	    // NOTE: Removed root-level wildcard to avoid scanning node_modules / build output.
+	    // If you add new directories with JSX/TSX, include them explicitly here.
+	    content: [
+	    "./pages/**/*.{js,ts,jsx,tsx,mdx}",
+	    "./components/**/*.{js,ts,jsx,tsx,mdx}",
+	    "./app/**/*.{js,ts,jsx,tsx,mdx}",
+	    "./lib/**/*.{js,ts,jsx,tsx,mdx}"
+	  ],
   theme: {
 		 extend: {
 				keyframes: {
@@ -65,8 +69,23 @@ const config: Config = {
 					'accordion-up': 'accordion-up 0.2s ease-out',
 					shimmer: 'shimmer 4s linear infinite',
 					float: 'float 4s ease-in-out infinite',
+					'float-slow': 'float 6s ease-in-out infinite',
+					'float-medium': 'float 4s ease-in-out infinite',
+					'float-fast': 'float 3s ease-in-out infinite',
 					glow: 'glow 2s ease-in-out infinite',
 					spinSlow: 'spinSlow 8s linear infinite',
+				},
+				animationDelay: {
+					'0': '0ms',
+					'75': '75ms',
+					'100': '100ms',
+					'150': '150ms',
+					'200': '200ms',
+					'300': '300ms',
+					'500': '500ms',
+					'700': '700ms',
+					'1000': '1000ms',
+					'2000': '2000ms',
 				},
 				boxShadow: {
 					'glow': '0 0 16px 2px rgba(56, 189, 248, 0.7)',
@@ -81,45 +100,6 @@ const config: Config = {
   		colors: {
   			background: 'hsl(var(--background))',
   			foreground: 'hsl(var(--foreground))',
-  			ocean: {
-  				'50': '#e6f7ff',
-  				'100': '#b3e5ff',
-  				'200': '#80d4ff',
-  				'300': '#4dc2ff',
-  				'400': '#1ab1ff',
-  				'500': '#0891b2',
-  				'600': '#0e7490',
-  				'700': '#155e75',
-  				'800': '#164e63',
-  				'900': '#0c3544',
-  				'950': '#042f3e'
-  			},
-  			abyss: {
-  				'50': '#f0f9ff',
-  				'100': '#e0f2fe',
-  				'200': '#bae6fd',
-  				'300': '#7dd3fc',
-  				'400': '#38bdf8',
-  				'500': '#0ea5e9',
-  				'600': '#0284c7',
-  				'700': '#0369a1',
-  				'800': '#075985',
-  				'900': '#0c4a6e',
-  				'950': '#082f49'
-  			},
-  			depth: {
-  				'50': '#f8fafc',
-  				'100': '#f1f5f9',
-  				'200': '#e2e8f0',
-  				'300': '#cbd5e1',
-  				'400': '#94a3b8',
-  				'500': '#64748b',
-  				'600': '#475569',
-  				'700': '#334155',
-  				'800': '#1e293b',
-  				'900': '#0f172a',
-  				'950': '#020617'
-  			},
   			card: {
   				DEFAULT: 'hsl(var(--card))',
   				foreground: 'hsl(var(--card-foreground))'
@@ -167,6 +147,46 @@ const config: Config = {
   				'accent-foreground': 'hsl(var(--sidebar-accent-foreground))',
   				border: 'hsl(var(--sidebar-border))',
   				ring: 'hsl(var(--sidebar-ring))'
+  			},
+  			// Custom semantic color palette for AbyssX
+  			ocean: {
+  				50: '#e6f7ff',
+  				100: '#b3e5ff',
+  				200: '#80d4ff',
+  				300: '#4dc2ff',
+  				400: '#1ab1ff',
+  				500: '#0891b2', // Primary brand color
+  				600: '#0e7490',
+  				700: '#155e75',
+  				800: '#164e63',
+  				900: '#0c3544',
+  				950: '#042f3e',
+  			},
+  			abyss: {
+  				50: '#f0f9ff',
+  				100: '#e0f2fe',
+  				200: '#bae6fd',
+  				300: '#7dd3fc',
+  				400: '#38bdf8',
+  				500: '#0ea5e9', // Accent color
+  				600: '#0284c7',
+  				700: '#0369a1',
+  				800: '#075985',
+  				900: '#0c4a6e',
+  				950: '#082f49',
+  			},
+  			depth: {
+  				50: '#f8fafc',
+  				100: '#f1f5f9',
+  				200: '#e2e8f0',
+  				300: '#cbd5e1',
+  				400: '#94a3b8',
+  				500: '#64748b',
+  				600: '#475569',
+  				700: '#334155',
+  				800: '#1e293b',
+  				900: '#0f172a', // Dark UI backgrounds
+  				950: '#020617',
   			}
   		},
   		borderRadius: {

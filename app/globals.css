@@ -1,28 +1,12 @@
-@import url('https://fonts./* Use will-change sparingly */
-@keyframes bubbleRise {
-  0% {
-    transform: translate3d(0, 100vh, 0) scale(0.1);
-    opacity: 0;
-  }
-  20% {
-    opacity: var(--opacity, 0.3);
-  }
-  80% {
-    opacity: var(--opacity, 0.3);
-  }
-  100% {
-    transform: translate3d(calc(var(--drift, 0) * 100px), -100px, 0) scale(var(--scale, 1));
-    opacity: 0;
-  }
-}s2?family=Inter:wght@300;400;500;600;700;800;900&family=Space+Grotesk:wght@400;500;600;700&display=swap');
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-@import '../styles/blockchain-effects.css';
-@import '../styles/submarine-selection.css';
 
+/* EMERGENCY: Ensure body always has minimum styling even if classes fail to apply */
 body {
+  min-height: 100vh;
+  background-color: #020617; /* bg-depth-950 fallback */
+  color: #e6f6ff; /* Light text */
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
   overflow-x: hidden;
   font-feature-settings: 'cv05' 1, 'ss01' 1;
@@ -32,7 +16,7 @@ body {
 
 h1, h2, h3, h4, h5, h6 {
   font-family: 'Space Grotesk', 'Inter', sans-serif;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.02em; /* Tighter tracking for modern feel */
 }
 
 @layer utilities {
@@ -41,10 +25,10 @@ h1, h2, h3, h4, h5, h6 {
   }
 }
 
-/* Ocean Bubble Animations */
+/* Ocean Bubble Animations - Optimized with GPU acceleration */
 @keyframes bubbleRise {
   0% {
-    transform: translateY(100vh) scale(0.1);
+    transform: translate3d(0, 0, 0) scale(0.8);
     opacity: 0;
   }
   20% {
@@ -54,7 +38,7 @@ h1, h2, h3, h4, h5, h6 {
     opacity: var(--opacity, 0.3);
   }
   100% {
-    transform: translateY(-100px) translateX(calc(var(--drift, 0) * 100px)) scale(var(--scale, 1));
+    transform: translate3d(calc(var(--drift, 0) * 30px), -100vh, 0) scale(var(--scale, 1));
     opacity: 0;
   }
 }
@@ -129,9 +113,7 @@ h1, h2, h3, h4, h5, h6 {
     --sidebar-border: 240 3.7% 15.9%;
     --sidebar-ring: 217.2 91.2% 59.8%;
   }
-}
 
-@layer base {
   * {
     @apply border-border;
   }

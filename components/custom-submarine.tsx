@@ -28,12 +28,22 @@ export const CustomSubmarine: React.FC<CustomSubmarineProps> = ({
           strokeWidth="2"
         />
         
-        {/* Submarine Hull Segments */}
-        <ellipse cx="120" cy="120" rx="20" ry="45" fill="url(#hullSegment)" opacity="0.6" />
-        <ellipse cx="160" cy="120" rx="20" ry="45" fill="url(#hullSegment)" opacity="0.4" />
-        <ellipse cx="200" cy="120" rx="20" ry="45" fill="url(#hullSegment)" opacity="0.6" />
-        <ellipse cx="240" cy="120" rx="20" ry="45" fill="url(#hullSegment)" opacity="0.4" />
-        <ellipse cx="280" cy="120" rx="20" ry="45" fill="url(#hullSegment)" opacity="0.6" />
+        {/* Metallic highlight overlay for premium look */}
+        <ellipse
+          cx="200"
+          cy="105"
+          rx="150"
+          ry="35"
+          fill="url(#metallicHighlight)"
+          opacity="0.6"
+        />
+        
+        {/* Submarine Hull Segments with enhanced depth */}
+        <ellipse cx="120" cy="120" rx="20" ry="45" fill="url(#hullSegment)" opacity="0.7" />
+        <ellipse cx="160" cy="120" rx="20" ry="45" fill="url(#hullSegment)" opacity="0.5" />
+        <ellipse cx="200" cy="120" rx="20" ry="45" fill="url(#hullSegment)" opacity="0.7" />
+        <ellipse cx="240" cy="120" rx="20" ry="45" fill="url(#hullSegment)" opacity="0.5" />
+        <ellipse cx="280" cy="120" rx="20" ry="45" fill="url(#hullSegment)" opacity="0.7" />
         
         {/* Command Tower */}
         <rect
@@ -65,7 +75,7 @@ export const CustomSubmarine: React.FC<CustomSubmarineProps> = ({
           rx="25"
           ry="35"
           fill="url(#windowGradient)"
-          stroke="#00d4ff"
+          stroke="#06b6d4"
           strokeWidth="2"
         />
         
@@ -76,13 +86,13 @@ export const CustomSubmarine: React.FC<CustomSubmarineProps> = ({
           rx="12"
           ry="20"
           fill="url(#windowReflection)"
-          opacity="0.6"
+          opacity="0.7"
         />
         
         {/* Side Windows */}
-        <circle cx="280" cy="105" r="8" fill="url(#sideWindow)" stroke="#00d4ff" strokeWidth="1" />
-        <circle cx="250" cy="105" r="6" fill="url(#sideWindow)" stroke="#00d4ff" strokeWidth="1" />
-        <circle cx="220" cy="105" r="6" fill="url(#sideWindow)" stroke="#00d4ff" strokeWidth="1" />
+        <circle cx="280" cy="105" r="8" fill="url(#sideWindow)" stroke="#06b6d4" strokeWidth="1" />
+        <circle cx="250" cy="105" r="6" fill="url(#sideWindow)" stroke="#06b6d4" strokeWidth="1" />
+        <circle cx="220" cy="105" r="6" fill="url(#sideWindow)" stroke="#06b6d4" strokeWidth="1" />
         
         {/* Mining Equipment - Front Drill */}
         <g transform="translate(350, 120)">
@@ -104,13 +114,13 @@ export const CustomSubmarine: React.FC<CustomSubmarineProps> = ({
         {/* Propulsion System */}
         <g transform="translate(50, 120)">
           {/* Main Propeller Housing */}
-          <circle r="25" fill="url(#propellerHousing)" stroke="#2a5298" strokeWidth="2" />
-          {/* Propeller Blades */}
+          <circle r="25" fill="url(#propellerHousing)" stroke="#155e75" strokeWidth="2" />
+          {/* Propeller Blades - Enhanced with ocean colors */}
           <g className="animate-spin" style={{ transformOrigin: 'center' }}>
-            <ellipse cx="0" cy="0" rx="20" ry="3" fill="#1e3a8a" opacity="0.8" />
-            <ellipse cx="0" cy="0" rx="3" ry="20" fill="#1e3a8a" opacity="0.8" />
-            <ellipse cx="0" cy="0" rx="14" ry="2" fill="#3b82f6" opacity="0.6" transform="rotate(45)" />
-            <ellipse cx="0" cy="0" rx="2" ry="14" fill="#3b82f6" opacity="0.6" transform="rotate(45)" />
+            <ellipse cx="0" cy="0" rx="20" ry="3" fill="#083344" opacity="0.9" />
+            <ellipse cx="0" cy="0" rx="3" ry="20" fill="#083344" opacity="0.9" />
+            <ellipse cx="0" cy="0" rx="14" ry="2" fill="#0e7490" opacity="0.7" transform="rotate(45)" />
+            <ellipse cx="0" cy="0" rx="2" ry="14" fill="#0e7490" opacity="0.7" transform="rotate(45)" />
           </g>
           {/* Center Hub */}
           <circle r="6" fill="url(#hubGradient)" />
@@ -119,18 +129,18 @@ export const CustomSubmarine: React.FC<CustomSubmarineProps> = ({
         {/* Secondary Thrusters */}
         <g transform="translate(80, 90)">
           <ellipse rx="12" ry="6" fill="url(#thrusterGradient)" />
-          <ellipse rx="8" ry="4" fill="#60a5fa" opacity="0.5" />
+          <ellipse rx="8" ry="4" fill="#22d3ee" opacity="0.5" />
         </g>
         <g transform="translate(80, 150)">
           <ellipse rx="12" ry="6" fill="url(#thrusterGradient)" />
-          <ellipse rx="8" ry="4" fill="#60a5fa" opacity="0.5" />
+          <ellipse rx="8" ry="4" fill="#22d3ee" opacity="0.5" />
         </g>
         
         {/* Ballast Tanks */}
-        <ellipse cx="140" cy="80" rx="15" ry="8" fill="url(#ballastGradient)" stroke="#1e40af" strokeWidth="1" />
-        <ellipse cx="140" cy="160" rx="15" ry="8" fill="url(#ballastGradient)" stroke="#1e40af" strokeWidth="1" />
-        <ellipse cx="260" cy="80" rx="15" ry="8" fill="url(#ballastGradient)" stroke="#1e40af" strokeWidth="1" />
-        <ellipse cx="260" cy="160" rx="15" ry="8" fill="url(#ballastGradient)" stroke="#1e40af" strokeWidth="1" />
+        <ellipse cx="140" cy="80" rx="15" ry="8" fill="url(#ballastGradient)" stroke="#0c4a6e" strokeWidth="1" />
+        <ellipse cx="140" cy="160" rx="15" ry="8" fill="url(#ballastGradient)" stroke="#0c4a6e" strokeWidth="1" />
+        <ellipse cx="260" cy="80" rx="15" ry="8" fill="url(#ballastGradient)" stroke="#0c4a6e" strokeWidth="1" />
+        <ellipse cx="260" cy="160" rx="15" ry="8" fill="url(#ballastGradient)" stroke="#0c4a6e" strokeWidth="1" />
         
         {/* Navigation Lights */}
         <circle cx="370" cy="100" r="3" fill="#ff0040" className="animate-pulse">
@@ -142,26 +152,26 @@ export const CustomSubmarine: React.FC<CustomSubmarineProps> = ({
         
         {/* Mining Storage Compartment */}
         <rect x="150" y="140" width="60" height="20" rx="4" fill="url(#storageGradient)" stroke="#0ea5e9" strokeWidth="1" />
-        <text x="180" y="152" textAnchor="middle" fill="#00d4ff" fontSize="8" fontFamily="monospace">MINERALS</text>
+        <text x="180" y="152" textAnchor="middle" fill="#22d3ee" fontSize="8" fontFamily="monospace">MINERALS</text>
         
         {/* Sonar Equipment */}
         <g transform="translate(320, 85)">
-          <circle r="8" fill="url(#sonarGradient)" stroke="#00ff88" strokeWidth="1" />
-          <circle r="5" fill="none" stroke="#00ff88" strokeWidth="0.5" opacity="0.7">
+          <circle r="8" fill="url(#sonarGradient)" stroke="#10b981" strokeWidth="1" />
+          <circle r="5" fill="none" stroke="#10b981" strokeWidth="0.5" opacity="0.7">
             <animate attributeName="r" values="5;12;5" dur="3s" repeatCount="indefinite" />
             <animate attributeName="opacity" values="0.7;0;0.7" dur="3s" repeatCount="indefinite" />
           </circle>
         </g>
         
         {/* Hull Details and Rivets */}
-        <g opacity="0.4">
+        <g opacity="0.5">
           {[...Array(8)].map((_, i) => (
             <circle
               key={`rivet-${i}`}
               cx={120 + i * 20}
               cy={95}
               r="2"
-              fill="#1e40af"
+              fill="#083344"
             />
           ))}
           {[...Array(8)].map((_, i) => (
@@ -170,112 +180,148 @@ export const CustomSubmarine: React.FC<CustomSubmarineProps> = ({
               cx={120 + i * 20}
               cy={145}
               r="2"
-              fill="#1e40af"
+              fill="#083344"
             />
           ))}
         </g>
         
         {/* Submarine Name Plate */}
-        <rect x="170" y="95" width="60" height="12" rx="2" fill="rgba(0, 212, 255, 0.1)" stroke="#00d4ff" strokeWidth="0.5" />
-        <text x="200" y="103" textAnchor="middle" fill="#00d4ff" fontSize="6" fontFamily="monospace" fontWeight="bold">
+        <rect x="170" y="95" width="60" height="12" rx="2" fill="rgba(6, 182, 212, 0.15)" stroke="#06b6d4" strokeWidth="0.5" />
+        <text x="200" y="103" textAnchor="middle" fill="#22d3ee" fontSize="6" fontFamily="monospace" fontWeight="bold">
           ABYSSX-01
         </text>
         
         {/* Gradient Definitions */}
         <defs>
+          {/* Premium Metallic Hull - Ocean palette with depth */}
           <linearGradient id="submarineGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" stopColor="#1e3a8a" />
-            <stop offset="30%" stopColor="#2563eb" />
-            <stop offset="70%" stopColor="#1d4ed8" />
-            <stop offset="100%" stopColor="#1e40af" />
+            <stop offset="0%" stopColor="#164e63" stopOpacity="0.95" />
+            <stop offset="20%" stopColor="#0e7490" stopOpacity="0.98" />
+            <stop offset="50%" stopColor="#0891b2" />
+            <stop offset="80%" stopColor="#0e7490" stopOpacity="0.98" />
+            <stop offset="100%" stopColor="#155e75" stopOpacity="0.95" />
           </linearGradient>
           
           <linearGradient id="submarineBorder" x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" stopColor="#60a5fa" />
-            <stop offset="100%" stopColor="#1d4ed8" />
+            <stop offset="0%" stopColor="#22d3ee" stopOpacity="0.8" />
+            <stop offset="50%" stopColor="#06b6d4" />
+            <stop offset="100%" stopColor="#0891b2" stopOpacity="0.8" />
           </linearGradient>
           
           <linearGradient id="hullSegment" x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" stopColor="#3b82f6" />
-            <stop offset="100%" stopColor="#1e40af" />
+            <stop offset="0%" stopColor="#0e7490" />
+            <stop offset="100%" stopColor="#164e63" />
           </linearGradient>
           
+          {/* Metallic Highlight for premium look */}
+          <linearGradient id="metallicHighlight" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="rgba(255, 255, 255, 0.3)" />
+            <stop offset="50%" stopColor="rgba(255, 255, 255, 0.1)" />
+            <stop offset="100%" stopColor="rgba(255, 255, 255, 0)" />
+          </linearGradient>
+          
+          {/* Command Tower - Darker metallic ocean */}
           <linearGradient id="towerGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" stopColor="#2563eb" />
-            <stop offset="100%" stopColor="#1e40af" />
+            <stop offset="0%" stopColor="#083344" />
+            <stop offset="50%" stopColor="#164e63" />
+            <stop offset="100%" stopColor="#0c4a6e" />
           </linearGradient>
           
           <linearGradient id="towerBorder" x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" stopColor="#60a5fa" />
-            <stop offset="100%" stopColor="#2563eb" />
+            <stop offset="0%" stopColor="#06b6d4" stopOpacity="0.9" />
+            <stop offset="100%" stopColor="#0891b2" stopOpacity="0.7" />
           </linearGradient>
           
           <linearGradient id="bridgeGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" stopColor="#3b82f6" />
-            <stop offset="100%" stopColor="#2563eb" />
+            <stop offset="0%" stopColor="#0e7490" />
+            <stop offset="100%" stopColor="#155e75" />
           </linearGradient>
           
           <linearGradient id="cockpitBorder" x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" stopColor="#93c5fd" />
-            <stop offset="100%" stopColor="#3b82f6" />
+            <stop offset="0%" stopColor="#22d3ee" stopOpacity="0.8" />
+            <stop offset="100%" stopColor="#0ea5e9" stopOpacity="0.6" />
           </linearGradient>
           
-          <radialGradient id="windowGradient" cx="30%" cy="30%">
-            <stop offset="0%" stopColor="rgba(0, 212, 255, 0.8)" />
-            <stop offset="70%" stopColor="rgba(0, 150, 255, 0.4)" />
-            <stop offset="100%" stopColor="rgba(0, 100, 200, 0.2)" />
+          {/* Enhanced Window Effects - Premium glass with ocean colors */}
+          <radialGradient id="windowGradient" cx="35%" cy="35%">
+            <stop offset="0%" stopColor="rgba(6, 182, 212, 0.95)" />
+            <stop offset="40%" stopColor="rgba(14, 165, 233, 0.7)" />
+            <stop offset="70%" stopColor="rgba(8, 145, 178, 0.5)" />
+            <stop offset="100%" stopColor="rgba(21, 94, 117, 0.3)" />
           </radialGradient>
           
-          <radialGradient id="windowReflection" cx="30%" cy="30%">
-            <stop offset="0%" stopColor="rgba(255, 255, 255, 0.6)" />
+          <radialGradient id="windowReflection" cx="25%" cy="25%">
+            <stop offset="0%" stopColor="rgba(255, 255, 255, 0.85)" />
+            <stop offset="30%" stopColor="rgba(255, 255, 255, 0.4)" />
             <stop offset="100%" stopColor="rgba(255, 255, 255, 0)" />
           </radialGradient>
           
           <radialGradient id="sideWindow" cx="30%" cy="30%">
-            <stop offset="0%" stopColor="rgba(0, 212, 255, 0.6)" />
-            <stop offset="100%" stopColor="rgba(0, 100, 200, 0.2)" />
+            <stop offset="0%" stopColor="rgba(34, 211, 238, 0.8)" />
+            <stop offset="60%" stopColor="rgba(14, 165, 233, 0.5)" />
+            <stop offset="100%" stopColor="rgba(8, 145, 178, 0.2)" />
           </radialGradient>
           
+          {/* Industrial Mining Equipment - Premium metallic */}
           <linearGradient id="drillGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-            <stop offset="0%" stopColor="#4a5568" />
-            <stop offset="100%" stopColor="#2d3748" />
+            <stop offset="0%" stopColor="#475569" />
+            <stop offset="50%" stopColor="#64748b" />
+            <stop offset="100%" stopColor="#334155" />
+          </linearGradient>
+          
+          <linearGradient id="drillTip" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stopColor="#dc2626" />
+            <stop offset="50%" stopColor="#ef4444" />
+            <stop offset="100%" stopColor="#b91c1c" />
           </linearGradient>
           
           <linearGradient id="collectorGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" stopColor="#4a90e2" />
-            <stop offset="100%" stopColor="#2563eb" />
+            <stop offset="0%" stopColor="#0c4a6e" />
+            <stop offset="50%" stopColor="#075985" />
+            <stop offset="100%" stopColor="#0369a1" />
           </linearGradient>
           
-          <radialGradient id="propellerHousing" cx="30%" cy="30%">
-            <stop offset="0%" stopColor="#3b82f6" />
-            <stop offset="70%" stopColor="#2563eb" />
-            <stop offset="100%" stopColor="#1e40af" />
+          {/* Propulsion System - Premium metallic ocean */}
+          <radialGradient id="propellerHousing" cx="35%" cy="35%">
+            <stop offset="0%" stopColor="#164e63" />
+            <stop offset="50%" stopColor="#0e7490" />
+            <stop offset="100%" stopColor="#083344" />
           </radialGradient>
           
           <radialGradient id="hubGradient" cx="30%" cy="30%">
-            <stop offset="0%" stopColor="#60a5fa" />
-            <stop offset="100%" stopColor="#2563eb" />
+            <stop offset="0%" stopColor="#22d3ee" stopOpacity="0.9" />
+            <stop offset="50%" stopColor="#06b6d4" />
+            <stop offset="100%" stopColor="#0891b2" />
           </radialGradient>
           
           <linearGradient id="thrusterGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-            <stop offset="0%" stopColor="#3b82f6" />
-            <stop offset="100%" stopColor="#1e40af" />
+            <stop offset="0%" stopColor="#155e75" />
+            <stop offset="50%" stopColor="#0e7490" />
+            <stop offset="100%" stopColor="#164e63" />
           </linearGradient>
           
           <linearGradient id="ballastGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" stopColor="#2563eb" />
-            <stop offset="100%" stopColor="#1e40af" />
+            <stop offset="0%" stopColor="#0c4a6e" />
+            <stop offset="100%" stopColor="#075985" />
           </linearGradient>
           
           <linearGradient id="storageGradient" x1="0%" y1="0%" x2="0%" y2="100%">
             <stop offset="0%" stopColor="#0ea5e9" />
-            <stop offset="100%" stopColor="#0284c7" />
+            <stop offset="50%" stopColor="#0284c7" />
+            <stop offset="100%" stopColor="#0369a1" />
           </linearGradient>
           
           <radialGradient id="sonarGradient" cx="50%" cy="50%">
-            <stop offset="0%" stopColor="#00ff88" />
-            <stop offset="100%" stopColor="#00cc66" />
+            <stop offset="0%" stopColor="#10b981" stopOpacity="0.9" />
+            <stop offset="50%" stopColor="#059669" stopOpacity="0.7" />
+            <stop offset="100%" stopColor="#047857" stopOpacity="0.5" />
           </radialGradient>
+          
+          {/* Panel Shadow for hull details */}
+          <linearGradient id="panelShadow" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stopColor="rgba(0, 0, 0, 0.3)" />
+            <stop offset="100%" stopColor="rgba(0, 0, 0, 0)" />
+          </linearGradient>
         </defs>
       </svg>
       
@@ -284,7 +330,7 @@ export const CustomSubmarine: React.FC<CustomSubmarineProps> = ({
         {[...Array(3)].map((_, i) => (
           <div
             key={`exhaust-${i}`}
-            className="absolute rounded-full bg-cyan-400/20"
+            className="absolute rounded-full bg-ocean-400/20"
             style={{
               width: `${4 + i * 2}px`,
               height: `${4 + i * 2}px`,

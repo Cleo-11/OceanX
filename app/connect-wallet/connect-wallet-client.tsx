@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { supabase, signOut } from "@/lib/supabase"
+import { StyleWrapper } from "@/components/style-wrapper"
 import {
   AlertDialog,
   AlertDialogContent,
@@ -39,6 +40,34 @@ interface ConnectWalletClientProps {
   existingPlayer: ExistingPlayer | null
 }
 
+function logCssDiagnostics(context: string) {
+  if (typeof window === "undefined") {
+    return
+  }
+
+  const body = document.body
+  const computedStyle = window.getComputedStyle(body)
+  const stylesheets = Array.from(document.styleSheets).map((sheet, index) => {
+    try {
+      return sheet.href ? `${index}: ${sheet.href}` : `${index}: inline`
+    } catch (error) {
+      return `${index}: <inaccessible>`
+    }
+  })
+
+  console.log("🛰️ [ConnectWalletClient] CSS diagnostics", {
+    context,
+    pathname: window.location.pathname,
+    stylesheetCount: document.styleSheets.length,
+    stylesheets,
+    bodyClasses: Array.from(body.classList),
+    background: computedStyle.backgroundColor,
+    fontFamily: computedStyle.fontFamily,
+    hasTailwindVars: computedStyle.getPropertyValue("--tw-ring-inset") !== "",
+    hasGlobalVars: computedStyle.getPropertyValue("--background") !== "",
+  })
+}
+
 export default function ConnectWalletClient({ user, existingPlayer }: ConnectWalletClientProps) {
   const router = useRouter()
   const [step, setStep] = useState<ConnectionStep>("checking")
@@ -50,6 +79,15 @@ export default function ConnectWalletClient({ user, existingPlayer }: ConnectWal
   const [pendingOldUserId, setPendingOldUserId] = useState<string>("")
   const [pendingLinking, setPendingLinking] = useState(false)
   const logPrefix = "[connect-wallet/client]"
+
+  useEffect(() => {
+    console.log("🔐 [ConnectWalletClient] Component mounted", {
+      userId: user.id,
+      step,
+      pathname: window.location.pathname,
+    })
+    logCssDiagnostics("mount")
+  }, [])
 
   const fallbackUsername = useMemo(() => {
     return (
@@ -279,23 +317,23 @@ export default function ConnectWalletClient({ user, existingPlayer }: ConnectWal
       case "checking":
         return (
           <div className="text-center py-8">
-            <Loader2 className="w-12 h-12 text-cyan-400 animate-spin mx-auto mb-4" />
+            <Loader2 className="w-12 h-12 text-ocean-400 animate-spin mx-auto mb-4" />
             <h3 className="text-xl font-semibold text-white mb-2">Checking Status</h3>
-            <p className="text-slate-400">Verifying your authentication...</p>
+            <p className="text-depth-400">Verifying your authentication...</p>
           </div>
         )
       case "connect":
         return (
           <div className="text-center py-8">
-            <Wallet className="w-16 h-16 text-cyan-400 mx-auto mb-6" />
+            <Wallet className="w-16 h-16 text-ocean-400 mx-auto mb-6" />
             <h3 className="text-2xl font-semibold text-white mb-4">Connect Your Wallet</h3>
-            <p className="text-slate-400 mb-6 max-w-md mx-auto">
+            <p className="text-depth-400 mb-6 max-w-md mx-auto">
               Connect your MetaMask wallet to start playing AbyssX. Your wallet will be securely linked to your account.
             </p>
             <Button
               onClick={connectWallet}
               disabled={isLoading}
-              className="bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white px-8 py-3 text-lg"
+              className="bg-gradient-to-r from-ocean-500 to-abyss-600 hover:from-ocean-600 hover:to-abyss-700 text-white px-8 py-3 text-lg"
             >
               {isLoading ? (
                 <>
@@ -314,11 +352,11 @@ export default function ConnectWalletClient({ user, existingPlayer }: ConnectWal
       case "linking":
         return (
           <div className="text-center py-8">
-            <Loader2 className="w-12 h-12 text-cyan-400 animate-spin mx-auto mb-4" />
+            <Loader2 className="w-12 h-12 text-ocean-400 animate-spin mx-auto mb-4" />
             <h3 className="text-xl font-semibold text-white mb-2">Linking Wallet</h3>
-            <p className="text-slate-400 mb-4">Connecting your wallet to your account...</p>
+            <p className="text-depth-400 mb-4">Connecting your wallet to your account...</p>
             {walletAddress && (
-              <Badge variant="secondary" className="bg-slate-700 text-slate-300">
+              <Badge variant="secondary" className="bg-depth-700 text-depth-300">
                 {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
               </Badge>
             )}
@@ -329,13 +367,13 @@ export default function ConnectWalletClient({ user, existingPlayer }: ConnectWal
           <div className="text-center py-8">
             <CheckCircle className="w-16 h-16 text-green-400 mx-auto mb-6" />
             <h3 className="text-2xl font-semibold text-white mb-4">Wallet Connected!</h3>
-            <p className="text-slate-400 mb-4">Your wallet has been successfully linked to your account.</p>
+            <p className="text-depth-400 mb-4">Your wallet has been successfully linked to your account.</p>
             {walletAddress && (
-              <Badge variant="secondary" className="bg-slate-700 text-slate-300 mb-6">
+              <Badge variant="secondary" className="bg-depth-700 text-depth-300 mb-6">
                 {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
               </Badge>
             )}
-            <p className="text-sm text-slate-500">Redirecting to game...</p>
+            <p className="text-sm text-depth-500">Redirecting to game...</p>
           </div>
         )
       case "error":
@@ -343,18 +381,18 @@ export default function ConnectWalletClient({ user, existingPlayer }: ConnectWal
           <div className="text-center py-8">
             <AlertCircle className="w-16 h-16 text-red-400 mx-auto mb-6" />
             <h3 className="text-2xl font-semibold text-white mb-4">Connection Failed</h3>
-            <p className="text-slate-400 mb-6">{error}</p>
+            <p className="text-depth-400 mb-6">{error}</p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Button
                 onClick={() => {
                   setError("")
                   setStep("connect")
                 }}
-                className="bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white"
+                className="bg-gradient-to-r from-ocean-500 to-abyss-600 hover:from-ocean-600 hover:to-abyss-700 text-white"
               >
                 Try Again
               </Button>
-              <Button variant="outline" onClick={handleSignOut} className="border-slate-600 text-slate-300 bg-transparent">
+              <Button variant="outline" onClick={handleSignOut} className="border-depth-600 text-depth-300 bg-transparent">
                 Sign Out
               </Button>
             </div>
@@ -366,62 +404,62 @@ export default function ConnectWalletClient({ user, existingPlayer }: ConnectWal
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center px-4">
+    <StyleWrapper className="min-h-screen bg-gradient-to-b from-depth-950 via-depth-900 to-depth-950 flex items-center justify-center px-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <Button
             variant="ghost"
             onClick={() => router.push("/auth")}
-            className="inline-flex items-center text-slate-400 hover:text-white mb-6 transition-colors"
+            className="inline-flex items-center text-depth-400 hover:text-white mb-6 transition-colors"
           >
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back to Auth
           </Button>
 
           <div className="flex items-center justify-center mb-4">
-            <Anchor className="w-8 h-8 text-cyan-400 mr-2" />
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent">
+            <Anchor className="w-8 h-8 text-ocean-400 mr-2" />
+            <h1 className="text-3xl font-bold bg-gradient-to-r from-ocean-400 to-abyss-400 bg-clip-text text-transparent">
               AbyssX
             </h1>
           </div>
 
           <div className="flex items-center justify-center space-x-2 mb-4">
-            <div className={`w-3 h-3 rounded-full ${step !== "checking" ? "bg-green-400" : "bg-cyan-400"}`} />
-            <div className="w-8 h-0.5 bg-slate-600" />
+            <div className={`w-3 h-3 rounded-full ${step !== "checking" ? "bg-green-400" : "bg-ocean-400"}`} />
+            <div className="w-8 h-0.5 bg-depth-600" />
             <div
               className={`w-3 h-3 rounded-full ${
                 step === "complete"
                   ? "bg-green-400"
                   : step === "linking" || step === "connect"
-                    ? "bg-cyan-400"
-                    : "bg-slate-600"
+                    ? "bg-ocean-400"
+                    : "bg-depth-600"
               }`}
             />
-            <div className="w-8 h-0.5 bg-slate-600" />
-            <div className={`w-3 h-3 rounded-full ${step === "complete" ? "bg-green-400" : "bg-slate-600"}`} />
+            <div className="w-8 h-0.5 bg-depth-600" />
+            <div className={`w-3 h-3 rounded-full ${step === "complete" ? "bg-green-400" : "bg-depth-600"}`} />
           </div>
         </div>
 
-        <Card className="bg-slate-800/50 backdrop-blur-sm border border-slate-700">
+        <Card className="bg-depth-800/50 backdrop-blur-sm border border-depth-700">
           <CardContent className="p-6">
             {renderStepContent()}
           </CardContent>
         </Card>
 
         <AlertDialog open={showTransferDialog} onOpenChange={setShowTransferDialog}>
-          <AlertDialogContent className="bg-slate-900 border border-slate-700">
+          <AlertDialogContent className="bg-depth-900 border border-depth-700">
             <AlertDialogHeader>
               <AlertDialogTitle className="text-white">Wallet Already Linked</AlertDialogTitle>
-              <AlertDialogDescription className="text-slate-300">
+              <AlertDialogDescription className="text-depth-300">
                 This wallet is currently linked to another account. Would you like to transfer it to this account?
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel className="border-slate-700 text-slate-300">Cancel</AlertDialogCancel>
+              <AlertDialogCancel className="border-depth-700 text-depth-300">Cancel</AlertDialogCancel>
               <AlertDialogAction
                 onClick={handleConfirmTransfer}
                 disabled={pendingLinking}
-                className="bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700"
+                className="bg-gradient-to-r from-ocean-500 to-abyss-600 hover:from-ocean-600 hover:to-abyss-700"
               >
                 {pendingLinking ? <Loader2 className="w-4 h-4 animate-spin" /> : "Transfer Wallet"}
               </AlertDialogAction>
@@ -429,6 +467,6 @@ export default function ConnectWalletClient({ user, existingPlayer }: ConnectWal
           </AlertDialogContent>
         </AlertDialog>
       </div>
-    </div>
+    </StyleWrapper>
   )
 }

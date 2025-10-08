@@ -3,10 +3,13 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
 export async function middleware(req: NextRequest) {
+  const startTime = Date.now()
   const res = NextResponse.next()
   const supabase = createMiddlewareClient({ req, res })
 
   const pathname = req.nextUrl.pathname
+  
+  console.log(`[middleware] START ${pathname} at ${startTime}`)
 
   // Skip middleware for auth callback to allow it to complete
   if (pathname.startsWith('/auth/callback')) {
@@ -17,6 +20,9 @@ export async function middleware(req: NextRequest) {
   const {
     data: { session },
   } = await supabase.auth.getSession()
+  
+  const duration = Date.now() - startTime
+  console.log(`[middleware] Session check took ${duration}ms for ${pathname}`)
 
   console.log("[middleware]", {
     pathname,
@@ -46,5 +52,15 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
+  // Explicitly exclude ALL static files - only run on actual page routes
+  matcher: [
+    /*
+     * Match all paths EXCEPT:
+     * - _next (Next.js internals)
+     * - api routes (if we add them later)
+     * - static files (images, fonts, etc.)
+     * - files with extensions (css, js, etc.)
+     */
+    '/((?!_next|api|.*\\.).*)',
+  ],
 }

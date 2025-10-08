@@ -15,7 +15,11 @@ const nextConfig = {
   reactStrictMode: true,
   // Enable SWC minification for better performance
   swcMinify: true,
-  webpack: (config) => {
+  // Experimental features can cause global styles to be tree-shaken; keep default behavior
+  experimental: {
+    optimizeCss: false,
+  },
+  webpack: (config, { isServer }) => {
     if (config?.output) {
       config.output.hashFunction = 'sha256'
       config.output.hashDigestLength = 64
@@ -23,6 +27,16 @@ const nextConfig = {
 
     if (config?.optimization && typeof config.optimization === 'object') {
       config.optimization.realContentHash = false
+    }
+
+    // Ensure CSS is properly handled
+    if (!isServer) {
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        fs: false,
+        net: false,
+        tls: false,
+      }
     }
 
     return config
