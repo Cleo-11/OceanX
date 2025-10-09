@@ -398,8 +398,8 @@ export function UserHome({ playerData, onPlayClick, onSubmarineStoreClick }: Use
           <div className="flex flex-col items-center space-y-8">
             {/* Epic Main Play Button */}
             <div className="relative group">
-              {/* Outer Glow Ring */}
-              <div className="absolute -inset-2 bg-gradient-to-r from-teal-400 via-cyan-400 to-blue-400 rounded-3xl blur-lg opacity-40 group-hover:opacity-70 animate-pulse transition-opacity duration-500"></div>
+                {/* Outer Glow Ring (decorative - don't block clicks) */}
+                <div className="absolute -inset-2 bg-gradient-to-r from-teal-400 via-cyan-400 to-blue-400 rounded-3xl blur-lg opacity-40 group-hover:opacity-70 animate-pulse transition-opacity duration-500 pointer-events-none"></div>
               
               <Button
                 onClick={onPlayClick}
@@ -413,28 +413,28 @@ export function UserHome({ playerData, onPlayClick, onSubmarineStoreClick }: Use
                            w-full max-w-sm min-h-[100px]
                            overflow-hidden"
               >
-                {/* Inner Animated Background */}
-                <div className="absolute inset-0 bg-gradient-to-r from-white/10 via-transparent to-white/10 transform skew-x-12 -translate-x-full group-hover/btn:translate-x-full transition-transform duration-1000 ease-out"></div>
+                {/* Inner Animated Background (decorative - don't block clicks) */}
+                <div className="absolute inset-0 bg-gradient-to-r from-white/10 via-transparent to-white/10 transform skew-x-12 -translate-x-full group-hover/btn:translate-x-full transition-transform duration-1000 ease-out pointer-events-none"></div>
                 
                 <div className="flex items-center justify-center gap-4 relative z-10">
                   <div className="relative">
                     <Play className="w-10 h-10 group-hover/btn:scale-125 transition-transform duration-300" fill="currentColor" />
-                    <div className="absolute inset-0 bg-white/30 rounded-full blur-md animate-ping"></div>
+                    <div className="absolute inset-0 bg-white/30 rounded-full blur-md animate-ping pointer-events-none"></div>
                   </div>
                   <span className="text-3xl tracking-wide drop-shadow-lg">DIVE DEEP</span>
                 </div>
                 
-                {/* Floating Particles */}
-                <div className="absolute top-2 right-4 w-1 h-1 bg-white rounded-full animate-ping delay-300"></div>
-                <div className="absolute bottom-3 left-6 w-1 h-1 bg-cyan-200 rounded-full animate-ping delay-700"></div>
-                <div className="absolute top-4 left-8 w-1 h-1 bg-blue-200 rounded-full animate-ping delay-1000"></div>
+                {/* Floating Particles (decorative) */}
+                <div className="absolute top-2 right-4 w-1 h-1 bg-white rounded-full animate-ping delay-300 pointer-events-none"></div>
+                <div className="absolute bottom-3 left-6 w-1 h-1 bg-cyan-200 rounded-full animate-ping delay-700 pointer-events-none"></div>
+                <div className="absolute top-4 left-8 w-1 h-1 bg-blue-200 rounded-full animate-ping delay-1000 pointer-events-none"></div>
               </Button>
             </div>
 
             {/* Marketplace Shortcut */}
             <div className="relative group">
-              {/* Outer Glow Ring */}
-              <div className="absolute -inset-1 bg-gradient-to-r from-yellow-400 via-orange-400 to-red-400 rounded-2xl blur-md opacity-30 group-hover:opacity-60 animate-pulse transition-opacity duration-500"></div>
+              {/* Outer Glow Ring (decorative - don't block clicks) */}
+              <div className="absolute -inset-1 bg-gradient-to-r from-yellow-400 via-orange-400 to-red-400 rounded-2xl blur-md opacity-30 group-hover:opacity-60 animate-pulse transition-opacity duration-500 pointer-events-none"></div>
               
               <Button
                 onClick={() => router.push('/marketplace')}
@@ -448,13 +448,13 @@ export function UserHome({ playerData, onPlayClick, onSubmarineStoreClick }: Use
                            w-full max-w-sm
                            overflow-hidden"
               >
-                {/* Inner Animated Background */}
-                <div className="absolute inset-0 bg-gradient-to-r from-white/10 via-transparent to-white/10 transform skew-x-12 -translate-x-full group-hover/btn:translate-x-full transition-transform duration-700 ease-out"></div>
+                {/* Inner Animated Background (decorative - don't block clicks) */}
+                <div className="absolute inset-0 bg-gradient-to-r from-white/10 via-transparent to-white/10 transform skew-x-12 -translate-x-full group-hover/btn:translate-x-full transition-transform duration-700 ease-out pointer-events-none"></div>
                 
                 <div className="flex items-center justify-center gap-3 relative z-10">
                   <div className="relative">
                     <ShoppingBag className="w-7 h-7 group-hover/btn:scale-110 group-hover/btn:rotate-6 transition-transform duration-300" />
-                    <div className="absolute inset-0 bg-orange-300/30 rounded-full blur-sm animate-pulse"></div>
+                    <div className="absolute inset-0 bg-orange-300/30 rounded-full blur-sm animate-pulse pointer-events-none"></div>
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="text-xl tracking-wide drop-shadow-lg">TRADE OCX</span>
@@ -462,10 +462,10 @@ export function UserHome({ playerData, onPlayClick, onSubmarineStoreClick }: Use
                   </div>
                 </div>
                 
-                {/* Floating Particles */}
-                <div className="absolute top-2 right-4 w-1 h-1 bg-yellow-200 rounded-full animate-ping delay-200"></div>
-                <div className="absolute bottom-3 left-6 w-1 h-1 bg-orange-200 rounded-full animate-ping delay-600"></div>
-                <div className="absolute top-4 left-8 w-1 h-1 bg-red-200 rounded-full animate-ping delay-900"></div>
+                {/* Floating Particles (decorative) */}
+                <div className="absolute top-2 right-4 w-1 h-1 bg-yellow-200 rounded-full animate-ping delay-200 pointer-events-none"></div>
+                <div className="absolute bottom-3 left-6 w-1 h-1 bg-orange-200 rounded-full animate-ping delay-600 pointer-events-none"></div>
+                <div className="absolute top-4 left-8 w-1 h-1 bg-red-200 rounded-full animate-ping delay-900 pointer-events-none"></div>
               </Button>
             </div>
 
@@ -552,7 +552,7 @@ export function UserHome({ playerData, onPlayClick, onSubmarineStoreClick }: Use
         <div className="flex flex-col space-y-4">
           {/* Submarine Hangar */}
           <div className="relative group">
-            <div className="absolute -inset-1 bg-gradient-to-r from-purple-500 to-pink-500 rounded-2xl blur-md opacity-20 group-hover:opacity-50 transition-opacity duration-300"></div>
+            <div className="absolute -inset-1 bg-gradient-to-r from-purple-500 to-pink-500 rounded-2xl blur-md opacity-20 group-hover:opacity-50 transition-opacity duration-300 pointer-events-none"></div>
             
             <button
               onClick={onSubmarineStoreClick}
@@ -565,17 +565,17 @@ export function UserHome({ playerData, onPlayClick, onSubmarineStoreClick }: Use
                          overflow-hidden backdrop-blur-sm"
               title="Submarine Hangar"
             >
-              <div className="absolute inset-0 bg-gradient-to-r from-cyan-500/10 via-transparent to-cyan-500/10 transform skew-x-12 -translate-x-full group-hover/btn:translate-x-full transition-transform duration-700"></div>
+              <div className="absolute inset-0 bg-gradient-to-r from-cyan-500/10 via-transparent to-cyan-500/10 transform skew-x-12 -translate-x-full group-hover/btn:translate-x-full transition-transform duration-700 pointer-events-none"></div>
               
               <Store className="w-7 h-7 group-hover/btn:scale-110 group-hover/btn:rotate-12 transition-all duration-300 relative z-10" />
               
-              <div className="absolute top-1 right-1 w-1.5 h-1.5 bg-cyan-400 rounded-full animate-pulse"></div>
+              <div className="absolute top-1 right-1 w-1.5 h-1.5 bg-cyan-400 rounded-full animate-pulse pointer-events-none"></div>
             </button>
           </div>
 
           {/* Captain Profile */}
           <div className="relative group">
-            <div className="absolute -inset-1 bg-gradient-to-r from-emerald-500 to-teal-500 rounded-2xl blur-md opacity-15 group-hover:opacity-40 transition-opacity duration-300"></div>
+            <div className="absolute -inset-1 bg-gradient-to-r from-emerald-500 to-teal-500 rounded-2xl blur-md opacity-15 group-hover:opacity-40 transition-opacity duration-300 pointer-events-none"></div>
             
             <button
               onClick={() => router.push('/profile')}
@@ -588,11 +588,11 @@ export function UserHome({ playerData, onPlayClick, onSubmarineStoreClick }: Use
                          overflow-hidden backdrop-blur-sm"
               title="Captain Profile"
             >
-              <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/5 via-transparent to-emerald-500/5 transform skew-x-12 -translate-x-full group-hover/btn:translate-x-full transition-transform duration-700"></div>
+              <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/5 via-transparent to-emerald-500/5 transform skew-x-12 -translate-x-full group-hover/btn:translate-x-full transition-transform duration-700 pointer-events-none"></div>
               
               <User className="w-7 h-7 group-hover/btn:scale-110 transition-all duration-300 relative z-10" />
               
-              <div className="absolute top-1 right-1 w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse delay-500"></div>
+              <div className="absolute top-1 right-1 w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse delay-500 pointer-events-none"></div>
             </button>
           </div>
         </div>

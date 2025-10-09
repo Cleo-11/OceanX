@@ -5,7 +5,6 @@ import { PlayerHUD } from "./player-hud"
 // import { Compass } from "./compass"
 import { SonarRadar } from "./sonar-radar"
 import { ResourceSidebar } from "./resource-sidebar"
-import { SubmarineStore } from "./submarine-store"
 import { MineButton } from "./mine-button"
 import { UpgradeModal } from "./upgrade-modal"
 import { StorageFullAlert } from "./storage-full-alert"
@@ -25,7 +24,6 @@ import type {
   MovementKeys,
   ConnectionStatus,
 } from "@/lib/game-types"
-import { ShoppingCart } from "lucide-react"
 import { ScubaDiverGuide } from "./ScubaDiverGuide"
 
 interface OceanMiningGameProps {
@@ -36,7 +34,6 @@ interface OceanMiningGameProps {
   setSidebarOpen: (open: boolean | ((prev: boolean) => boolean)) => void
   onFullDisconnect: () => void // NEW PROP
   onConnectWallet?: () => void // NEW PROP for wallet connection
-  autoOpenStore?: boolean // NEW PROP for auto-opening submarine store
 }
 
 export function OceanMiningGame({
@@ -47,7 +44,6 @@ export function OceanMiningGame({
   setSidebarOpen,
   onFullDisconnect, // NEW PROP
   onConnectWallet, // NEW PROP for wallet connection
-  autoOpenStore = false, // NEW PROP for auto-opening submarine store
 }: OceanMiningGameProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const gameLoopRef = useRef<number>(0)
@@ -109,7 +105,7 @@ export function OceanMiningGame({
 
   const [balance, setBalance] = useState<number>(0)
   const [showUpgradeModal, setShowUpgradeModal] = useState<boolean>(false)
-  const [showSubmarineStore, setShowSubmarineStore] = useState<boolean>(false)
+  // SubmarineStore moved to dedicated route; remove local modal state
   const [targetNode, setTargetNode] = useState<ResourceNode | null>(null)
   const [resourceNodes, setResourceNodes] = useState<ResourceNode[]>([])
   const [showStorageAlert, setShowStorageAlert] = useState<boolean>(false)
@@ -193,17 +189,7 @@ export function OceanMiningGame({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [walletConnected]);
 
-  // Auto-open submarine store when requested
-  useEffect(() => {
-    if (autoOpenStore && walletConnected) {
-      const timer = setTimeout(() => {
-        setShowSubmarineStore(true);
-      }, 500); // Small delay to let the game initialize
-      return () => clearTimeout(timer);
-    } else {
-      return () => {};
-    }
-  }, [autoOpenStore, walletConnected]);
+  // SubmarineStore auto-open removed (store is now a dedicated route)
 
   // Generate resource nodes function
   const generateInitialResourceNodes = () => {
@@ -420,9 +406,8 @@ export function OceanMiningGame({
         case "i":
           setSidebarOpen((prev) => !prev)
           break
-        case "p":
-          setShowSubmarineStore(true)
-          break
+        // case "p": // open store (removed: store is a dedicated route now)
+        //   break
       }
     }
 
@@ -1136,29 +1121,7 @@ export function OceanMiningGame({
     }
   }
 
-  const handleSubmarinePurchase = async (targetTier: number) => {
-    if (targetTier <= playerTier) return
-
-    setGameState("upgrading")
-
-    try {
-      await executeSubmarineUpgrade(targetTier)
-
-      setGameState("upgraded")
-
-      setTimeout(() => {
-        setShowSubmarineStore(false)
-        setGameState("idle")
-      }, 2000)
-    } catch (error) {
-      console.error("Submarine purchase failed:", error)
-      const message = error instanceof Error ? error.message : "Submarine purchase failed. Please try again."
-      if (typeof window !== "undefined") {
-        window.alert(message)
-      }
-      setGameState("idle")
-    }
-  }
+  // Submarine purchase handled via dedicated /submarine-store page now
 
   const handleClaimDailyReward = async () => {
     try {
@@ -1269,14 +1232,7 @@ export function OceanMiningGame({
             </svg>
           </button>
 
-          {/* Submarine Store Button */}
-          <button
-            onClick={() => setShowSubmarineStore(true)}
-            className="pointer-events-auto absolute right-4 top-28 z-50 rounded-lg bg-slate-800/80 p-2 text-cyan-400 backdrop-blur-sm transition-all hover:bg-slate-700/80"
-            disabled={gameState !== "idle"}
-          >
-            <ShoppingCart className="h-6 w-6" />
-          </button>
+          {/* Submarine Store Button removed: store is accessible from /home as a dedicated page */}
 
           {/* Upgrade Button removed: Upgrades now only via Submarine Store */}
 
@@ -1390,16 +1346,7 @@ export function OceanMiningGame({
         </div> {/* Close HUD Overlay div */}
       </div> {/* Close main container div */}
 
-      {/* Submarine Store */}
-      <SubmarineStore
-        isOpen={showSubmarineStore}
-        onClose={() => setShowSubmarineStore(false)}
-        currentTier={playerTier}
-        resources={resources}
-        balance={balance}
-        onPurchase={handleSubmarinePurchase}
-        gameState={gameState}
-      />
+      {/* Submarine Store modal removed (use /submarine-store route) */}
 
       {/* Upgrade Modal */}
       {showUpgradeModal && (

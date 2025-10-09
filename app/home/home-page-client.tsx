@@ -65,8 +65,7 @@ export default function HomePageClient({ playerData }: HomePageClientProps) {
   }, [router])
 
   const handleSubmarineStoreClick = useCallback(() => {
-    sessionStorage.setItem("openSubmarineStore", "true")
-    router.push("/game")
+    router.push("/submarine-store")
   }, [router])
 
   return (
