@@ -52,11 +52,14 @@ export default async function ConnectWalletPage() {
     })
   }
 
+  // Note: Let the client component decide whether to redirect to /home.
+  // This ensures the post-auth flow always lands on /connect-wallet first
+  // (sign in -> connect wallet -> user home -> game) and avoids server-side
+  // redirects that can short-circuit the intended flow.
   if (playerRecord?.wallet_address) {
-    console.info(`${logPrefix} Wallet already linked, redirecting to /home`, {
+    console.info(`${logPrefix} Wallet already linked, rendering client to handle redirect`, {
       userId: session.user.id,
     })
-    redirect("/home")
   }
 
   console.info(`${logPrefix} Rendering client component`, {
