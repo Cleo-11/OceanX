@@ -4,8 +4,8 @@ services:
     name: oceanx-frontend
     env: node
     plan: starter
-  buildCommand: corepack enable && corepack prepare pnpm@latest --activate && pnpm install --frozen-lockfile && pnpm run build
-  startCommand: pnpm start
+    buildCommand: corepack enable && corepack prepare pnpm@latest --activate && pnpm install --frozen-lockfile && pnpm run build
+    startCommand: pnpm start
     envVars:
       - key: NODE_ENV
         value: production
@@ -24,8 +24,8 @@ services:
     env: node
     plan: starter
     rootDir: server
-  buildCommand: corepack enable && corepack prepare pnpm@latest --activate && pnpm install --frozen-lockfile
-  startCommand: pnpm start
+    buildCommand: corepack enable && corepack prepare pnpm@latest --activate && pnpm install --frozen-lockfile
+    startCommand: pnpm start
     envVars:
       - key: NODE_ENV
         value: production

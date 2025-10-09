@@ -5,8 +5,8 @@ services:
     env: node
     plan: starter
     rootDir: server
-    buildCommand: npm install
-    startCommand: npm start
+  buildCommand: corepack enable && corepack prepare pnpm@latest --activate && pnpm install --frozen-lockfile
+  startCommand: pnpm start
     envVars:
       - key: NODE_ENV
         value: production

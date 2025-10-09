@@ -21,8 +21,8 @@ const {
   playerPositionSchema,
   resourceNodeSchema,
   playerResourcesSchema,
-} = require("../lib/validation.ts");
-const { sanitizeHtml, sanitizePlainText } = require("../lib/sanitize.ts");
+} = require("./lib/validation.ts");
+const { sanitizeHtml, sanitizePlainText } = require("./lib/sanitize.ts");
 require("dotenv").config();
 
 // Utility functions for input validation and sanitization

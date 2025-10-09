@@ -1,4 +1,4 @@
-const { sanitizeHtml, sanitizePlainText } = require('../../lib/sanitize');
+const { sanitizeHtml, sanitizePlainText } = require('../lib/sanitize');
 
 describe('Sanitization Functions', () => {
   describe('sanitizeHtml', () => {
