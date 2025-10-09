@@ -28,6 +28,13 @@ export function SubmarineStore({
 }: SubmarineStoreProps) {
   const [selectedTier, setSelectedTier] = useState<number | null>(null)
 
+  // Debug: log renders and props
+  if (typeof window !== "undefined") {
+    try {
+      console.debug("[SubmarineStore] render", { isOpen, currentTier, resources, balance, gameState, pathname: window.location.pathname })
+    } catch (e) {}
+  }
+
   if (!isOpen) return null
 
   const isUpgrading = gameState === "upgrading"

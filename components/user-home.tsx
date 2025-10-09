@@ -555,7 +555,12 @@ export function UserHome({ playerData, onPlayClick, onSubmarineStoreClick }: Use
             <div className="absolute -inset-1 bg-gradient-to-r from-purple-500 to-pink-500 rounded-2xl blur-md opacity-20 group-hover:opacity-50 transition-opacity duration-300 pointer-events-none"></div>
             
             <button
-              onClick={onSubmarineStoreClick}
+              onClick={() => {
+                if (typeof window !== "undefined") {
+                  console.debug("[UserHome] Marketplace button clicked", { pathname: window.location.pathname })
+                }
+                onSubmarineStoreClick()
+              }}
               className="relative group/btn bg-gradient-to-r from-slate-800/90 to-slate-700/90 
                          hover:from-slate-700 hover:to-slate-600
                          text-cyan-300 hover:text-white border-2 border-cyan-800/50 hover:border-cyan-400/70

@@ -65,6 +65,9 @@ export default function HomePageClient({ playerData }: HomePageClientProps) {
   }, [router])
 
   const handleSubmarineStoreClick = useCallback(() => {
+    if (typeof window !== "undefined") {
+      console.debug("[HomePageClient] Submarine store click - navigating to /submarine-store", { pathname: window.location.pathname })
+    }
     router.push("/submarine-store")
   }, [router])
 
