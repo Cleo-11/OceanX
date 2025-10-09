@@ -168,6 +168,9 @@ const sensitiveActionLimiter = createRateLimiter({
   code: "CLAIM_RATE_LIMIT",
 })
 
+// Backwards-compatible alias used by some route handlers
+const claimLimiter = sensitiveActionLimiter
+
 const playerDataLimiter = createRateLimiter({
   windowMs: 60 * 1000,
   max: 60,
