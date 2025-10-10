@@ -133,13 +133,9 @@ export function SubmarineStore({
               </p>
             </div>
             <div className="text-right">
-              <div className="text-sm text-slate-400">Your Resources</div>
-              <div className="flex gap-4 text-sm">
-                <span className="text-slate-300">Ni: {resources.nickel}</span>
-                <span className="text-blue-300">Co: {resources.cobalt}</span>
-                <span className="text-orange-300">Cu: {resources.copper}</span>
-                <span className="text-purple-300">Mn: {resources.manganese}</span>
-                <span className="text-cyan-300">OCE: {balance}</span>
+              <div className="text-sm text-slate-400">Your Balance</div>
+              <div className="flex gap-2 text-lg font-bold">
+                <span className="text-cyan-300">💰 {balance} OCE</span>
               </div>
             </div>
           </div>
@@ -265,51 +261,9 @@ export function SubmarineStore({
                             <h4 className="mb-2 text-xs font-semibold text-slate-400">UPGRADE COST</h4>
                             <div className="space-y-1 text-xs">
                               <div className="flex justify-between">
-                                <span className="text-slate-300">Nickel:</span>
-                                <span
-                                  className={`font-mono ${
-                                    resources.nickel >= submarine.upgradeCost.nickel ? "text-green-300" : "text-red-300"
-                                  }`}
-                                >
-                                  {submarine.upgradeCost.nickel}
-                                </span>
-                              </div>
-                              <div className="flex justify-between">
-                                <span className="text-blue-300">Cobalt:</span>
-                                <span
-                                  className={`font-mono ${
-                                    resources.cobalt >= submarine.upgradeCost.cobalt ? "text-green-300" : "text-red-300"
-                                  }`}
-                                >
-                                  {submarine.upgradeCost.cobalt}
-                                </span>
-                              </div>
-                              <div className="flex justify-between">
-                                <span className="text-orange-300">Copper:</span>
-                                <span
-                                  className={`font-mono ${
-                                    resources.copper >= submarine.upgradeCost.copper ? "text-green-300" : "text-red-300"
-                                  }`}
-                                >
-                                  {submarine.upgradeCost.copper}
-                                </span>
-                              </div>
-                              <div className="flex justify-between">
-                                <span className="text-purple-300">Manganese:</span>
-                                <span
-                                  className={`font-mono ${
-                                    resources.manganese >= submarine.upgradeCost.manganese
-                                      ? "text-green-300"
-                                      : "text-red-300"
-                                  }`}
-                                >
-                                  {submarine.upgradeCost.manganese}
-                                </span>
-                              </div>
-                              <div className="flex justify-between">
                                 <span className="text-cyan-300">OCE Tokens:</span>
                                 <span
-                                  className={`font-mono ${
+                                  className={`font-mono text-lg font-bold ${
                                     balance >= submarine.upgradeCost.tokens ? "text-green-300" : "text-red-300"
                                   }`}
                                 >

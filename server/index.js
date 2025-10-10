@@ -417,7 +417,9 @@ app.post("/submarine/upgrade", sensitiveActionLimiter, requireSubmarineUpgradeAu
   const currentCoinsRaw = playerRecord?.coins;
   const currentCoinsValue = Number(currentCoinsRaw);
   const currentCoins = Number.isFinite(currentCoinsValue) ? currentCoinsValue : 0;
-  const upgradeCost = (currentTier + 1) * 100;
+  
+  // Get upgrade cost from tier definition (token-only economy)
+  const upgradeCost = tierDefinition.upgradeCost?.tokens ?? 0;
 
   if (currentCoins < upgradeCost) {
     return respondWithError(res, 402, "Not enough coins to upgrade submarine", "INSUFFICIENT_COINS");
@@ -626,7 +628,7 @@ io.use((socket, next) => {
   next();
 });
 
-// Submarine tiers (UPDATED with the detailed structure)
+// Submarine tiers (UPDATED with token-only economy)
 const SUBMARINE_TIERS = [
   {
     tier: 1,
@@ -642,7 +644,7 @@ const SUBMARINE_TIERS = [
       miningRate: 1,
       tier: 1,
     },
-    upgradeCost: { nickel: 80, cobalt: 40, copper: 40, manganese: 20, tokens: 100 },
+    upgradeCost: { tokens: 100 },
     color: "#fbbf24",
   },
   {
@@ -659,7 +661,7 @@ const SUBMARINE_TIERS = [
       miningRate: 1.2,
       tier: 2,
     },
-    upgradeCost: { nickel: 140, cobalt: 70, copper: 70, manganese: 35, tokens: 200 },
+    upgradeCost: { tokens: 200 },
     color: "#f59e0b",
   },
   {
@@ -676,7 +678,7 @@ const SUBMARINE_TIERS = [
       miningRate: 1.4,
       tier: 3,
     },
-    upgradeCost: { nickel: 180, cobalt: 90, copper: 90, manganese: 50, tokens: 350 },
+    upgradeCost: { tokens: 350 },
     color: "#d97706",
   },
   {
@@ -693,7 +695,7 @@ const SUBMARINE_TIERS = [
       miningRate: 1.6,
       tier: 4,
     },
-    upgradeCost: { nickel: 250, cobalt: 125, copper: 125, manganese: 70, tokens: 500 },
+    upgradeCost: { tokens: 500 },
     color: "#b45309",
   },
   {
@@ -710,7 +712,7 @@ const SUBMARINE_TIERS = [
       miningRate: 1.8,
       tier: 5,
     },
-    upgradeCost: { nickel: 350, cobalt: 175, copper: 175, manganese: 90, tokens: 750 },
+    upgradeCost: { tokens: 750 },
     color: "#92400e",
   },
   {
@@ -727,7 +729,7 @@ const SUBMARINE_TIERS = [
       miningRate: 2.0,
       tier: 6,
     },
-    upgradeCost: { nickel: 450, cobalt: 225, copper: 225, manganese: 110, tokens: 1000 },
+    upgradeCost: { tokens: 1000 },
     color: "#78350f",
     specialAbility: "Pressure Resistance: Immune to depth damage",
   },
@@ -745,7 +747,7 @@ const SUBMARINE_TIERS = [
       miningRate: 2.2,
       tier: 7,
     },
-    upgradeCost: { nickel: 600, cobalt: 300, copper: 300, manganese: 150, tokens: 1500 },
+    upgradeCost: { tokens: 1500 },
     color: "#1e40af",
     specialAbility: "Quantum Scanning: Reveals hidden resource nodes",
   },
@@ -763,7 +765,7 @@ const SUBMARINE_TIERS = [
       miningRate: 2.4,
       tier: 8,
     },
-    upgradeCost: { nickel: 750, cobalt: 375, copper: 375, manganese: 190, tokens: 2000 },
+    upgradeCost: { tokens: 2000 },
     color: "#1e3a8a",
     specialAbility: "Titanium Plating: 25% damage reduction",
   },
@@ -781,7 +783,7 @@ const SUBMARINE_TIERS = [
       miningRate: 2.6,
       tier: 9,
     },
-    upgradeCost: { nickel: 900, cobalt: 450, copper: 450, manganese: 225, tokens: 2750 },
+    upgradeCost: { tokens: 2750 },
     color: "#312e81",
     specialAbility: "Auto-Processing: Resources are refined automatically",
   },
@@ -799,7 +801,7 @@ const SUBMARINE_TIERS = [
       miningRate: 2.8,
       tier: 10,
     },
-    upgradeCost: { nickel: 1100, cobalt: 550, copper: 550, manganese: 275, tokens: 3500 },
+    upgradeCost: { tokens: 3500 },
     color: "#581c87",
     specialAbility: "Fortress Mode: Immobile but 3x mining rate",
   },
@@ -817,7 +819,7 @@ const SUBMARINE_TIERS = [
       miningRate: 3.0,
       tier: 11,
     },
-    upgradeCost: { nickel: 1300, cobalt: 650, copper: 650, manganese: 325, tokens: 4500 },
+    upgradeCost: { tokens: 4500 },
     color: "#7c2d12",
     specialAbility: "Kraken Slayer: Immune to all environmental hazards",
   },
@@ -835,7 +837,7 @@ const SUBMARINE_TIERS = [
       miningRate: 3.2,
       tier: 12,
     },
-    upgradeCost: { nickel: 1500, cobalt: 750, copper: 750, manganese: 375, tokens: 6000 },
+    upgradeCost: { tokens: 6000 },
     color: "#0c0a09",
     specialAbility: "Void Phase: Can teleport short distances",
   },
@@ -853,7 +855,7 @@ const SUBMARINE_TIERS = [
       miningRate: 3.4,
       tier: 13,
     },
-    upgradeCost: { nickel: 1700, cobalt: 850, copper: 850, manganese: 425, tokens: 7500 },
+    upgradeCost: { tokens: 7500 },
     color: "#fbbf24",
     specialAbility: "Stellar Power: Unlimited energy in sunlight zones",
   },
@@ -871,7 +873,7 @@ const SUBMARINE_TIERS = [
       miningRate: 3.6,
       tier: 14,
     },
-    upgradeCost: { nickel: 1900, cobalt: 950, copper: 950, manganese: 475, tokens: 9000 },
+    upgradeCost: { tokens: 9000 },
     color: "#a855f7",
     specialAbility: "Cosmic Resonance: Attracts rare resources",
   },
@@ -889,7 +891,7 @@ const SUBMARINE_TIERS = [
       miningRate: 5.0,
       tier: 15,
     },
-    upgradeCost: { nickel: 0, cobalt: 0, copper: 0, manganese: 0, tokens: 0 },
+    upgradeCost: { tokens: 0 },
     color: "#7e22ce",
     specialAbility: "Omnimining: Can mine all resources simultaneously",
   },

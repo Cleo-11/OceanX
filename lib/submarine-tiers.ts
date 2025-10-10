@@ -6,10 +6,6 @@ export interface SubmarineTier {
   description: string
   baseStats: PlayerStats
   upgradeCost: {
-    nickel: number
-    cobalt: number
-    copper: number
-    manganese: number
     tokens: number
   }
   color: string
@@ -42,10 +38,6 @@ export const SUBMARINE_TIERS: SubmarineTier[] = [
       tier: 1,
     },
     upgradeCost: {
-      nickel: 80,
-      cobalt: 40,
-      copper: 40,
-      manganese: 20,
       tokens: 100,
     },
     color: "#fbbf24",
@@ -75,10 +67,6 @@ export const SUBMARINE_TIERS: SubmarineTier[] = [
       tier: 2,
     },
     upgradeCost: {
-      nickel: 140,
-      cobalt: 70,
-      copper: 70,
-      manganese: 35,
       tokens: 200,
     },
     color: "#f59e0b",
@@ -108,10 +96,6 @@ export const SUBMARINE_TIERS: SubmarineTier[] = [
       tier: 3,
     },
     upgradeCost: {
-      nickel: 180,
-      cobalt: 90,
-      copper: 90,
-      manganese: 50,
       tokens: 350,
     },
     color: "#d97706",
@@ -141,10 +125,6 @@ export const SUBMARINE_TIERS: SubmarineTier[] = [
       tier: 4,
     },
     upgradeCost: {
-      nickel: 250,
-      cobalt: 125,
-      copper: 125,
-      manganese: 70,
       tokens: 500,
     },
     color: "#b45309",
@@ -174,10 +154,6 @@ export const SUBMARINE_TIERS: SubmarineTier[] = [
       tier: 5,
     },
     upgradeCost: {
-      nickel: 350,
-      cobalt: 175,
-      copper: 175,
-      manganese: 90,
       tokens: 750,
     },
     color: "#92400e",
@@ -207,10 +183,6 @@ export const SUBMARINE_TIERS: SubmarineTier[] = [
       tier: 6,
     },
     upgradeCost: {
-      nickel: 450,
-      cobalt: 225,
-      copper: 225,
-      manganese: 110,
       tokens: 1000,
     },
     color: "#78350f",
@@ -241,10 +213,6 @@ export const SUBMARINE_TIERS: SubmarineTier[] = [
       tier: 7,
     },
     upgradeCost: {
-      nickel: 600,
-      cobalt: 300,
-      copper: 300,
-      manganese: 150,
       tokens: 1500,
     },
     color: "#1e40af",
@@ -275,10 +243,6 @@ export const SUBMARINE_TIERS: SubmarineTier[] = [
       tier: 8,
     },
     upgradeCost: {
-      nickel: 750,
-      cobalt: 375,
-      copper: 375,
-      manganese: 190,
       tokens: 2000,
     },
     color: "#1e3a8a",
@@ -309,10 +273,6 @@ export const SUBMARINE_TIERS: SubmarineTier[] = [
       tier: 9,
     },
     upgradeCost: {
-      nickel: 900,
-      cobalt: 450,
-      copper: 450,
-      manganese: 225,
       tokens: 2750,
     },
     color: "#312e81",
@@ -343,10 +303,6 @@ export const SUBMARINE_TIERS: SubmarineTier[] = [
       tier: 10,
     },
     upgradeCost: {
-      nickel: 1100,
-      cobalt: 550,
-      copper: 550,
-      manganese: 275,
       tokens: 3500,
     },
     color: "#581c87",
@@ -377,10 +333,6 @@ export const SUBMARINE_TIERS: SubmarineTier[] = [
       tier: 11,
     },
     upgradeCost: {
-      nickel: 1300,
-      cobalt: 650,
-      copper: 650,
-      manganese: 325,
       tokens: 4500,
     },
     color: "#7c2d12",
@@ -411,10 +363,6 @@ export const SUBMARINE_TIERS: SubmarineTier[] = [
       tier: 12,
     },
     upgradeCost: {
-      nickel: 1500,
-      cobalt: 750,
-      copper: 750,
-      manganese: 375,
       tokens: 6000,
     },
     color: "#0c0a09",
@@ -445,10 +393,6 @@ export const SUBMARINE_TIERS: SubmarineTier[] = [
       tier: 13,
     },
     upgradeCost: {
-      nickel: 1700,
-      cobalt: 850,
-      copper: 850,
-      manganese: 425,
       tokens: 7500,
     },
     color: "#fbbf24",
@@ -479,10 +423,6 @@ export const SUBMARINE_TIERS: SubmarineTier[] = [
       tier: 14,
     },
     upgradeCost: {
-      nickel: 1900,
-      cobalt: 950,
-      copper: 950,
-      manganese: 475,
       tokens: 9000,
     },
     color: "#a855f7",
@@ -513,10 +453,6 @@ export const SUBMARINE_TIERS: SubmarineTier[] = [
       tier: 15,
     },
     upgradeCost: {
-      nickel: 0,
-      cobalt: 0,
-      copper: 0,
-      manganese: 0,
       tokens: 0,
     },
     color: "#7e22ce",

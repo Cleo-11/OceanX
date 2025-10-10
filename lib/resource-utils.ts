@@ -22,40 +22,23 @@ export function hasEnoughResourcesForUpgrade(
   resources: PlayerResources,
   balance: number,
   requiredResources: {
-    nickel: number
-    cobalt: number
-    copper: number
-    manganese: number
     tokens: number
   },
 ): boolean {
-  return (
-    resources.nickel >= requiredResources.nickel &&
-    resources.cobalt >= requiredResources.cobalt &&
-    resources.copper >= requiredResources.copper &&
-    resources.manganese >= requiredResources.manganese &&
-    balance >= requiredResources.tokens
-  )
+  return balance >= requiredResources.tokens
 }
 
 export function deductResourcesForUpgrade(
   resources: PlayerResources,
   balance: number,
   requiredResources: {
-    nickel: number
-    cobalt: number
-    copper: number
-    manganese: number
     tokens: number
   },
 ): { newResources: PlayerResources; newBalance: number } {
+  // Resources are not deducted anymore in token-only economy
+  // Keep the resources unchanged, only deduct tokens
   return {
-    newResources: {
-      nickel: resources.nickel - requiredResources.nickel,
-      cobalt: resources.cobalt - requiredResources.cobalt,
-      copper: resources.copper - requiredResources.copper,
-      manganese: resources.manganese - requiredResources.manganese,
-    },
+    newResources: resources,
     newBalance: balance - requiredResources.tokens,
   }
 }

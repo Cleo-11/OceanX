@@ -56,7 +56,7 @@ export interface SubmarineUpgradePayload extends SubmarineData {
     miningRate?: number
     tier?: number
   }
-  upgradeCost?: PlayerResources & { tokens: number }
+  upgradeCost?: { tokens: number }
 }
 
 export interface SubmarineUpgradeResult {

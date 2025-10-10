@@ -185,48 +185,12 @@ export function UpgradeModal({ currentTier, resources, balance, onUpgrade, onClo
         {/* Upgrade Cost */}
         <div className="mb-6 rounded-lg bg-slate-700 p-4">
           <h3 className="mb-3 text-lg font-semibold text-slate-200">Upgrade Cost</h3>
-          <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
-            <div className="rounded-md bg-slate-800 p-2 text-center">
-              <div className="text-xl">🔋</div>
-              <div className="text-sm text-slate-300">Nickel</div>
+          <div className="flex justify-center">
+            <div className="rounded-md bg-slate-800 p-4 text-center">
+              <div className="text-3xl mb-2">�</div>
+              <div className="text-sm text-slate-300 mb-1">OCE Tokens</div>
               <div
-                className={`font-mono ${resources.nickel >= selectedSubmarine.upgradeCost.nickel ? "text-green-400" : "text-red-400"}`}
-              >
-                {resources.nickel}/{selectedSubmarine.upgradeCost.nickel}
-              </div>
-            </div>
-            <div className="rounded-md bg-slate-800 p-2 text-center">
-              <div className="text-xl">⚡</div>
-              <div className="text-sm text-slate-300">Cobalt</div>
-              <div
-                className={`font-mono ${resources.cobalt >= selectedSubmarine.upgradeCost.cobalt ? "text-green-400" : "text-red-400"}`}
-              >
-                {resources.cobalt}/{selectedSubmarine.upgradeCost.cobalt}
-              </div>
-            </div>
-            <div className="rounded-md bg-slate-800 p-2 text-center">
-              <div className="text-xl">🔌</div>
-              <div className="text-sm text-slate-300">Copper</div>
-              <div
-                className={`font-mono ${resources.copper >= selectedSubmarine.upgradeCost.copper ? "text-green-400" : "text-red-400"}`}
-              >
-                {resources.copper}/{selectedSubmarine.upgradeCost.copper}
-              </div>
-            </div>
-            <div className="rounded-md bg-slate-800 p-2 text-center">
-              <div className="text-xl">🧲</div>
-              <div className="text-sm text-slate-300">Manganese</div>
-              <div
-                className={`font-mono ${resources.manganese >= selectedSubmarine.upgradeCost.manganese ? "text-green-400" : "text-red-400"}`}
-              >
-                {resources.manganese}/{selectedSubmarine.upgradeCost.manganese}
-              </div>
-            </div>
-            <div className="rounded-md bg-slate-800 p-2 text-center">
-              <div className="text-xl">💰</div>
-              <div className="text-sm text-slate-300">OCE Tokens</div>
-              <div
-                className={`font-mono ${balance >= selectedSubmarine.upgradeCost.tokens ? "text-green-400" : "text-red-400"}`}
+                className={`font-mono text-2xl font-bold ${balance >= selectedSubmarine.upgradeCost.tokens ? "text-green-400" : "text-red-400"}`}
               >
                 {balance}/{selectedSubmarine.upgradeCost.tokens}
               </div>
