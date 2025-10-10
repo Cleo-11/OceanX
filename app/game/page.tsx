@@ -8,7 +8,6 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { getSession, getCurrentUser, signOut } from "@/lib/supabase"
 import { supabase } from "@/lib/supabase"
 import { OceanMiningGame } from "@/components/ocean-mining-game";
-import { SubmarineSelection } from "@/components/submarine-selection";
 import { walletManager } from "@/lib/wallet";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { StyleWrapper } from "@/components/style-wrapper";
@@ -69,9 +68,6 @@ export default function GamePage() {
   const [walletPrompt, setWalletPrompt] = useState(false);
   const [gameState, setGameState] = useState<GameState>("idle");
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [showSubmarineSelection, setShowSubmarineSelection] = useState(false);
-  const [selectedSubmarineTier, setSelectedSubmarineTier] = useState<number | null>(null);
-  const [hasSelectedSubmarine, setHasSelectedSubmarine] = useState(false);
   // SubmarineStore moved to dedicated route; no local modal state anymore
   const router = useRouter()
 
@@ -82,15 +78,6 @@ export default function GamePage() {
     logCssDiagnostics("mount")
     initializeGame()
   }, [])
-
-  // Set initial submarine tier and show modal after player data loads
-  useEffect(() => {
-    if (playerData && selectedSubmarineTier === null) {
-      setSelectedSubmarineTier(playerData.submarine_tier || 1);
-      setShowSubmarineSelection(true);
-      setHasSelectedSubmarine(false);
-    }
-  }, [playerData]);
 
   // After playerData is loaded, check wallet connection
   useEffect(() => {
@@ -278,28 +265,9 @@ export default function GamePage() {
     <StyleWrapper>
       <ErrorBoundary>
         <div className="min-h-screen bg-depth-900">
-          {/* Submarine Selection Modal */}
-          <SubmarineSelection
-            isOpen={showSubmarineSelection && !hasSelectedSubmarine}
-            onClose={() => {
-              // Prevent closing without selection
-              if (selectedSubmarineTier === null && playerData?.submarine_tier) {
-                setSelectedSubmarineTier(playerData.submarine_tier);
-              }
-              setShowSubmarineSelection(false);
-            }}
-            onSelectSubmarine={(tier) => {
-              setSelectedSubmarineTier(tier);
-              setShowSubmarineSelection(false);
-            setHasSelectedSubmarine(true);
-          }}
-          initialSelectedTier={playerData?.submarine_tier || 1}
-        />
+          {/* Submarine Store moved to dedicated route at /submarine-store */}
 
-        {/* Submarine Store moved to dedicated route at /submarine-store */}
-
-        {/* Only render game after submarine is selected */}
-        {selectedSubmarineTier !== null && hasSelectedSubmarine && (
+          {/* Render game directly without submarine selection modal */}
           <OceanMiningGame
             walletConnected={walletConnected}
             gameState={gameState}
@@ -309,7 +277,6 @@ export default function GamePage() {
             onFullDisconnect={handleFullDisconnect}
             onConnectWallet={handleConnectWallet}
           />
-        )}
         </div>
       </ErrorBoundary>
     </StyleWrapper>
