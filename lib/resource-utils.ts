@@ -19,7 +19,7 @@ export function canMineResource(
 }
 
 export function hasEnoughResourcesForUpgrade(
-  resources: PlayerResources,
+  _resources: PlayerResources,
   balance: number,
   requiredResources: {
     tokens: number
@@ -29,7 +29,7 @@ export function hasEnoughResourcesForUpgrade(
 }
 
 export function deductResourcesForUpgrade(
-  resources: PlayerResources,
+  _resources: PlayerResources,
   balance: number,
   requiredResources: {
     tokens: number
@@ -38,7 +38,7 @@ export function deductResourcesForUpgrade(
   // Resources are not deducted anymore in token-only economy
   // Keep the resources unchanged, only deduct tokens
   return {
-    newResources: resources,
+    newResources: _resources,
     newBalance: balance - requiredResources.tokens,
   }
 }
