@@ -30,26 +30,7 @@ export function SubmarineStore({
 
   // Debug: log renders and props
   if (typeof window !== "undefined") {
-    try {
-      console.debug("[SubmarineStore] render", { isOpen, currentTier, resources, balance, gameState, pathname: window.location.pathname })
-      
-      // GUARD: Prevent rendering on /game page
-      if (window.location.pathname === "/game") {
-        console.error("[SubmarineStore] ERROR: SubmarineStore should NOT render on /game page!", {
-          isOpen,
-          currentTier,
-          pathname: window.location.pathname,
-          stack: new Error().stack
-        })
-        // Throw to see the call stack in the console
-        throw new Error("SubmarineStore incorrectly rendered on /game page - check the stack trace above")
-      }
-    } catch (e) {
-      // Re-throw our guard error, but swallow other errors (like if window is not available)
-      if (e instanceof Error && e.message.includes("SubmarineStore incorrectly rendered")) {
-        throw e
-      }
-    }
+    console.debug("[SubmarineStore] render", { isOpen, currentTier, resources, balance, gameState, pathname: window.location.pathname })
   }
 
   if (!isOpen) return null
