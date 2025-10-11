@@ -53,8 +53,8 @@ export default function AuthCallbackPage() {
           return
         }
 
-        console.log("[auth/callback/page] Session established, redirecting to /connect-wallet")
-        window.location.replace("/connect-wallet")
+  console.log("[auth/callback/page] Session established, redirecting to /connect-wallet")
+  window.location.replace("/connect-wallet")
       } catch (error) {
         console.error("[auth/callback/page] Unexpected error while completing sign in", error)
         setStatus("error")
