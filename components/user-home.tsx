@@ -7,7 +7,6 @@ import SubmarineIcon from "./SubmarineIcon"
 import { getSubmarineByTier } from "@/lib/submarine-tiers"
 import { apiClient, createSignaturePayload } from "@/lib/api"
 import { WalletManager } from "@/lib/wallet"
-import { useProfileNavigation } from "@/lib/profile-navigation"
 import { Button } from "./ui/button"
 import { Card, CardContent } from "./ui/card"
 // @ts-ignore
@@ -35,9 +34,6 @@ export function UserHome({ playerData, onPlayClick, onSubmarineStoreClick }: Use
   const [balanceLoading, setBalanceLoading] = useState(false)
   const [currentNetwork, setCurrentNetwork] = useState<string>("Base")
   const [showNetworkDropdown, setShowNetworkDropdown] = useState(false)
-  
-  // Profile navigation hook
-  const { navigateToProfile, isNavigating } = useProfileNavigation()
   
   // Captain's log messages rotation
   const captainLogMessages = [
@@ -587,25 +583,19 @@ export function UserHome({ playerData, onPlayClick, onSubmarineStoreClick }: Use
             <div className="absolute -inset-1 bg-gradient-to-r from-emerald-500 to-teal-500 rounded-2xl blur-md opacity-15 group-hover:opacity-40 transition-opacity duration-300 pointer-events-none"></div>
             
             <button
-              onClick={() => navigateToProfile(playerData.wallet_address, playerData.user_id)}
-              disabled={isNavigating}
+              onClick={() => router.push('/profile')}
               className="relative group/btn bg-gradient-to-r from-slate-800/90 to-slate-700/90 
                          hover:from-slate-700 hover:to-slate-600
                          text-slate-300 hover:text-emerald-200 border-2 border-slate-600/50 hover:border-emerald-500/50
                          p-4 rounded-2xl 
                          shadow-xl shadow-slate-900/40
                          transform hover:scale-110 active:scale-95 transition-all duration-300
-                         disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100
                          overflow-hidden backdrop-blur-sm"
-              title={isNavigating ? "Loading Profile..." : "Captain Profile"}
+              title="Captain Profile"
             >
               <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/5 via-transparent to-emerald-500/5 transform skew-x-12 -translate-x-full group-hover/btn:translate-x-full transition-transform duration-700 pointer-events-none"></div>
               
-              {isNavigating ? (
-                <div className="w-7 h-7 border-2 border-emerald-400/30 border-t-emerald-400 rounded-full animate-spin relative z-10" />
-              ) : (
-                <User className="w-7 h-7 group-hover/btn:scale-110 transition-all duration-300 relative z-10" />
-              )}
+              <User className="w-7 h-7 group-hover/btn:scale-110 transition-all duration-300 relative z-10" />
               
               <div className="absolute top-1 right-1 w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse delay-500 pointer-events-none"></div>
             </button>
