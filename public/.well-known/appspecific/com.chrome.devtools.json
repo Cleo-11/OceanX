@@ -1,0 +1,6 @@
+{
+  "name": "AbyssX DevTools Placeholder",
+  "description": "Placeholder file to satisfy Chrome DevTools requests during local development.",
+  "version": "1.0.0",
+  "dev": true
+}
