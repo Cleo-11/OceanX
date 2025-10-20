@@ -72,6 +72,3 @@ export function useCSSLoader() {
     }
   }, [pathname])
 }
-
-// Deprecated: CSS loader diagnostics are no longer required after normalizing global CSS handling.
-export {}

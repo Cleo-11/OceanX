@@ -25,7 +25,10 @@ export default function RootLayout({
   <html lang="en" className="antialiased" style={{ background: '#020617', minHeight: '100vh' }}>
       <head>
         <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <link rel="preload" href="/fonts" as="font" crossOrigin="anonymous" />
+    {/* Removed incorrect preload: '/fonts' is not a file path in public/ and caused 404s in dev logs */}
+  {/* If you host local font files under /public/fonts, preload them for better performance */}
+    <link rel="preload" href="/fonts/Inter-Variable.woff2" as="font" type="font/woff2" crossOrigin="anonymous" />
+    <link rel="preload" href="/fonts/SpaceGrotesk-Regular.woff2" as="font" type="font/woff2" crossOrigin="anonymous" />
   {/* Preconnect to Google Fonts for faster font loading */}
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />

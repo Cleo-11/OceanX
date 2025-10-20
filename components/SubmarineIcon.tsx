@@ -166,6 +166,8 @@ function renderSubmarineSVG(tier: number, color: string, size: number) {
 
 const SubmarineIcon: React.FC<SubmarineIconProps> = ({ tier, size = 40, className }) => {
   const { color } = getTierData(tier)
+
+  // Plain rendering without filters or animated effects
   return (
     <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className={className} fill="none" xmlns="http://www.w3.org/2000/svg">
       {renderSubmarineSVG(tier, color, size)}
