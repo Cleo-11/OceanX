@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation"
 import { WalletManager } from "@/lib/wallet"
 import { Button } from "@/components/ui/button"
 import { User } from "lucide-react"
+import { supabase } from "@/lib/supabase"
 
 export function ProfileNavigationExample() {
   const router = useRouter()
@@ -35,8 +36,6 @@ export function ProfileNavigationExample() {
 // ==========================================
 
 import Link from "next/link"
-import { Button } from "@/components/ui/button"
-import { User } from "lucide-react"
 
 interface ProfileLinkProps {
   walletAddress: string
@@ -82,14 +81,6 @@ import { redirect } from "next/navigation"
 export async function navigateToProfile(walletAddress: string) {
   redirect(`/profile?wallet=${walletAddress}`)
 }
-
-// ==========================================
-// Example: With authentication check
-// ==========================================
-
-import { useRouter } from "next/navigation"
-import { WalletManager } from "@/lib/wallet"
-import { supabase } from "@/lib/supabase"
 
 export function ProfileNavigationWithAuth() {
   const router = useRouter()
