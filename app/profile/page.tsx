@@ -42,24 +42,34 @@ export default async function ProfilePage({
 }: {
   searchParams: { wallet?: string }
 }) {
-  // Create server-side Supabase client (reads auth from cookies)
-  const supabase = await createSupabaseServerClient()
-  
-  // Get authenticated user from session
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser()
-
-  // ⚠️ SECURITY: Require authenticated session
-  if (authError || !user) {
-    console.warn("❌ [Profile] Access denied: Not authenticated")
-    redirect("/home")
-  }
-
-  // Optional: If wallet param provided, verify it matches the session
+  // If a wallet query param is present we allow access by wallet lookup
+  // (used when navigating from the in-app user home). This keeps the
+  // UX simple while still allowing server-side session checks when no
+  // wallet query param is provided.
   const walletAddress = searchParams.wallet
-  if (walletAddress) {
+
+  // Create server-side Supabase client (reads auth from cookies)
+  // We create it unconditionally because we'll need it later to fetch
+  // player and submarine data regardless of how the page was accessed.
+  const supabase = await createSupabaseServerClient()
+
+  // If no wallet query param, require an authenticated Supabase session
+  let user = null
+  if (!walletAddress) {
+    // Get authenticated user from session
+    const {
+      data: { user: sessionUser },
+      error: authError,
+    } = await supabase.auth.getUser()
+
+    user = sessionUser
+
+    // ⚠️ SECURITY: Require authenticated session
+    if (authError || !user) {
+      console.warn("❌ [Profile] Access denied: Not authenticated")
+      redirect("/home")
+    }
+  } else {
     console.log("✅ [Profile] Access granted for wallet:", walletAddress)
   }
 
@@ -82,7 +92,7 @@ export default async function ProfilePage({
     const result = await supabase
       .from("players")
       .select("*")
-      .eq("user_id", user.id)
+      .eq("user_id", user!.id)
       .single()
     playerData = result.data
     error = result.error

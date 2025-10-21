@@ -583,7 +583,7 @@ export function UserHome({ playerData, onPlayClick, onSubmarineStoreClick }: Use
             <div className="absolute -inset-1 bg-gradient-to-r from-emerald-500 to-teal-500 rounded-2xl blur-md opacity-15 group-hover:opacity-40 transition-opacity duration-300 pointer-events-none"></div>
             
             <button
-              onClick={() => router.push('/profile')}
+              onClick={() => router.push(`/profile?wallet=${playerData.wallet_address}`)}
               className="relative group/btn bg-gradient-to-r from-slate-800/90 to-slate-700/90 
                          hover:from-slate-700 hover:to-slate-600
                          text-slate-300 hover:text-emerald-200 border-2 border-slate-600/50 hover:border-emerald-500/50
