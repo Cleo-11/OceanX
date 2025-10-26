@@ -96,15 +96,31 @@ export default function GamePage() {
   const initializeGame = async () => {
     try {
       // Check authentication
-      const { session } = await getSession()
-      if (!session) {
-        router.push("/auth")
-        return
+      // NOTE: middleware reads the auth cookies server-side and may have a session
+      // even when the client-side Supabase SDK does not (race or cookie sync issue).
+      // Avoid performing an immediate client-side redirect to /auth here because
+      // that can race with middleware which will redirect /auth -> /connect-wallet
+      // when a server-side session exists, causing the observed loop. Instead,
+      // try a short client-side retry before giving up to reduce transient races.
+      let sessionResp = await getSession()
+      if (!sessionResp?.session) {
+        console.info('[GamePage] No client session found on first check — retrying shortly to avoid transient race')
+        // Wait a short time to allow the client SDK to pick up cookies set server-side
+        await new Promise((res) => setTimeout(res, 600))
+        sessionResp = await getSession()
+        if (!sessionResp?.session) {
+          console.warn("[GamePage] No client session found after retry; aborting client-side redirect to /auth to avoid redirect race with middleware")
+          setIsLoading(false)
+          return
+        }
+        console.info('[GamePage] Client session found on retry; continuing initialization')
       }
+  // sessionResp available if needed; we don't need the `session` variable here
 
       const { user } = await getCurrentUser()
       if (!user) {
-        router.push("/auth")
+        console.warn("[GamePage] No client user found; aborting client-side redirect to /auth to avoid redirect race with middleware")
+        setIsLoading(false)
         return
       }
 
@@ -118,14 +134,18 @@ export default function GamePage() {
         .single()
 
       if (playerError || !playerData) {
-        // Player doesn't exist or no wallet connected
-        router.push("/connect-wallet")
+        // Player doesn't exist or no wallet connected — stay on /game and show in-page wallet prompt
+        console.warn("[GamePage] Player record missing; enabling walletPrompt instead of redirect")
+        setWalletPrompt(true)
+        setIsLoading(false)
         return
       }
 
       if (!playerData.wallet_address) {
-        // No wallet connected
-        router.push("/connect-wallet")
+        // No wallet connected — enable in-page wallet prompt instead of navigating away
+        console.warn("[GamePage] Player has no wallet_address; enabling walletPrompt instead of redirect")
+        setWalletPrompt(true)
+        setIsLoading(false)
         return
       }
 
@@ -161,21 +181,12 @@ export default function GamePage() {
   };
 
   const handleConnectWallet = async () => {
+    // Redirect to the canonical connect-wallet page and return to /game after linking
     try {
-      const connection = await walletManager.connectWallet();
-      if (!playerData?.wallet_address) {
-        alert("No wallet address found in player data. Please reconnect your account.");
-        return;
-      }
-      if (connection.address.toLowerCase() !== playerData.wallet_address.toLowerCase()) {
-        alert("Please connect the wallet you registered with: " + playerData.wallet_address);
-        return;
-      }
-      setWalletConnected(true);
-      setWalletPrompt(false);
+      router.push(`/connect-wallet?returnTo=${encodeURIComponent('/game')}`)
     } catch (e) {
-      console.error("Failed to connect wallet:", e);
-      alert("Failed to connect wallet. Please try again.");
+      console.error('Failed to redirect to connect-wallet', e)
+      alert('Failed to open wallet connect page. Please try again.')
     }
   };
 
@@ -240,19 +251,7 @@ export default function GamePage() {
           <p className="text-ocean-300 mb-4 text-xl font-bold">Connect your wallet to play</p>
           <button
             className="rounded-lg bg-gradient-to-r from-ocean-500 to-abyss-600 px-6 py-3 font-medium text-white shadow-lg hover:from-ocean-600 hover:to-abyss-700"
-            onClick={async () => {
-              try {
-                const connection = await walletManager.connectWallet();
-                if (connection.address.toLowerCase() !== playerData.wallet_address.toLowerCase()) {
-                  alert("Please connect the wallet you registered with: " + playerData.wallet_address);
-                  return;
-                }
-                setWalletConnected(true);
-                setWalletPrompt(false);
-              } catch (e) {
-                alert("Failed to connect wallet. Please try again.");
-              }
-            }}
+            onClick={() => router.push(`/connect-wallet?returnTo=${encodeURIComponent('/game')}`)}
           >
             Connect Wallet
           </button>
