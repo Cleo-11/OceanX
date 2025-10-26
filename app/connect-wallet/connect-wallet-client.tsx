@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import type { User } from "@supabase/supabase-js"
 import { Wallet, CheckCircle, Loader2, AlertCircle, ArrowLeft, Anchor } from "lucide-react"
@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { supabase, signOut } from "@/lib/supabase"
+import { sanitizeReturnTo } from '@/lib/utils'
 import { StyleWrapper } from "@/components/style-wrapper"
 import {
   AlertDialog,
@@ -20,9 +21,13 @@ import {
   AlertDialogCancel,
 } from "@/components/ui/alert-dialog"
 
+// Minimal typing for the injected Ethereum provider to avoid `any`.
 declare global {
+  interface EthereumProvider {
+    request?: (args: { method: string; params?: unknown[] }) => Promise<unknown>
+  }
   interface Window {
-    ethereum?: any
+    ethereum?: EthereumProvider
   }
 }
 
@@ -50,7 +55,7 @@ function logCssDiagnostics(context: string) {
   const stylesheets = Array.from(document.styleSheets).map((sheet, index) => {
     try {
       return sheet.href ? `${index}: ${sheet.href}` : `${index}: inline`
-    } catch (error) {
+    } catch {
       return `${index}: <inaccessible>`
     }
   })
@@ -78,6 +83,7 @@ export default function ConnectWalletClient({ user, existingPlayer }: ConnectWal
   const [pendingWalletAddress, setPendingWalletAddress] = useState<string>("")
   const [pendingOldUserId, setPendingOldUserId] = useState<string>("")
   const [pendingLinking, setPendingLinking] = useState(false)
+  const redirectGuard = useRef(false)
   const logPrefix = "[connect-wallet/client]"
 
   useEffect(() => {
@@ -85,8 +91,17 @@ export default function ConnectWalletClient({ user, existingPlayer }: ConnectWal
       userId: user.id,
       step,
       pathname: window.location.pathname,
+      referrer: document.referrer,
+      visibilityState: document.visibilityState,
+      time: new Date().toISOString(),
     })
     logCssDiagnostics("mount")
+    return () => {
+      console.log("🔐 [ConnectWalletClient] Component unmounted", {
+        userId: user.id,
+        time: new Date().toISOString(),
+      })
+    }
   }, [])
 
   const fallbackUsername = useMemo(() => {
@@ -121,7 +136,26 @@ export default function ConnectWalletClient({ user, existingPlayer }: ConnectWal
         console.info(`${logPrefix} Wallet already linked, redirecting to /home`, {
           userId: user.id,
         })
-        router.replace("/home")
+
+        // Prevent repeated redirects: only perform the client navigation once per mount
+        if (!redirectGuard.current) {
+          redirectGuard.current = true
+          // Use replace to avoid polluting history; if already on /home, do nothing
+          try {
+            if (typeof window !== "undefined" && window.location.pathname !== "/home") {
+              router.replace("/home")
+            } else {
+              console.info(`${logPrefix} Already on /home, skipping router.replace`)
+            }
+          } catch (e) {
+            console.error(`${logPrefix} Failed to router.replace('/home')`, e)
+            // As a fallback perform a hard navigation
+            if (typeof window !== "undefined") window.location.href = "/home"
+          }
+        } else {
+          console.info(`${logPrefix} Redirect already attempted; skipping duplicate`) 
+        }
+
         return
       }
 
@@ -170,7 +204,7 @@ export default function ConnectWalletClient({ user, existingPlayer }: ConnectWal
       await linkWalletToAccount(address)
     } catch (err: unknown) {
       console.error("Error connecting wallet:", err)
-      if (typeof err === "object" && err !== null && "code" in err && (err as any).code === 4001) {
+      if (typeof err === "object" && err !== null && "code" in err && (err as { code?: number }).code === 4001) {
         console.warn(`${logPrefix} Wallet connection rejected by user`, { userId: user.id })
         setError("Wallet connection was rejected. Please try again.")
       } else if (err instanceof Error) {
@@ -215,6 +249,9 @@ export default function ConnectWalletClient({ user, existingPlayer }: ConnectWal
         return
       }
 
+      // Player row should already exist from auth trigger
+      // We only need to UPDATE the wallet_address (and refresh last_login)
+      // If the row doesn't exist (legacy/edge case), upsert will create it
       const playerData = {
         user_id: user.id,
         wallet_address: address,
@@ -234,6 +271,8 @@ export default function ConnectWalletClient({ user, existingPlayer }: ConnectWal
         console.error(`${logPrefix} Player upsert failed`, {
           userId: user.id,
           message: upsertError.message,
+          code: upsertError.code,
+          details: upsertError.details,
         })
         throw upsertError
       }
@@ -249,12 +288,45 @@ export default function ConnectWalletClient({ user, existingPlayer }: ConnectWal
 
       setStep("complete")
 
-      setTimeout(() => {
-        console.info(`${logPrefix} Navigating to /home after successful link`, {
+      setTimeout(async () => {
+        console.info(`${logPrefix} Navigating after successful link`, {
           userId: user.id,
         })
-        router.push("/home")
-      }, 2000)
+
+        try {
+          // Prefer a validated returnTo query param when present
+          const params = new URLSearchParams(window.location.search)
+          const returnToRaw = params.get('returnTo')
+          const validated = sanitizeReturnTo(returnToRaw)
+          let target = validated || '/home'
+
+          try {
+            // Extract pending id from returnTo query if present
+            const targetUrl = new URL(target, window.location.origin)
+            const pendingId = targetUrl.searchParams.get('pending')
+            if (pendingId) {
+              try {
+                const execResp = await fetch(`/api/hangar/pending/${encodeURIComponent(pendingId)}/execute`, { method: 'POST' })
+                if (!execResp.ok) {
+                  console.warn(`${logPrefix} Pending execute failed`, await execResp.text())
+                }
+                // Remove pending param from redirect target
+                targetUrl.searchParams.delete('pending')
+                target = targetUrl.pathname + targetUrl.search
+              } catch (execErr) {
+                console.error(`${logPrefix} Error executing pending action`, execErr)
+              }
+            }
+                  } catch {
+                    // ignore malformed URL; fall back to raw returnTo
+                  }
+
+          router.replace(target)
+        } catch (e) {
+          console.warn(`${logPrefix} Failed to parse returnTo, falling back to /home`, e)
+          router.replace('/home')
+        }
+      }, 1000)
     } catch (err) {
       console.error("Error linking wallet:", err)
       if (err instanceof Error) {

@@ -19,6 +19,13 @@ const envSchema = z.object({
   // Server-side only environment variables
   DATABASE_URL: z.string().optional(),
   SUPABASE_SERVICE_ROLE_KEY: z.string().optional(),
+  // Ethereum RPC for server-side verification. TODO: switch to BASE's RPC when migrating off Sepolia/Infura.
+  ETHEREUM_RPC_URL: z.string().url().optional(),
+  // Number of confirmations required before accepting an on-chain transaction.
+  // Set to 0 to accept immediately (useful for dev/test). Recommended 6 for mainnet.
+  ETHEREUM_CONFIRMATIONS: z.string().regex(/^\d+$/).optional(),
+  // Maximum time (ms) the server will wait for confirmations when executing a pending action.
+  ETHEREUM_CONFIRMATION_TIMEOUT_MS: z.string().regex(/^\d+$/).optional(),
 })
 
 // Type for validated environment variables

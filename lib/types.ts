@@ -62,6 +62,28 @@ export interface PlayerPosition {
   rotation: number
 }
 
+// Marketplace Types (simplified)
+// Rarity and static value are intentionally omitted — prices will be dynamic on-chain.
+export interface MarketplaceResource {
+  id: string
+  name: string
+  icon: string
+  // ocxRate is optional: the live market will provide values; show placeholder until available
+  ocxRate?: number
+  amount: number
+  description: string
+}
+
+export interface TradeTransaction {
+  id: string
+  player_id: string
+  resource_id: string
+  resource_name: string
+  amount: number
+  ocx_received: number
+  timestamp: string
+}
+
 // Database schema types for Supabase
 export interface Database {
   public: {

@@ -16,22 +16,6 @@ import type { Database } from './types'
 export async function createSupabaseServerClient() {
   const cookieStore = await cookies()
 
-  // DEBUG: Print cookie names (masked) when not in production to help
-  // diagnose server-side auth/cookie mismatches. Remove this in prod.
-  try {
-    if (process.env.NODE_ENV !== 'production') {
-      const all = cookieStore.getAll()
-      const names = all.map((c) => c.name)
-      const masked = all.map((c) => ({ name: c.name, sample: String(c.value).slice(0, 6) + '...' }))
-      // Use console.log rather than console.error so it appears in normal logs
-      console.log('[supabase-server] cookies detected on request ->', names)
-      console.log('[supabase-server] cookie samples ->', masked)
-    }
-  } catch (err) {
-    // Swallow debug logging errors to avoid breaking server-side auth flow
-    console.log('[supabase-server] cookie debug failed', err)
-  }
-
   return createServerClient<Database>(
     env.NEXT_PUBLIC_SUPABASE_URL,
     env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
