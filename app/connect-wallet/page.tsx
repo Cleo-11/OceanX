@@ -3,6 +3,7 @@ import { redirect } from "next/navigation"
 import { createServerComponentClient } from "@supabase/auth-helpers-nextjs"
 import ConnectWalletClient from "./connect-wallet-client"
 import type { Database } from "@/lib/types"
+import { isForceWalletFlow } from "@/lib/env"
 
 export default async function ConnectWalletPage() {
   const supabase = createServerComponentClient<Database>({ cookies })
@@ -46,18 +47,17 @@ export default async function ConnectWalletPage() {
       userId: session.user.id,
       hasWallet: Boolean(playerRecord.wallet_address),
     })
+    
+    // If wallet already linked, normally redirect to /home server-side to avoid client-side redirect loops
+    // But when force wallet flow is enabled (typically in localhost/dev), stay on this page to allow testing the flow
+    if (playerRecord.wallet_address && !isForceWalletFlow()) {
+      console.info(`${logPrefix} Wallet already linked, redirecting to /home`, {
+        userId: session.user.id,
+      })
+      redirect("/home")
+    }
   } else {
     console.info(`${logPrefix} No player record found`, {
-      userId: session.user.id,
-    })
-  }
-
-  // Note: Let the client component decide whether to redirect to /home.
-  // This ensures the post-auth flow always lands on /connect-wallet first
-  // (sign in -> connect wallet -> user home -> game) and avoids server-side
-  // redirects that can short-circuit the intended flow.
-  if (playerRecord?.wallet_address) {
-    console.info(`${logPrefix} Wallet already linked, rendering client to handle redirect`, {
       userId: session.user.id,
     })
   }

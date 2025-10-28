@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { motion } from "framer-motion"
 import { useRouter } from "next/navigation"
 import {
@@ -49,7 +49,7 @@ export function ProfileClient({ profileData, walletAddress }: ProfileClientProps
   const router = useRouter()
   const [showDisconnectModal, setShowDisconnectModal] = useState(false)
   const [isDisconnecting, setIsDisconnecting] = useState(false)
-  const [liveBalance, setLiveBalance] = useState(profileData.tokenInfo.ocxBalance)
+  const [liveBalance] = useState(profileData.tokenInfo.ocxBalance)
 
   // Format wallet address for display
   const formatWallet = (address: string) => {
@@ -66,52 +66,33 @@ export function ProfileClient({ profileData, walletAddress }: ProfileClientProps
     })
   }
 
-  // Listen to wallet events for live balance updates
-  useEffect(() => {
-    const updateBalance = () => {
-      // In production, you would listen to blockchain events
-      // For now, we'll just refresh from the database periodically
-      const interval = setInterval(async () => {
-        const { data } = await supabase
-          .from("players")
-          .select("coins")
-          .eq("wallet_address", walletAddress)
-          .single()
-
-        if (data) {
-          setLiveBalance(data.coins || 0)
-        }
-      }, 10000) // Update every 10 seconds
-
-      return () => clearInterval(interval)
-    }
-
-    const cleanup = updateBalance()
-    return cleanup
-  }, [walletAddress])
+  // Note: Balance updates are handled by the ProfileData prop
+  // No need for polling since the server component provides fresh data
+  // and blockchain events would require web3 listeners in production
 
   // Handle wallet disconnection
   const handleDisconnect = async () => {
     setIsDisconnecting(true)
 
     try {
-      // Delete all user data from Supabase
-      const { error: deleteError } = await supabase
+      // Update player record to remove wallet_address instead of deleting the entire record
+      // This preserves the user's account and game progress
+      const { error: updateError } = await supabase
         .from("players")
-        .delete()
-        .eq("wallet_address", walletAddress)
+        .update({ wallet_address: null })
+        .eq("user_id", profileData.playerInfo.userId)
 
-      if (deleteError) {
-        console.error("❌ [Profile] Failed to delete user data:", deleteError)
-        throw deleteError
+      if (updateError) {
+        console.error("❌ [Profile] Failed to disconnect wallet:", updateError)
+        throw updateError
       }
 
       // Disconnect wallet using WalletManager
       const walletManager = WalletManager.getInstance()
       walletManager.disconnect()
 
-      // Redirect to home page
-      router.push("/")
+      // Redirect to connect wallet page
+      router.push("/connect-wallet")
     } catch (error) {
       console.error("❌ [Profile] Disconnect failed:", error)
       alert("Failed to disconnect. Please try again.")

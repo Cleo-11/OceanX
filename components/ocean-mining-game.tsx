@@ -34,7 +34,9 @@ interface OceanMiningGameProps {
   sidebarOpen: boolean
   setSidebarOpen: (open: boolean | ((prev: boolean) => boolean)) => void
   onFullDisconnect: () => void // NEW PROP
-  onConnectWallet?: () => void // NEW PROP for wallet connection
+  // onConnectWallet?: () => void // (Deprecated) no longer used; game runs without wallet
+  // Optional: notify parent whenever the in-session resource totals change
+  onResourcesChange?: (resources: PlayerResources) => void
 }
 
 export function OceanMiningGame({
@@ -44,7 +46,8 @@ export function OceanMiningGame({
   sidebarOpen,
   setSidebarOpen,
   onFullDisconnect, // NEW PROP
-  onConnectWallet, // NEW PROP for wallet connection
+  // onConnectWallet removed
+  onResourcesChange,
 }: OceanMiningGameProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const gameLoopRef = useRef<number>(0)
@@ -103,6 +106,14 @@ export function OceanMiningGame({
     copper: 0,
     manganese: 0,
   })
+
+  // Notify parent when resources change (lightweight autosave hook)
+  useEffect(() => {
+    if (onResourcesChange) {
+      onResourcesChange(resources)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resources])
 
   const [balance, setBalance] = useState<number>(0)
   const [showUpgradeModal, setShowUpgradeModal] = useState<boolean>(false)
@@ -1349,23 +1360,7 @@ export function OceanMiningGame({
           </div>
         )}
 
-        {/* No Wallet Connected Overlay */}
-        {!walletConnected && (
-          <div className="absolute inset-0 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm">
-            <div className="rounded-xl bg-slate-800/90 p-8 text-center text-white shadow-2xl shadow-cyan-900/30 transition-all hover:shadow-cyan-900/50">
-              <h2 className="mb-4 text-2xl font-bold text-cyan-400">Connect Wallet to Play</h2>
-              <p className="mb-6 text-slate-300">
-                Connect your Web3 wallet to start mining resources from the ocean floor.
-              </p>
-              <button
-                onClick={onConnectWallet || (() => {})}
-                className="pointer-events-auto rounded-lg bg-gradient-to-r from-teal-500 to-cyan-600 px-6 py-3 font-medium text-white shadow-lg shadow-cyan-900/30 transition-all hover:shadow-cyan-900/50"
-              >
-                Connect Wallet
-              </button>
-            </div>
-          </div>
-        )}
+        {/* Wallet connection is optional in gameplay; overlay removed */}
         </div> {/* Close HUD Overlay div */}
       </div> {/* Close main container div */}
 

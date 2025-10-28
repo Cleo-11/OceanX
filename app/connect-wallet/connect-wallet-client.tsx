@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import type { User } from "@supabase/supabase-js"
 import { Wallet, CheckCircle, Loader2, AlertCircle, ArrowLeft, Anchor } from "lucide-react"
@@ -83,7 +83,6 @@ export default function ConnectWalletClient({ user, existingPlayer }: ConnectWal
   const [pendingWalletAddress, setPendingWalletAddress] = useState<string>("")
   const [pendingOldUserId, setPendingOldUserId] = useState<string>("")
   const [pendingLinking, setPendingLinking] = useState(false)
-  const redirectGuard = useRef(false)
   const logPrefix = "[connect-wallet/client]"
 
   useEffect(() => {
@@ -132,30 +131,16 @@ export default function ConnectWalletClient({ user, existingPlayer }: ConnectWal
         throw playerError
       }
 
+      // Note: Server component already handles redirect if wallet is linked
+      // This is just a safety check in case we're on the client after a wallet link
       if (playerRecord?.wallet_address) {
-        console.info(`${logPrefix} Wallet already linked, redirecting to /home`, {
+        console.info(`${logPrefix} Wallet already linked (client-side check)`, {
           userId: user.id,
         })
-
-        // Prevent repeated redirects: only perform the client navigation once per mount
-        if (!redirectGuard.current) {
-          redirectGuard.current = true
-          // Use replace to avoid polluting history; if already on /home, do nothing
-          try {
-            if (typeof window !== "undefined" && window.location.pathname !== "/home") {
-              router.replace("/home")
-            } else {
-              console.info(`${logPrefix} Already on /home, skipping router.replace`)
-            }
-          } catch (e) {
-            console.error(`${logPrefix} Failed to router.replace('/home')`, e)
-            // As a fallback perform a hard navigation
-            if (typeof window !== "undefined") window.location.href = "/home"
-          }
-        } else {
-          console.info(`${logPrefix} Redirect already attempted; skipping duplicate`) 
+        // Server should have redirected, but just in case, do it client-side
+        if (typeof window !== "undefined") {
+          window.location.href = "/home"
         }
-
         return
       }
 
@@ -168,16 +153,22 @@ export default function ConnectWalletClient({ user, existingPlayer }: ConnectWal
       setError("Failed to verify wallet status. Please try again.")
       setStep("error")
     }
-  }, [router, user.id])
+  }, [user.id])
 
   useEffect(() => {
     void verifyWalletStatus()
   }, [verifyWalletStatus])
 
   const connectWallet = async () => {
+    if (typeof window === 'undefined') {
+      setError("Please wait for page to load completely.")
+      setStep("error")
+      return
+    }
+
     if (!window.ethereum) {
       console.warn(`${logPrefix} window.ethereum missing`, { userId: user.id })
-      setError("MetaMask is not installed. Please install MetaMask to continue.")
+      setError("MetaMask is not installed. Please install MetaMask extension to continue.")
       setStep("error")
       return
     }
@@ -191,12 +182,12 @@ export default function ConnectWalletClient({ user, existingPlayer }: ConnectWal
         method: "eth_requestAccounts",
       })
 
-      if (!accounts?.length) {
+      if (!Array.isArray(accounts) || accounts.length === 0) {
         console.warn(`${logPrefix} No accounts returned from provider`, { userId: user.id })
-        throw new Error("No accounts found")
+        throw new Error("No accounts found. Please make sure MetaMask is unlocked.")
       }
 
-      const address = accounts[0]
+      const address = (accounts as string[])[0]
       console.info(`${logPrefix} Wallet connection approved`, { userId: user.id, address })
       setWalletAddress(address)
       setStep("linking")
@@ -206,11 +197,11 @@ export default function ConnectWalletClient({ user, existingPlayer }: ConnectWal
       console.error("Error connecting wallet:", err)
       if (typeof err === "object" && err !== null && "code" in err && (err as { code?: number }).code === 4001) {
         console.warn(`${logPrefix} Wallet connection rejected by user`, { userId: user.id })
-        setError("Wallet connection was rejected. Please try again.")
+        setError("Wallet connection was rejected. Please try again and approve the connection in MetaMask.")
       } else if (err instanceof Error) {
         setError(err.message || "Failed to connect wallet")
       } else {
-        setError("Failed to connect wallet")
+        setError("Failed to connect wallet. Please make sure MetaMask is installed and unlocked.")
       }
       setStep("error")
     } finally {
@@ -402,10 +393,28 @@ export default function ConnectWalletClient({ user, existingPlayer }: ConnectWal
             <p className="text-depth-400 mb-6 max-w-md mx-auto">
               Connect your MetaMask wallet to start playing AbyssX. Your wallet will be securely linked to your account.
             </p>
+            {typeof window !== 'undefined' && !window.ethereum && (
+              <div className="mb-6 p-4 bg-yellow-900/30 border border-yellow-600/30 rounded-lg">
+                <p className="text-yellow-200 text-sm mb-2">
+                  ⚠️ MetaMask not detected
+                </p>
+                <p className="text-yellow-300 text-xs mb-3">
+                  Please install the MetaMask browser extension to continue.
+                </p>
+                <a
+                  href="https://metamask.io/download/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-ocean-400 hover:text-ocean-300 underline text-sm"
+                >
+                  Download MetaMask →
+                </a>
+              </div>
+            )}
             <Button
               onClick={connectWallet}
-              disabled={isLoading}
-              className="bg-gradient-to-r from-ocean-500 to-abyss-600 hover:from-ocean-600 hover:to-abyss-700 text-white px-8 py-3 text-lg"
+              disabled={isLoading || (typeof window !== 'undefined' && !window.ethereum)}
+              className="bg-gradient-to-r from-ocean-500 to-abyss-600 hover:from-ocean-600 hover:to-abyss-700 text-white px-8 py-3 text-lg disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isLoading ? (
                 <>

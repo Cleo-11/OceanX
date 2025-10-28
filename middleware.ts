@@ -22,16 +22,13 @@ export async function middleware(req: NextRequest) {
   } = await supabase.auth.getSession()
   
   const duration = Date.now() - startTime
-  console.log(`[middleware] Session check took ${duration}ms for ${pathname}`)
-
-  console.log("[middleware]", {
-    pathname,
+  console.log(`[middleware] Session check took ${duration}ms for ${pathname}`, {
     hasSession: !!session,
     userId: session?.user?.id,
   })
 
   // Protected routes that require authentication
-  const protectedRoutes = ['/home', '/game', '/connect-wallet']
+  const protectedRoutes = ['/home', '/game', '/connect-wallet', '/profile', '/submarine-hangar', '/submarine-store', '/marketplace']
   const isProtectedRoute = protectedRoutes.some(route => 
     pathname.startsWith(route)
   )
@@ -43,7 +40,7 @@ export async function middleware(req: NextRequest) {
   }
 
   // Redirect to connect-wallet if authenticated but trying to access auth
-  if (pathname.startsWith('/auth') && session) {
+  if (pathname.startsWith('/auth') && !pathname.startsWith('/auth/callback') && session) {
     console.log("[middleware] Has session on /auth, redirecting to /connect-wallet")
     return NextResponse.redirect(new URL('/connect-wallet', req.url))
   }

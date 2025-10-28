@@ -8,6 +8,9 @@ const envSchema = z.object({
   NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string().min(1, "Supabase anon key is required"),
   NEXT_PUBLIC_API_URL: z.string().url().optional().default("http://localhost:5000"),
   NEXT_PUBLIC_WS_URL: z.string().url().optional(),
+  // Dev-only: force the wallet connection flow even if a wallet is already linked
+  // Accepts: "true" | "false" | "1" | "0" (case-insensitive). If unset, defaults to true in development, false in production.
+  NEXT_PUBLIC_FORCE_WALLET_FLOW: z.string().optional(),
 
   // Contract addresses (should be validated)
   NEXT_PUBLIC_OCEAN_X_TOKEN_ADDRESS: z.string().regex(/^0x[a-fA-F0-9]{40}$/, "Invalid contract address").optional(),
@@ -41,6 +44,7 @@ export function validateEnv(): Env {
   NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
   NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL,
   NEXT_PUBLIC_WS_URL: process.env.NEXT_PUBLIC_WS_URL,
+  NEXT_PUBLIC_FORCE_WALLET_FLOW: process.env.NEXT_PUBLIC_FORCE_WALLET_FLOW,
 
   // Contract addresses
   NEXT_PUBLIC_OCEAN_X_TOKEN_ADDRESS: process.env.NEXT_PUBLIC_OCEAN_X_TOKEN_ADDRESS,
@@ -73,4 +77,13 @@ export const getSiteUrl = () => {
     return env.NEXT_PUBLIC_SITE_URL || window.location.origin
   }
   return env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"
+}
+
+// Helper to determine whether to force the wallet connection flow.
+// Defaults to true in development and false in production unless explicitly overridden with NEXT_PUBLIC_FORCE_WALLET_FLOW.
+export const isForceWalletFlow = (): boolean => {
+  const raw = env.NEXT_PUBLIC_FORCE_WALLET_FLOW?.toLowerCase()
+  if (raw === "true" || raw === "1") return true
+  if (raw === "false" || raw === "0") return false
+  return process.env.NODE_ENV !== "production"
 }
