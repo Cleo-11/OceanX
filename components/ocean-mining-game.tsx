@@ -1137,31 +1137,7 @@ export function OceanMiningGame({
 
   // Submarine purchase handled via dedicated /submarine-store page now
 
-  const handleClaimDailyReward = async () => {
-    try {
-      const connection = walletManager.getConnection()
-      if (!connection) {
-        throw new Error("Wallet not connected")
-      }
-
-      const claimPayload = await createSignaturePayload(connection.address, "claim daily reward")
-      const claimResponse = await apiClient.claimDailyReward(connection.address, claimPayload.signature, claimPayload.message)
-
-      if (!claimResponse.success) {
-        throw new Error(claimResponse.error || "Failed to claim daily reward via API")
-      }
-
-      const tx = await ContractManager.claimDailyReward()
-      await tx.wait()
-
-      await loadPlayerData(connection.address)
-
-      alert("Daily reward claimed successfully!")
-    } catch (error) {
-      console.error("Failed to claim daily reward:", error)
-      alert("Failed to claim daily reward. Please try again.")
-    }
-  }
+  // Daily reward claiming removed from canvas (UI button removed). Handler kept out to avoid unused imports.
 
   const createSignaturePayload = async (address: string, action: string) => {
     const message = `Sign this message to ${action} with your account ${address}`
@@ -1269,27 +1245,7 @@ export function OceanMiningGame({
             </svg>
           </button>
 
-          {/* Daily Reward Button */}
-          <button
-            onClick={handleClaimDailyReward}
-            className="pointer-events-auto absolute right-4 top-40 z-50 rounded-lg bg-slate-800/80 p-2 text-cyan-400 backdrop-blur-sm transition-all hover:bg-slate-700/80"
-            disabled={gameState !== "idle"}
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="24"
-              height="24"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <circle cx="12" cy="12" r="3" />
-              <path d="M12 1v6M12 17v6M4.22 4.22l4.24 4.24M15.54 15.54l4.24 4.24M1 12h6M17 12h6M4.22 19.78l4.24-4.24M15.54 8.46l4.24-4.24" />
-            </svg>
-          </button>
+          {/* Daily reward UI removed from canvas */}
 
 
   {/* Compass removed */}
