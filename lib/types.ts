@@ -11,6 +11,10 @@ export type GameState =
 
 export type ResourceType = "nickel" | "cobalt" | "copper" | "manganese"
 
+// Marketplace helper types
+export type MarketplaceRarity = "common" | "uncommon" | "rare" | "epic" | "legendary"
+export type MarketplaceCategory = "mineral" | "organic" | "energy" | "artifact"
+
 export interface ResourceNode {
   id: string
   position: { x: number; y: number }
@@ -70,6 +74,9 @@ export interface MarketplaceResource {
   icon: string
   // ocxRate is optional: the live market will provide values; show placeholder until available
   ocxRate?: number
+  // Optional metadata used by the UI
+  rarity?: MarketplaceRarity
+  category?: MarketplaceCategory
   amount: number
   description: string
 }
