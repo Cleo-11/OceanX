@@ -21,13 +21,14 @@ import {
   AlertDialogCancel,
 } from "@/components/ui/alert-dialog"
 
-// Minimal typing for the injected Ethereum provider to avoid `any`.
+// Avoid conflicting Window.ethereum declarations across lib.dom and other ambient
+// types by keeping the global declaration broad. Consumers can cast to a
+// specific provider interface where needed.
 declare global {
-  interface EthereumProvider {
-    request?: (args: { method: string; params?: unknown[] }) => Promise<unknown>
-  }
   interface Window {
-    ethereum?: EthereumProvider
+    // Keep as `any` here to prevent "Subsequent property declarations must have the same type"
+    // Type usages should perform a local cast, e.g. `const prov = window.ethereum as EthereumProvider`.
+    ethereum?: any
   }
 }
 
