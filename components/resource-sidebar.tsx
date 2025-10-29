@@ -57,8 +57,8 @@ export function ResourceSidebar({ isOpen, resources, balance, onTradeAll, gameSt
         </div>
 
         <TabsContent value="resources" className="flex-1 p-4 overflow-y-auto">
-          {/* Trade All Button */}
-          {storagePercentage === 100 && (
+          {/* Trade All Button - Available anytime you have resources */}
+          {totalUsed > 0 && (
             <button
               onClick={onTradeAll}
               className="mb-4 w-full rounded-lg bg-gradient-to-r from-yellow-500 to-cyan-600 py-3 text-lg font-bold text-white shadow-lg hover:from-yellow-400 hover:to-cyan-500 transition-all"

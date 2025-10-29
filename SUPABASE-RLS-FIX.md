@@ -83,51 +83,87 @@ UPDATE | allow_update_players
 
 You should see **EXACTLY 4 policies** (one per command type).
 
-## ⏱️ TIME ESTIMATE
-- **Running SQL**: 2 minutes
-- **Testing**: 3 minutes
-- **Total**: 5 minutes
-
-## 🧪 TEST THE FIX
-
-After running SQL, test in browser console:
-
-```javascript
-// Connect to your Supabase
-const { createClient } = supabase;
-const client = createClient(
-  'YOUR_SUPABASE_URL', 
-  'YOUR_ANON_KEY'
-);
-
-// Try to update a player (this should work now)
-const { data, error } = await client
-  .from('players')
-  .update({ last_login: new Date().toISOString() })
-  .eq('wallet_address', '0xYourTestAddress');
-
-console.log('Result:', { data, error });
-```
-
-**If successful**: `error: null`  
-**If failed**: `error: "new row violates row-level security"` → Re-run SQL above
-
-## 📋 NEXT STEPS (After This Fix)
-
-Once RLS is fixed:
-
-1. ✅ Deploy code changes (git push)
-2. ✅ Test end-to-end flow
-3. ✅ Run load test with multiple users
-
 ## ⚠️ AFTER DEMO (Production Hardening)
 
 The current fix is **demo-safe** but **not production-ready**. After your demo:
 
-1. Use `SUPABASE_SERVICE_ROLE_KEY` in backend (not anon key)
-2. Block all client-side INSERT/UPDATE operations
-3. Only allow backend to modify player data
-4. See `scripts/production-rls-policies.sql` for full implementation
+### Step 1: Apply Production RLS Policies
+
+Run the production policies script in Supabase SQL Editor:
+
+```bash
+# File location: scripts/production-rls-policies.sql
+```
+
+This will:
+- Drop demo-safe policies (allow all reads/writes)
+- Create strict policies using `auth.uid()` checks
+- Enforce user isolation (users can only access their own data)
+- Apply policies to both `players` and `pending_actions` tables
+
+### Step 2: Verify Production Policies
+
+Run the verification script to confirm policies are correctly applied:
+
+```bash
+# File location: scripts/check-production-rls.sql
+```
+
+Expected output:
+- 8 total policies (4 for players, 4 for pending_actions)
+- All policies named `production_*`
+- No demo policies (`allow_*`) remaining
+- RLS enabled on both tables
+
+### Step 3: Migrate Backend to Server-Side Writes
+
+For privileged operations (awarding rewards, admin actions), use the service role key:
+
+1. **Create admin Supabase client** (server-only):
+   ```typescript
+   // lib/supabase-admin.ts
+   import { createClient } from '@supabase/supabase-js';
+   
+   export const supabaseAdmin = createClient(
+     process.env.NEXT_PUBLIC_SUPABASE_URL!,
+     process.env.SUPABASE_SERVICE_ROLE_KEY! // Server-side only!
+   );
+   ```
+
+2. **Move sensitive logic to API routes**:
+   - Mining rewards → `/api/mining/claim-rewards`
+   - Submarine upgrades → `/api/submarine/upgrade`
+   - Player updates → Backend validates, then writes
+
+3. **See full examples**: `docs/BACKEND-SERVER-SIDE-PATTERNS.md`
+
+### Step 4: Update Environment Variables
+
+Ensure your `.env.local` includes:
+
+```bash
+# Server-side only (NEVER expose to client)
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key-here
+
+# Client-side (safe to expose)
+NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key-here
+```
+
+### Step 5: Test Production Security
+
+1. Sign in as User A
+2. Try to read User B's data (should fail)
+3. Try to update User B's data (should fail)
+4. Verify User A can only read/write their own data
+
+See `scripts/check-production-rls.sql` for detailed verification queries.
+
+## 📚 Additional Resources
+
+- `scripts/production-rls-policies.sql` - Production RLS policies
+- `scripts/check-production-rls.sql` - Verification script
+- `docs/BACKEND-SERVER-SIDE-PATTERNS.md` - API route examples
 
 ## 🆘 IF YOU GET STUCK
 

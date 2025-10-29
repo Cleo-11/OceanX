@@ -27,7 +27,6 @@ export interface PlayerProgress {
   position: { x: number; y: number; z: number }
   version: string
   last_saved: string
-  last_daily_trade?: string
 }
 
 export interface SubmarineData {
@@ -96,22 +95,6 @@ export interface LeaderboardEntry {
   tokens: number
   tier: number
   submarine: string
-}
-
-export interface DailyTradeResponse {
-  ocxEarned: number
-  breakdown: Record<string, { amount: number; rate: number; value: number }>
-  tradeTime: string
-  nextTradeAvailable: string
-  message: string
-}
-
-export interface DailyTradeStatus {
-  canTrade: boolean
-  lastTradeTime?: string
-  timeUntilNextTrade: number
-  hoursUntilNext: number
-  nextTradeAvailable: string
 }
 
 export interface PlayerBalanceResponse {
@@ -239,30 +222,6 @@ class ApiClient {
     message: string,
   ): Promise<ApiResponse<PlayerBalanceResponse>> {
     return this.request("/player/balance", {
-      method: "POST",
-      body: JSON.stringify({ address: walletAddress, signature, message }),
-    })
-  }
-
-  // Daily Trading System
-  async performDailyTrade(
-    walletAddress: string,
-    signature: string,
-    message: string,
-    resources: Record<string, number>,
-  ): Promise<ApiResponse<DailyTradeResponse>> {
-    return this.request("/daily-trade", {
-      method: "POST",
-      body: JSON.stringify({ address: walletAddress, signature, message, resources }),
-    })
-  }
-
-  async getDailyTradeStatus(
-    walletAddress: string,
-    signature: string,
-    message: string,
-  ): Promise<ApiResponse<DailyTradeStatus>> {
-    return this.request("/daily-trade/status", {
       method: "POST",
       body: JSON.stringify({ address: walletAddress, signature, message }),
     })

@@ -982,37 +982,36 @@ export function OceanMiningGame({
     }
   }
 
-  // Calculate total storage used and capacity
+  // Calculate total storage used
   const totalUsed = resources.nickel + resources.cobalt + resources.copper + resources.manganese;
-  const totalCapacity = playerStats.maxCapacity.nickel + playerStats.maxCapacity.cobalt + playerStats.maxCapacity.copper + playerStats.maxCapacity.manganese;
-
-  async function tradeAllResources(resources: PlayerResources, maxCapacities: PlayerResources) {
-    const response = await fetch("/daily-trade", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ resources, maxCapacities }),
-    });
-    return await response.json();
-  }
 
   const handleTradeAll = async () => {
-    if (totalUsed < totalCapacity) return; // Only allow if full
+    if (totalUsed === 0) return; // Only allow if player has resources
     setGameState("trading");
     try {
-      const result = await tradeAllResources(resources, playerStats.maxCapacity);
-      if (result.success) {
-        setResources({ nickel: 0, cobalt: 0, copper: 0, manganese: 0 });
-        setPlayerStats((prev) => ({
-          ...prev,
-          capacity: { nickel: 0, cobalt: 0, copper: 0, manganese: 0 },
-        }));
-        setBalance((prev) => prev + result.data.ocxEarned);
-        setGameState("resourceTraded");
-        setTimeout(() => setGameState("idle"), 2000);
-      } else {
-        alert(result.error || "Trade failed");
-        setGameState("idle");
-      }
+      // Calculate OCX earned based on resource values
+      const resourceValues = {
+        nickel: 1,
+        cobalt: 2,
+        copper: 3,
+        manganese: 4,
+      };
+      
+      const ocxEarned = 
+        resources.nickel * resourceValues.nickel +
+        resources.cobalt * resourceValues.cobalt +
+        resources.copper * resourceValues.copper +
+        resources.manganese * resourceValues.manganese;
+
+      // Clear resources and update balance
+      setResources({ nickel: 0, cobalt: 0, copper: 0, manganese: 0 });
+      setPlayerStats((prev) => ({
+        ...prev,
+        capacity: { nickel: 0, cobalt: 0, copper: 0, manganese: 0 },
+      }));
+      setBalance((prev) => prev + ocxEarned);
+      setGameState("resourceTraded");
+      setTimeout(() => setGameState("idle"), 2000);
     } catch (e) {
       alert("Trade failed. Please try again.");
       setGameState("idle");
