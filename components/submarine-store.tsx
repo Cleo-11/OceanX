@@ -7,6 +7,12 @@ import { hasEnoughResourcesForUpgrade } from "@/lib/resource-utils"
 import { X, Lock, Star, Zap } from "lucide-react"
 import SubmarineIcon from "./SubmarineIcon"
 
+/**
+ * TESTING MODE: Set to true to unlock ALL submarines for testing
+ * TODO: Set back to false before production deployment
+ */
+const TESTING_MODE_UNLOCK_ALL = true
+
 interface SubmarineStoreProps {
   isOpen: boolean
   onClose: () => void
@@ -38,6 +44,12 @@ export function SubmarineStore({
   const isUpgrading = gameState === "upgrading"
 
   const getTierStatus = (tier: number) => {
+    // TESTING MODE: Treat all submarines as available when testing
+    if (TESTING_MODE_UNLOCK_ALL) {
+      if (tier === currentTier) return "current"
+      return "available"
+    }
+    
     if (tier < currentTier) return "owned"
     if (tier === currentTier) return "current"
     if (tier === currentTier + 1) return "available"
@@ -146,7 +158,8 @@ export function SubmarineStore({
           <div className="grid gap-4">
             {SUBMARINE_TIERS.map((submarine) => {
               const status = getTierStatus(submarine.tier)
-              const canAfford = canAffordSubmarine(submarine.tier)
+              // TESTING MODE: In testing mode, all available submarines are affordable
+              const canAfford = TESTING_MODE_UNLOCK_ALL ? true : canAffordSubmarine(submarine.tier)
               const isSelected = selectedTier === submarine.tier
 
               return (
@@ -154,9 +167,10 @@ export function SubmarineStore({
                   key={submarine.tier}
                   className={`rounded-lg border-2 p-4 transition-all ${getStatusColor(submarine.tier)} ${
                     isSelected ? "ring-2 ring-cyan-400" : ""
-                  } ${status === "available" && canAfford ? "cursor-pointer hover:border-blue-300" : ""}`}
+                  } ${status === "available" && (canAfford || TESTING_MODE_UNLOCK_ALL) ? "cursor-pointer hover:border-blue-300" : ""}`}
                   onClick={() => {
-                    if (status === "available" && canAfford) {
+                    // TESTING MODE: Allow selecting any available submarine
+                    if (status === "available" && (canAfford || TESTING_MODE_UNLOCK_ALL)) {
                       setSelectedTier(submarine.tier)
                     }
                   }}
@@ -295,18 +309,19 @@ export function SubmarineStore({
                           <button
                             onClick={(e) => {
                               e.stopPropagation()
-                              if (canAfford && !isUpgrading) {
+                              // TESTING MODE: Allow purchasing any submarine
+                              if ((canAfford || TESTING_MODE_UNLOCK_ALL) && !isUpgrading) {
                                 onPurchase(submarine.tier)
                               }
                             }}
-                            disabled={!canAfford || isUpgrading}
+                            disabled={!(canAfford || TESTING_MODE_UNLOCK_ALL) || isUpgrading}
                             className={`rounded-lg px-4 py-2 text-sm font-medium transition-all ${
-                              canAfford && !isUpgrading
+                              (canAfford || TESTING_MODE_UNLOCK_ALL) && !isUpgrading
                                 ? "bg-gradient-to-r from-cyan-600 to-blue-600 text-white shadow-lg shadow-cyan-900/30 hover:shadow-cyan-900/50"
                                 : "bg-slate-600 text-slate-400 opacity-50"
                             }`}
                           >
-                            {isUpgrading ? "Upgrading..." : canAfford ? "Upgrade" : "Insufficient Resources"}
+                            {isUpgrading ? "Upgrading..." : (canAfford || TESTING_MODE_UNLOCK_ALL) ? TESTING_MODE_UNLOCK_ALL ? "Select (Testing)" : "Upgrade" : "Insufficient Resources"}
                           </button>
                         )}
                       </div>

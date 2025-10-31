@@ -1,11 +1,11 @@
 "use client"
 
-
+import { useRouter } from "next/navigation"
 import type { GameState, PlayerStats, PlayerResources } from "@/lib/types"
 import { ResourceItem } from "./ResourceItem"
 import { UserProfile } from "./user-profile"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
-import { Package, User } from "lucide-react"
+import { Package, User, Home } from "lucide-react"
 
 interface ResourceSidebarProps {
   isOpen: boolean
@@ -20,9 +20,14 @@ interface ResourceSidebarProps {
 }
 
 export function ResourceSidebar({ isOpen, resources, balance, onTradeAll, gameState, playerStats, walletAddress, walletConnected, onDisconnect }: ResourceSidebarProps) {
+  const router = useRouter()
   const isTrading = gameState === "trading" || gameState === "resourceTraded"
   const isUpgrading = gameState === "upgrading" || gameState === "upgraded"
   const isDisabled = isTrading || isUpgrading
+
+  const handleBackToHome = () => {
+    router.push("/home")
+  }
 
   // Calculate total storage used and capacity
   const totalUsed = resources.nickel + resources.cobalt + resources.copper + resources.manganese
@@ -173,17 +178,27 @@ export function ResourceSidebar({ isOpen, resources, balance, onTradeAll, gameSt
         </TabsContent>
       </Tabs>
 
-      {/* Disconnect Button */}
-      {onDisconnect && (
-        <div className="p-4 border-t border-slate-700">
+      {/* Footer Buttons */}
+      <div className="p-4 border-t border-slate-700 space-y-3">
+        {/* Back to Home Button */}
+        <button
+          onClick={handleBackToHome}
+          className="w-full rounded-lg bg-gradient-to-r from-blue-600 to-cyan-600 py-3 text-lg font-bold text-white shadow-lg hover:from-blue-500 hover:to-cyan-500 transition-all flex items-center justify-center gap-2"
+        >
+          <Home className="w-5 h-5" />
+          Back to Home
+        </button>
+
+        {/* Disconnect Button */}
+        {onDisconnect && (
           <button
             onClick={onDisconnect}
             className="w-full rounded-lg bg-gradient-to-r from-cyan-700 to-slate-800 py-3 text-lg font-bold text-white shadow-lg hover:from-cyan-600 hover:to-slate-700 transition-all"
           >
             Disconnect
           </button>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   )
 }

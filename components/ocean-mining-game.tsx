@@ -27,6 +27,12 @@ import type {
 } from "@/lib/game-types"
 import { ScubaDiverGuide } from "./ScubaDiverGuide"
 
+/**
+ * TESTING MODE: Set to true to bypass blockchain verification for submarine upgrades
+ * TODO: Set back to false before production deployment
+ */
+const TESTING_MODE_BYPASS_BLOCKCHAIN = true
+
 interface OceanMiningGameProps {
   walletConnected: boolean
   gameState: GameState
@@ -773,6 +779,10 @@ export function OceanMiningGame({
     ctx.save()
     ctx.translate(x, y)
     ctx.rotate(rotation)
+    
+    // Scale factor to make submarines larger on canvas (SVG uses size 40, we want ~80-100 on canvas)
+    const size = 80
+    
     // Drop shadow
     ctx.globalAlpha = 0.25
     ctx.beginPath()
@@ -782,53 +792,445 @@ export function OceanMiningGame({
     ctx.fill()
     ctx.filter = 'none'
     ctx.globalAlpha = 1
-    // Sub body (color by tier)
-    let subColor: string | CanvasGradient = color
-    if (tier >= 3) {
-      const grad = ctx.createLinearGradient(-30, 0, 30, 0)
-      grad.addColorStop(0, '#38bdf8')
-      grad.addColorStop(1, '#fbbf24')
-      subColor = grad
+    
+    // Draw submarine EXACTLY as in SubmarineIcon.tsx, matching each tier's SVG
+    switch (tier) {
+      case 1:
+        // Basic capsule with viewport
+        ctx.fillStyle = color
+        ctx.strokeStyle = '#333'
+        ctx.lineWidth = 1
+        ctx.beginPath()
+        ctx.ellipse(0, 0, size*0.4, size*0.18, 0, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.stroke()
+        // Viewport
+        ctx.fillStyle = '#7dd3fc'
+        ctx.strokeStyle = '#222'
+        ctx.lineWidth = 0.5
+        ctx.beginPath()
+        ctx.arc(size*0.2, 0, size*0.09, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.stroke()
+        break
+        
+      case 2:
+        // Add a fin
+        ctx.fillStyle = color
+        ctx.strokeStyle = '#333'
+        ctx.lineWidth = 1
+        ctx.beginPath()
+        ctx.ellipse(0, 0, size*0.4, size*0.18, 0, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.stroke()
+        // Fin
+        ctx.fillRect(-size*0.05, -size*0.32, size*0.1, size*0.18)
+        ctx.strokeRect(-size*0.05, -size*0.32, size*0.1, size*0.18)
+        // Viewport
+        ctx.fillStyle = '#7dd3fc'
+        ctx.strokeStyle = '#222'
+        ctx.lineWidth = 0.5
+        ctx.beginPath()
+        ctx.arc(size*0.2, 0, size*0.09, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.stroke()
+        break
+        
+      case 3:
+        // Reinforced hull (double outline)
+        ctx.fillStyle = color
+        ctx.strokeStyle = '#333'
+        ctx.lineWidth = 2
+        ctx.beginPath()
+        ctx.ellipse(0, 0, size*0.4, size*0.18, 0, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.stroke()
+        // Inner outline
+        ctx.strokeStyle = '#fff'
+        ctx.lineWidth = 1
+        ctx.globalAlpha = 0.3
+        ctx.beginPath()
+        ctx.ellipse(0, 0, size*0.36, size*0.15, 0, 0, Math.PI * 2)
+        ctx.stroke()
+        ctx.globalAlpha = 1
+        // Viewport
+        ctx.fillStyle = '#7dd3fc'
+        ctx.strokeStyle = '#222'
+        ctx.lineWidth = 0.5
+        ctx.beginPath()
+        ctx.arc(size*0.2, 0, size*0.09, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.stroke()
+        break
+        
+      case 4:
+        // Heavy-duty: add cargo box
+        ctx.fillStyle = color
+        ctx.strokeStyle = '#333'
+        ctx.lineWidth = 2
+        ctx.beginPath()
+        ctx.ellipse(0, 0, size*0.4, size*0.18, 0, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.stroke()
+        // Cargo box
+        ctx.fillRect(-size*0.35, size*0.1, size*0.2, size*0.1)
+        ctx.strokeRect(-size*0.35, size*0.1, size*0.2, size*0.1)
+        // Viewport
+        ctx.fillStyle = '#7dd3fc'
+        ctx.strokeStyle = '#222'
+        ctx.lineWidth = 0.5
+        ctx.beginPath()
+        ctx.arc(size*0.2, 0, size*0.09, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.stroke()
+        break
+        
+      case 5:
+        // Heat-resistant: add red/orange glow
+        // Glow first (behind)
+        ctx.fillStyle = 'orange'
+        ctx.globalAlpha = 0.2
+        ctx.beginPath()
+        ctx.ellipse(0, 0, size*0.45, size*0.22, 0, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.globalAlpha = 1
+        // Body
+        ctx.fillStyle = color
+        ctx.strokeStyle = '#333'
+        ctx.lineWidth = 2
+        ctx.beginPath()
+        ctx.ellipse(0, 0, size*0.4, size*0.18, 0, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.stroke()
+        // Viewport
+        ctx.fillStyle = '#7dd3fc'
+        ctx.strokeStyle = '#222'
+        ctx.lineWidth = 0.5
+        ctx.beginPath()
+        ctx.arc(size*0.2, 0, size*0.09, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.stroke()
+        break
+        
+      case 6:
+        // Pressure hull: add extra ring
+        ctx.fillStyle = color
+        ctx.strokeStyle = '#333'
+        ctx.lineWidth = 2
+        ctx.beginPath()
+        ctx.ellipse(0, 0, size*0.4, size*0.18, 0, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.stroke()
+        // Pressure ring
+        ctx.strokeStyle = '#0ff'
+        ctx.lineWidth = 1
+        ctx.globalAlpha = 0.4
+        ctx.beginPath()
+        ctx.ellipse(0, 0, size*0.32, size*0.13, 0, 0, Math.PI * 2)
+        ctx.stroke()
+        ctx.globalAlpha = 1
+        // Viewport
+        ctx.fillStyle = '#7dd3fc'
+        ctx.strokeStyle = '#222'
+        ctx.lineWidth = 0.5
+        ctx.beginPath()
+        ctx.arc(size*0.2, 0, size*0.09, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.stroke()
+        break
+        
+      case 7:
+        // Quantum: add sparkles
+        ctx.fillStyle = color
+        ctx.strokeStyle = '#333'
+        ctx.lineWidth = 2
+        ctx.beginPath()
+        ctx.ellipse(0, 0, size*0.4, size*0.18, 0, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.stroke()
+        // Sparkles
+        ctx.fillStyle = '#0ff'
+        ctx.globalAlpha = 0.7
+        ctx.beginPath()
+        ctx.arc(-size*0.2, -size*0.2, 1.5, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.fillStyle = '#fff'
+        ctx.beginPath()
+        ctx.arc(size*0.2, size*0.2, 1.5, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.globalAlpha = 1
+        // Viewport
+        ctx.fillStyle = '#7dd3fc'
+        ctx.strokeStyle = '#222'
+        ctx.lineWidth = 0.5
+        ctx.beginPath()
+        ctx.arc(size*0.2, 0, size*0.09, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.stroke()
+        break
+        
+      case 8:
+        // Titanium: metallic shine
+        ctx.fillStyle = color
+        ctx.strokeStyle = '#333'
+        ctx.lineWidth = 2
+        ctx.beginPath()
+        ctx.ellipse(0, 0, size*0.4, size*0.18, 0, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.stroke()
+        // Metallic shine
+        ctx.fillStyle = '#fff'
+        ctx.globalAlpha = 0.2
+        ctx.fillRect(-size*0.3, -size*0.075, size*0.6, size*0.05)
+        ctx.globalAlpha = 1
+        // Viewport
+        ctx.fillStyle = '#7dd3fc'
+        ctx.strokeStyle = '#222'
+        ctx.lineWidth = 0.5
+        ctx.beginPath()
+        ctx.arc(size*0.2, 0, size*0.09, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.stroke()
+        break
+        
+      case 9:
+        // Behemoth: extra large, double viewport
+        ctx.fillStyle = color
+        ctx.strokeStyle = '#333'
+        ctx.lineWidth = 2
+        ctx.beginPath()
+        ctx.ellipse(0, 0, size*0.45, size*0.22, 0, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.stroke()
+        // First viewport
+        ctx.fillStyle = '#7dd3fc'
+        ctx.strokeStyle = '#222'
+        ctx.lineWidth = 0.5
+        ctx.beginPath()
+        ctx.arc(size*0.15, 0, size*0.09, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.stroke()
+        // Second viewport
+        ctx.beginPath()
+        ctx.arc(size*0.3, 0, size*0.07, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.stroke()
+        break
+        
+      case 10:
+        // Fortress: add turrets/armor
+        ctx.fillStyle = color
+        ctx.strokeStyle = '#333'
+        ctx.lineWidth = 2
+        ctx.beginPath()
+        ctx.ellipse(0, 0, size*0.45, size*0.22, 0, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.stroke()
+        // Left turret
+        ctx.fillStyle = '#888'
+        ctx.fillRect(-size*0.35, -size*0.35, size*0.1, size*0.1)
+        ctx.strokeRect(-size*0.35, -size*0.35, size*0.1, size*0.1)
+        // Right turret
+        ctx.fillRect(size*0.25, -size*0.35, size*0.1, size*0.1)
+        ctx.strokeRect(size*0.25, -size*0.35, size*0.1, size*0.1)
+        // Viewport
+        ctx.fillStyle = '#7dd3fc'
+        ctx.strokeStyle = '#222'
+        ctx.lineWidth = 0.5
+        ctx.beginPath()
+        ctx.arc(size*0.2, 0, size*0.09, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.stroke()
+        break
+        
+      case 11:
+        // Kraken's Bane: tentacle motif
+        ctx.fillStyle = color
+        ctx.strokeStyle = '#333'
+        ctx.lineWidth = 2
+        ctx.beginPath()
+        ctx.ellipse(0, 0, size*0.45, size*0.22, 0, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.stroke()
+        // Tentacle decoration
+        ctx.strokeStyle = '#7c2d12'
+        ctx.lineWidth = 1.5
+        ctx.beginPath()
+        ctx.moveTo(-size*0.3, size*0.2)
+        ctx.quadraticCurveTo(-size*0.2, size*0.4, -size*0.1, size*0.2)
+        ctx.stroke()
+        // Viewport
+        ctx.fillStyle = '#7dd3fc'
+        ctx.strokeStyle = '#222'
+        ctx.lineWidth = 0.5
+        ctx.beginPath()
+        ctx.arc(size*0.2, 0, size*0.09, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.stroke()
+        break
+        
+      case 12:
+        // Void: black, with purple glow
+        // Purple glow first (behind)
+        ctx.fillStyle = '#a855f7'
+        ctx.globalAlpha = 0.15
+        ctx.beginPath()
+        ctx.ellipse(0, 0, size*0.5, size*0.25, 0, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.globalAlpha = 1
+        // Body
+        ctx.fillStyle = color
+        ctx.strokeStyle = '#333'
+        ctx.lineWidth = 2
+        ctx.beginPath()
+        ctx.ellipse(0, 0, size*0.45, size*0.22, 0, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.stroke()
+        // Viewport
+        ctx.fillStyle = '#7dd3fc'
+        ctx.strokeStyle = '#222'
+        ctx.lineWidth = 0.5
+        ctx.beginPath()
+        ctx.arc(size*0.2, 0, size*0.09, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.stroke()
+        break
+        
+      case 13:
+        // Stellar: star motif
+        ctx.fillStyle = color
+        ctx.strokeStyle = '#333'
+        ctx.lineWidth = 2
+        ctx.beginPath()
+        ctx.ellipse(0, 0, size*0.45, size*0.22, 0, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.stroke()
+        // Star emblem
+        ctx.fillStyle = '#fff59d'
+        ctx.globalAlpha = 0.7
+        ctx.beginPath()
+        // 10-point star (5 outer, 5 inner)
+        for (let i = 0; i < 10; i++) {
+          const angle = (i * Math.PI) / 5 - Math.PI / 2
+          const radius = i % 2 === 0 ? size*0.1 : size*0.05
+          const px = radius * Math.cos(angle)
+          const py = -size*0.32 + radius * Math.sin(angle)
+          if (i === 0) ctx.moveTo(px, py)
+          else ctx.lineTo(px, py)
+        }
+        ctx.closePath()
+        ctx.fill()
+        ctx.globalAlpha = 1
+        // Viewport
+        ctx.fillStyle = '#7dd3fc'
+        ctx.strokeStyle = '#222'
+        ctx.lineWidth = 0.5
+        ctx.beginPath()
+        ctx.arc(size*0.2, 0, size*0.09, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.stroke()
+        break
+        
+      case 14:
+        // Cosmic: alien glow, rings
+        // Cosmic glow first (behind)
+        ctx.fillStyle = '#a855f7'
+        ctx.globalAlpha = 0.2
+        ctx.beginPath()
+        ctx.ellipse(0, 0, size*0.55, size*0.28, 0, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.globalAlpha = 1
+        // Body
+        ctx.fillStyle = color
+        ctx.strokeStyle = '#333'
+        ctx.lineWidth = 2
+        ctx.beginPath()
+        ctx.ellipse(0, 0, size*0.45, size*0.22, 0, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.stroke()
+        // Viewport
+        ctx.fillStyle = '#7dd3fc'
+        ctx.strokeStyle = '#222'
+        ctx.lineWidth = 0.5
+        ctx.beginPath()
+        ctx.arc(size*0.2, 0, size*0.09, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.stroke()
+        break
+        
+      case 15:
+        // Leviathan: huge, triple viewport, crown
+        ctx.fillStyle = color
+        ctx.strokeStyle = '#333'
+        ctx.lineWidth = 2
+        ctx.beginPath()
+        ctx.ellipse(0, 0, size*0.5, size*0.25, 0, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.stroke()
+        // First viewport
+        ctx.fillStyle = '#7dd3fc'
+        ctx.strokeStyle = '#222'
+        ctx.lineWidth = 0.5
+        ctx.beginPath()
+        ctx.arc(size*0.1, 0, size*0.09, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.stroke()
+        // Second viewport
+        ctx.beginPath()
+        ctx.arc(size*0.25, 0, size*0.09, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.stroke()
+        // Third viewport
+        ctx.beginPath()
+        ctx.arc(size*0.4, 0, size*0.07, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.stroke()
+        // Crown
+        ctx.fillStyle = '#fff'
+        ctx.globalAlpha = 0.8
+        ctx.beginPath()
+        ctx.moveTo(0, -size*0.4)
+        ctx.lineTo(size*0.03, -size*0.32)
+        ctx.lineTo(-size*0.03, -size*0.32)
+        ctx.closePath()
+        ctx.fill()
+        ctx.globalAlpha = 1
+        break
+        
+      default:
+        // Fallback: basic
+        ctx.fillStyle = color
+        ctx.strokeStyle = '#333'
+        ctx.lineWidth = 1
+        ctx.beginPath()
+        ctx.ellipse(0, 0, size*0.4, size*0.18, 0, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.stroke()
+        // Viewport
+        ctx.fillStyle = '#7dd3fc'
+        ctx.strokeStyle = '#222'
+        ctx.lineWidth = 0.5
+        ctx.beginPath()
+        ctx.arc(size*0.2, 0, size*0.09, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.stroke()
+        break
     }
-    if (tier >= 5) subColor = '#a21caf'
-    ctx.fillStyle = subColor
-    ctx.beginPath()
-    ctx.ellipse(0, 0, 30, 15, 0, 0, Math.PI * 2)
-    ctx.fill()
-    // Highlight
-    ctx.globalAlpha = 0.18
-    ctx.beginPath()
-    ctx.ellipse(0, -8, 22, 6, 0, 0, Math.PI * 2)
-    ctx.fillStyle = '#fff'
-    ctx.fill()
-    ctx.globalAlpha = 1
-    // Engine glow if moving forward
+    
+    // Engine glow when moving (positioned behind submarine based on tier size)
     if (movingForward) {
       ctx.save()
       ctx.globalAlpha = 0.45 + 0.15 * Math.sin(Date.now() / 120)
+      const engineX = tier >= 9 ? -size*0.55 : -size*0.45 // Adjust for larger submarines
       ctx.beginPath()
-      ctx.ellipse(-32, 0, 16, 8, 0, 0, Math.PI * 2)
-      ctx.fillStyle = tier >= 3 ? '#fbbf24' : '#22d3ee'
+      ctx.ellipse(engineX, 0, 16, 8, 0, 0, Math.PI * 2)
+      ctx.fillStyle = tier >= 5 ? '#fbbf24' : tier >= 3 ? '#f97316' : '#22d3ee'
       ctx.shadowColor = ctx.fillStyle
       ctx.shadowBlur = 16
       ctx.fill()
       ctx.restore()
     }
-    // Conning tower
-    ctx.fillStyle = typeof subColor === 'string' ? subColor : '#38bdf8'
-    ctx.beginPath()
-    ctx.ellipse(0, -10, 10, 5, 0, 0, Math.PI)
-    ctx.fill()
-    // Viewport
-    ctx.fillStyle = "#7dd3fc"
-    ctx.beginPath()
-    ctx.arc(15, 0, 5, 0, Math.PI * 2)
-    ctx.fill()
-    // Propeller
-    ctx.fillStyle = "#475569"
-    ctx.beginPath()
-    ctx.ellipse(-25, 0, 5, 10, 0, 0, Math.PI * 2)
-    ctx.fill()
+    
     ctx.restore()
   }
 
@@ -1047,12 +1449,38 @@ export function OceanMiningGame({
   }
 
   const executeSubmarineUpgrade = async (targetTierOverride?: number): Promise<SubmarineUpgradeResult> => {
+    const targetTier = targetTierOverride ?? playerTier + 1
+    
+    // TESTING MODE: Skip blockchain verification and directly update tier
+    if (TESTING_MODE_BYPASS_BLOCKCHAIN) {
+      console.log(`🧪 TESTING MODE: Upgrading to tier ${targetTier} without blockchain`)
+      
+      // Simulate a successful upgrade response
+      const mockUpgradeData: SubmarineUpgradeResult = {
+        playerId: 'testing-mode-player',
+        wallet: walletAddress || 'testing-mode',
+        previousTier: playerTier,
+        newTier: targetTier,
+        coins: balance, // Keep current balance in testing mode
+        cost: {
+          coins: 0 // No cost in testing mode
+        },
+        timestamp: new Date().toISOString(),
+        message: `Successfully upgraded to Tier ${targetTier} (Testing Mode)`
+      }
+      
+      // Apply the upgrade state
+      applyUpgradeStateFromResponse(mockUpgradeData)
+      
+      return mockUpgradeData
+    }
+    
+    // Original blockchain upgrade logic (only runs when TESTING_MODE_BYPASS_BLOCKCHAIN = false)
     const connection = walletManager.getConnection()
     if (!connection) {
       throw new Error("Wallet not connected")
     }
 
-    const targetTier = targetTierOverride ?? playerTier + 1
     const tierDefinition = getSubmarineByTier(targetTier)
     const upgradeCost = tierDefinition.upgradeCost.tokens
 

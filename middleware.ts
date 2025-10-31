@@ -2,6 +2,12 @@ import { createMiddlewareClient } from '@supabase/auth-helpers-nextjs'
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
+/**
+ * TESTING MODE: Set to true to bypass authentication checks
+ * TODO: Set back to false before production deployment
+ */
+const TESTING_MODE_BYPASS_AUTH = true
+
 export async function middleware(req: NextRequest) {
   const startTime = Date.now()
   const res = NextResponse.next()
@@ -14,6 +20,12 @@ export async function middleware(req: NextRequest) {
   // Skip middleware for auth callback to allow it to complete
   if (pathname.startsWith('/auth/callback')) {
     console.log("[middleware] Skipping middleware for /auth/callback")
+    return res
+  }
+
+  // TESTING MODE: Skip all auth checks
+  if (TESTING_MODE_BYPASS_AUTH) {
+    console.log("[middleware] TESTING MODE - Bypassing all auth checks")
     return res
   }
 

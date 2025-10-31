@@ -13,6 +13,12 @@ import {
 } from "@/lib/contracts"
 
 /**
+ * TESTING MODE: Set to true to use simplified testing API
+ * TODO: Set back to false before production deployment
+ */
+const TESTING_MODE_SIMPLE_API = true
+
+/**
  * Submarine Hangar - Client Component
  * 
  * Futuristic submarine hangar interface with 3D carousel display.
@@ -63,6 +69,34 @@ export default function SubmarineHangarClient({
       setUpgradeError(null)
       setUpgradeStatus('Connecting wallet...')
       
+      // TESTING MODE: Use simplified API that bypasses pending actions
+      if (TESTING_MODE_SIMPLE_API) {
+        setUpgradeStatus('Upgrading submarine (testing mode)...')
+        
+        const resp = await fetch('/api/hangar/test-upgrade', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ targetTier }),
+        })
+        
+        const data = await resp.json()
+        
+        if (!resp.ok || !data.ok) {
+          throw new Error(data?.error || 'Failed to upgrade submarine')
+        }
+        
+        setUpgradeStatus('Upgrade complete! Loading your new submarine...')
+        
+        // Wait a moment to show success message
+        await new Promise(resolve => setTimeout(resolve, 1000))
+        
+        // Redirect to game to see new submarine
+        router.push('/game')
+        router.refresh()
+        return
+      }
+      
+      // Original production code below (only runs when TESTING_MODE_SIMPLE_API = false)
       // Step 1: Create a server-side pending action. If wallet is connected perform on-chain tx now,
       // otherwise redirect user to connect-wallet to link and resume.
       let pendingId: string | null = null

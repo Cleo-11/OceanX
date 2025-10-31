@@ -956,10 +956,37 @@ const MAP_SIZE = 1000;
 const NUM_RESOURCE_NODES = 50;
 const RESOURCE_TYPES = ["nickel", "cobalt", "copper", "manganese"];
 
+// Resource rarity ratios (hierarchical distribution)
+// Based on ratios: Cobalt (1) : Nickel (3) : Copper (6) : Manganese (10)
+// Total parts = 20, so for 50 nodes: Cobalt=2.5, Nickel=7.5, Copper=15, Manganese=25
+// Rounding to: Cobalt=3, Nickel=7, Copper=15, Manganese=25 (total=50)
+const RESOURCE_RATIOS = {
+    cobalt: 3,      // Most rare (6%)
+    nickel: 7,      // Rare (14%)
+    copper: 15,     // Common (30%)
+    manganese: 25   // Most abundant (50%)
+};
+
 function generateInitialResourceNodes() {
     const nodes = [];
+    const resourcePool = [];
+    
+    // Create a pool with exact ratio distribution
+    for (const [type, count] of Object.entries(RESOURCE_RATIOS)) {
+        for (let i = 0; i < count; i++) {
+            resourcePool.push(type);
+        }
+    }
+    
+    // Shuffle the pool to randomize positions
+    for (let i = resourcePool.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [resourcePool[i], resourcePool[j]] = [resourcePool[j], resourcePool[i]];
+    }
+    
+    // Generate nodes using the shuffled pool
     for (let i = 0; i < NUM_RESOURCE_NODES; i++) {
-        const type = RESOURCE_TYPES[Math.floor(Math.random() * RESOURCE_TYPES.length)];
+        const type = resourcePool[i];
         const amount = Math.floor(Math.random() * 1501) + 500;
         nodes.push({
             id: `node-${Date.now()}-${i}`,
