@@ -16,7 +16,7 @@ import {
  * TESTING MODE: Set to true to use simplified testing API
  * TODO: Set back to false before production deployment
  */
-const TESTING_MODE_SIMPLE_API = true
+const TESTING_MODE_SIMPLE_API = false
 
 /**
  * Submarine Hangar - Client Component

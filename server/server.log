@@ -1,0 +1,27 @@
+
+> oceanx-server@1.0.0 dev C:\Users\cleon\Desktop\AbyssX\OceanX-master\server
+> node --import tsx --no-warnings index.js
+
+✅ OCXToken ABI loaded successfully
+🌊 Starting OceanX Backend Server...
+Environment: development
+Port: 3001
+✅ Supabase client initialized
+✅ Claim service loaded
+✅ Server is live on port 3001
+🎮 Waiting for player connections...
+📝 Sign-only claim request: 0x5711b49b29680c1eabb3e3eb6c191d4db70c853c wants 10 OCX (10000000000000000000 wei)
+🔐 Generating claim signature for 0x5711B49b29680c1eabB3E3eb6c191d4DB70C853c: 10.0 OCX
+📊 Current nonce for 0x5711B49b29680c1eabB3E3eb6c191d4DB70C853c: 1
+🔐 Signing typed data: {
+  account: '0x5711B49b29680c1eabB3E3eb6c191d4DB70C853c',
+  amount: '10000000000000000000',
+  nonce: '1',
+  deadline: '1762776644'
+}
+✅ Signature generated: 0x5b3faf96...
+   v=27, r=0x5b3faf96..., s=0x4529b8b4...
+🔍 Confirming trade for 0x5711b49b29680c1eabb3e3eb6c191d4db70c853c, txHash: 0xe18f3c45fd7222eda56970b075a95f3e3a74c0070cbb39b5c55b9f47d58b40d6
+🔍 Verifying claim transaction: 0xe18f3c45fd7222eda56970b075a95f3e3a74c0070cbb39b5c55b9f47d58b40d6
+✅ Claim verified: 0x5711B49b29680c1eabB3E3eb6c191d4DB70C853c claimed 10.0 OCX
+^C ELIFECYCLE  Command failed with exit code 3221225786.

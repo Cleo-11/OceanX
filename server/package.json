@@ -2,10 +2,12 @@
   "name": "oceanx-server",
   "version": "1.0.0",
   "description": "OceanX Game Server",
+  "type": "module",
   "main": "index.js",
   "scripts": {
     "start": "node check-env.js && node index.js",
-    "dev": "nodemon index.js",
+    "dev": "node --import tsx --no-warnings index.js",
+    "dev:watch": "nodemon --exec 'node --import tsx --no-warnings' index.js",
     "check-env": "node check-env.js",
     "start-no-check": "node index.js"
   },
@@ -16,17 +18,19 @@
     "ethers": "^6.10.0",
     "express": "^4.18.2",
     "express-rate-limit": "^6.10.0",
-  "socket.io": "^4.7.4",
-  "sanitize-html": "^2.17.0",
+    "node-fetch": "^3.3.2",
+    "sanitize-html": "^2.17.0",
+    "socket.io": "^4.7.4",
     "ts-node": "^10.9.2",
     "web3": "^4.5.0",
     "ws": "^8.16.0",
-    "zod": "^3.24.1"
+    "zod": "4.1.12"
   },
   "devDependencies": {
     "jest": "^30.2.0",
     "nodemon": "^3.0.3",
-    "supertest": "^7.1.4"
+    "supertest": "^7.1.4",
+    "tsx": "^4.20.6"
   },
   "keywords": [
     "oceanx",

@@ -5,7 +5,7 @@ import { createSupabaseServerClient } from '@/lib/supabase-server'
  * TESTING MODE: Set to true to bypass authentication checks
  * TODO: Set back to false before production deployment
  */
-const TESTING_MODE_BYPASS_AUTH = true
+const TESTING_MODE_BYPASS_AUTH = false
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   try {

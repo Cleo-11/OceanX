@@ -14,7 +14,7 @@ contract DeployToken is Script {
         vm.startBroadcast(deployerPrivateKey);
 
         OCXToken token = new OCXToken(initialOwner, authorizedSigner);
-        console.log("✅ OCXToken deployed at:", address(token));
+        console.log("OCXToken deployed at:", address(token));
 
         vm.stopBroadcast();
     }

@@ -1,29 +1,28 @@
-// ...existing code...
-
-require("ts-node/register/transpile-only");
-
-const express = require("express");
-const http = require("http");
-const socketIo = require("socket.io");
-const cors = require("cors");
-const rateLimit = require("express-rate-limit");
-const { createClient } = require("@supabase/supabase-js");
-const {
+// OceanX Backend Server - ESM entry point
+import "dotenv/config";
+import express from "express";
+import http from "http";
+import { Server as SocketIOServer } from "socket.io";
+import cors from "cors";
+import rateLimit from "express-rate-limit";
+import { createClient } from "@supabase/supabase-js";
+import { ethers } from "ethers";
+import * as claimService from "./claimService.js";
+import {
   verifyJoinSignature,
   createAuthMiddleware,
   ensureAuthenticationFresh,
   DEFAULT_MAX_SIGNATURE_AGE_MS,
-} = require("./auth");
-const {
+} from "./auth.js";
+import {
   validateInput,
   playerMovePayloadSchema,
   mineResourcePayloadSchema,
   playerPositionSchema,
   resourceNodeSchema,
   playerResourcesSchema,
-} = require("./lib/validation.ts");
-const { sanitizeHtml, sanitizePlainText } = require("./lib/sanitize.ts");
-require("dotenv").config();
+} from "./lib/validation.ts";
+import { sanitizeHtml, sanitizePlainText } from "./lib/sanitize.ts";
 
 // Utility functions for input validation and sanitization
 function isValidWalletAddress(address) {
@@ -570,7 +569,7 @@ app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
 // Socket.IO setup with production optimizations
-const io = socketIo(server, {
+const io = new SocketIOServer(server, {
   cors: corsOptions,
   transports: ["websocket"], // DISABLE POLLING for performance
   maxHttpBufferSize: 1e6, // 1MB limit
@@ -593,14 +592,7 @@ try {
   console.error("❌ Failed to initialize Supabase:", error);
 }
 
-// Initialize claim service
-let claimService = null;
-try {
-  claimService = require('./claimService');
-  console.log("✅ Claim service loaded");
-} catch (error) {
-  console.error("⚠️ Claim service not available:", error.message);
-}
+console.log("✅ Claim service loaded");
 
 // Track connections per IP for DDoS protection
 const connectionsByIP = new Map();
@@ -1465,6 +1457,291 @@ app.post("/claim", claimLimiter, requireClaimAuth, async (req, res) => {
     } catch (err) {
         console.error("Claim error:", err);
         res.status(500).json({ error: err.message || "Internal error" });
+    }
+});
+
+// ==========================================
+// MARKETPLACE ENDPOINTS (Sign-only flow)
+// ==========================================
+
+/**
+ * POST /marketplace/sign-claim
+ * Generate EIP-712 signature for a claim (does NOT submit transaction)
+ * Client will receive signature and submit claim tx themselves (user pays gas)
+ */
+app.post("/marketplace/sign-claim", claimLimiter, requireClaimAuth, async (req, res) => {
+    try {
+        const wallet = req?.auth?.wallet;
+        if (!wallet) {
+            return res.status(401).json({ error: "Wallet authentication required" });
+        }
+
+        // Get amount from request (in OCX, will convert to wei)
+        const ocxAmount = parseFloat(req.body?.ocxAmount || req.body?.amount || 0);
+        if (isNaN(ocxAmount) || ocxAmount <= 0) {
+            return res.status(400).json({ error: "Invalid OCX amount" });
+        }
+
+        // Convert OCX to wei
+        const amountWei = ethers.parseEther(ocxAmount.toString());
+
+        // Optional: resource type and amount (for marketplace trades)
+        const resourceType = req.body?.resourceType;
+        const resourceAmount = parseInt(req.body?.resourceAmount || 0);
+
+        console.log(`📝 Sign-only claim request: ${wallet} wants ${ocxAmount} OCX (${amountWei.toString()} wei)`);
+
+        // Optional: verify player has resources if this is a trade
+        if (resourceType && resourceAmount > 0) {
+            // TODO: Query player inventory and validate sufficient resources
+            // For now we'll skip this check and add it in Phase 2
+        }
+
+        if (!claimService || !claimService.generateClaimSignature) {
+            return res.status(503).json({ error: "Claim service not available" });
+        }
+
+        // Generate signature (does NOT submit transaction)
+        const signatureData = await claimService.generateClaimSignature(
+            wallet,
+            amountWei.toString()
+        );
+
+        // Optional: Create pending trade record in DB
+        let tradeId = null;
+        if (supabase && resourceType) {
+            try {
+                // Get player record
+                const { data: player, error: playerError } = await supabase
+                    .from('players')
+                    .select('id')
+                    .eq('wallet_address', wallet.toLowerCase())
+                    .single();
+
+                if (!playerError && player) {
+                    // Insert trade record
+                    const { data: trade, error: tradeError } = await supabase
+                        .from('trades')
+                        .insert({
+                            player_id: player.id,
+                            wallet_address: wallet.toLowerCase(),
+                            resource_type: resourceType,
+                            resource_amount: resourceAmount,
+                            ocx_amount: ocxAmount.toString(),
+                            status: 'pending',
+                            nonce: signatureData.nonce,
+                            deadline: signatureData.deadline,
+                            created_at: new Date().toISOString()
+                        })
+                        .select()
+                        .single();
+
+                    if (!tradeError && trade) {
+                        tradeId = trade.id;
+                        console.log(`✅ Created pending trade: ${tradeId}`);
+                    } else {
+                        console.warn('⚠️ Failed to create trade record:', tradeError);
+                    }
+                }
+            } catch (dbErr) {
+                console.warn('⚠️ DB operation failed (non-fatal):', dbErr.message);
+            }
+        }
+
+        // Return signature data for client to submit
+        res.json({
+            success: true,
+            tradeId,
+            wallet,
+            ocxAmount,
+            amountWei: signatureData.amountWei,
+            nonce: signatureData.nonce,
+            deadline: signatureData.deadline,
+            signature: signatureData.signature,
+            v: signatureData.v,
+            r: signatureData.r,
+            s: signatureData.s,
+            message: "Signature generated. Client must call OCXToken.claim() to execute transaction."
+        });
+
+    } catch (err) {
+        console.error("❌ Sign-claim error:", err);
+        res.status(500).json({ 
+            error: err.message || "Internal error",
+            details: process.env.NODE_ENV !== "production" ? err.stack : undefined
+        });
+    }
+});
+
+/**
+ * POST /marketplace/trade/confirm
+ * Verify a claim transaction and finalize the trade in DB
+ * Client submits txHash after they've executed the claim
+ */
+app.post("/marketplace/trade/confirm", claimLimiter, requireClaimAuth, async (req, res) => {
+    try {
+        const wallet = req?.auth?.wallet;
+        if (!wallet) {
+            return res.status(401).json({ error: "Wallet authentication required" });
+        }
+
+        const { txHash, tradeId } = req.body;
+
+        if (!txHash || typeof txHash !== 'string' || !txHash.match(/^0x[a-fA-F0-9]{64}$/)) {
+            return res.status(400).json({ error: "Invalid transaction hash" });
+        }
+
+        console.log(`🔍 Confirming trade for ${wallet}, txHash: ${txHash}`);
+
+        // Get trade record if tradeId provided
+        let trade = null;
+        let expectedAmount = null;
+
+        if (supabase && tradeId) {
+            const { data, error } = await supabase
+                .from('trades')
+                .select('*')
+                .eq('id', tradeId)
+                .eq('wallet_address', wallet.toLowerCase())
+                .single();
+
+            if (error) {
+                return res.status(404).json({ error: "Trade not found" });
+            }
+
+            trade = data;
+
+            if (trade.status === 'confirmed') {
+                return res.status(400).json({ error: "Trade already confirmed" });
+            }
+
+            // Convert OCX amount back to wei for verification
+            expectedAmount = ethers.parseEther(trade.ocx_amount).toString();
+        }
+
+        if (!claimService || !claimService.verifyClaimTransaction) {
+            return res.status(503).json({ error: "Claim service not available" });
+        }
+
+        // Verify the transaction on-chain
+        const verification = await claimService.verifyClaimTransaction(
+            txHash,
+            wallet,
+            expectedAmount // Can be null if no trade record
+        );
+
+        if (!verification.valid) {
+            return res.status(400).json({ error: "Transaction verification failed" });
+        }
+
+        // Update trade record and player balance
+        if (supabase && trade) {
+            try {
+                // Begin transaction-like updates
+                // 1. Mark trade as confirmed
+                const { error: tradeUpdateError } = await supabase
+                    .from('trades')
+                    .update({
+                        status: 'confirmed',
+                        tx_hash: txHash,
+                        confirmed_at: new Date().toISOString(),
+                        block_number: verification.blockNumber
+                    })
+                    .eq('id', tradeId);
+
+                if (tradeUpdateError) {
+                    throw new Error(`Failed to update trade: ${tradeUpdateError.message}`);
+                }
+
+                // 2. Get player record
+                const { data: player, error: playerError } = await supabase
+                    .from('players')
+                    .select('*')
+                    .eq('wallet_address', wallet.toLowerCase())
+                    .single();
+
+                if (playerError || !player) {
+                    throw new Error(`Player not found: ${playerError?.message}`);
+                }
+
+                // 3. Update player: deduct resources, increment OCX earned
+                const updates = {
+                    total_ocx_earned: (player.total_ocx_earned || 0) + parseFloat(trade.ocx_amount)
+                };
+
+                // Deduct resources if this was a resource trade
+                if (trade.resource_type && trade.resource_amount > 0) {
+                    const resourceKey = trade.resource_type.toLowerCase();
+                    const currentAmount = player[resourceKey] || 0;
+                    
+                    if (currentAmount < trade.resource_amount) {
+                        console.warn(`⚠️ Resource underflow: ${resourceKey} ${currentAmount} < ${trade.resource_amount}`);
+                        // Still proceed but log the issue
+                    }
+
+                    updates[resourceKey] = Math.max(0, currentAmount - trade.resource_amount);
+                }
+
+                const { error: playerUpdateError } = await supabase
+                    .from('players')
+                    .update(updates)
+                    .eq('id', player.id);
+
+                if (playerUpdateError) {
+                    throw new Error(`Failed to update player: ${playerUpdateError.message}`);
+                }
+
+                console.log(`✅ Trade confirmed: ${tradeId}, player ${wallet} received ${trade.ocx_amount} OCX`);
+
+                res.json({
+                    success: true,
+                    tradeId,
+                    txHash,
+                    blockNumber: verification.blockNumber,
+                    ocxReceived: trade.ocx_amount,
+                    resourcesDeducted: trade.resource_type ? {
+                        type: trade.resource_type,
+                        amount: trade.resource_amount
+                    } : null,
+                    message: "Trade confirmed and player balance updated"
+                });
+
+            } catch (dbErr) {
+                console.error("❌ DB update error:", dbErr);
+                
+                // Mark trade as failed
+                if (trade) {
+                    await supabase
+                        .from('trades')
+                        .update({ 
+                            status: 'failed',
+                            error_message: dbErr.message 
+                        })
+                        .eq('id', tradeId);
+                }
+
+                return res.status(500).json({ 
+                    error: "Database update failed",
+                    details: dbErr.message 
+                });
+            }
+        } else {
+            // No DB available or no trade record - just return verification
+            res.json({
+                success: true,
+                txHash,
+                blockNumber: verification.blockNumber,
+                verified: true,
+                message: "Transaction verified on-chain (no DB update)"
+            });
+        }
+
+    } catch (err) {
+        console.error("❌ Trade confirmation error:", err);
+        res.status(500).json({ 
+            error: err.message || "Internal error",
+            details: process.env.NODE_ENV !== "production" ? err.stack : undefined
+        });
     }
 });
 

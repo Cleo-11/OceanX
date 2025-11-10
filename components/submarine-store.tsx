@@ -11,7 +11,7 @@ import SubmarineIcon from "./SubmarineIcon"
  * TESTING MODE: Set to true to unlock ALL submarines for testing
  * TODO: Set back to false before production deployment
  */
-const TESTING_MODE_UNLOCK_ALL = true
+const TESTING_MODE_UNLOCK_ALL = false
 
 interface SubmarineStoreProps {
   isOpen: boolean

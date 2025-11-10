@@ -1,4 +1,4 @@
-const { ethers } = require("ethers")
+import { ethers } from "ethers";
 
 const JOIN_SIGNATURE_DOMAIN = "OceanX"
 const DEFAULT_MAX_SIGNATURE_AGE_MS = parseInt(process.env.JOIN_SIGNATURE_MAX_AGE_MS ?? "", 10) || 5 * 60 * 1000
@@ -407,7 +407,7 @@ const ensureAuthenticationFresh = ({
   return true
 }
 
-module.exports = {
+export {
   JOIN_SIGNATURE_DOMAIN,
   DEFAULT_MAX_SIGNATURE_AGE_MS,
   MAX_FUTURE_SKEW_MS,
@@ -423,4 +423,4 @@ module.exports = {
   BODY_KEYS,
   HEADER_KEYS,
   QUERY_KEYS,
-}
+};

@@ -112,11 +112,12 @@ contract OCXToken is ERC20, ERC20Burnable, EIP712, Ownable {
      * @dev
      * Overrides the internal _update function from ERC20 to disable wallet-to-wallet transfers.
      * This is the core of the new logic. It ensures that tokens can only be moved
-     * when they are being minted (from address(0)) or burned (to address(0)).
+     * when they are being minted (from address(0)) or burned (to address(0)), or when
+     * the transfer is initiated by an authorized transfer agent (e.g., the contract itself during claims).
      */
     function _update(address from, address to, uint256 value) internal override {
         if (from != address(0) && to != address(0)) {
-            require(transferAgents[msg.sender], "OCXToken: Transfers are disabled");
+            require(transferAgents[from] || transferAgents[msg.sender], "OCXToken: Transfers are disabled");
         }
 
         super._update(from, to, value);

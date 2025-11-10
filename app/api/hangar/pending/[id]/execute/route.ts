@@ -9,8 +9,8 @@ import { env } from '@/lib/env'
  * TESTING MODE: Set to true to bypass authentication and blockchain verification
  * TODO: Set back to false before production deployment
  */
-const TESTING_MODE_BYPASS_AUTH = true
-const TESTING_MODE_BYPASS_BLOCKCHAIN = true
+const TESTING_MODE_BYPASS_AUTH = false
+const TESTING_MODE_BYPASS_BLOCKCHAIN = false
 
 export async function POST(_req: Request, { params }: { params: { id: string } }) {
   try {
