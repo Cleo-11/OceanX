@@ -5,6 +5,7 @@
 
 // Example integration in your game component:
 
+/*
 // 1. Add to WebSocket event listeners (in useEffect or game initialization)
 websocket.on("movement-rejected", (data: {
   reason: string;
@@ -124,5 +125,6 @@ function gameLoop() {
   
   requestAnimationFrame(gameLoop);
 }
+*/
 
 export {};

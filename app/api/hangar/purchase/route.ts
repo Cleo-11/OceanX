@@ -7,9 +7,9 @@ const UPGRADE_MANAGER_ADDRESS = process.env.NEXT_PUBLIC_UPGRADE_MANAGER_ADDRESS
 const RPC_URL = process.env.BLOCKCHAIN_RPC_URL || 'https://rpc.sepolia.org' // Fallback to Sepolia testnet
 
 interface PurchaseRequest {
-  txHash: string
-  playerAddress: string
-  targetTier: number
+  txHash: string;
+  playerAddress: string;
+  targetTier: number;
 }
 
 // In-memory cache for processed transactions (prevents replay attacks)
