@@ -12,16 +12,16 @@ Port: 3001
 🎮 Waiting for player connections...
 📝 Sign-only claim request: 0x5711b49b29680c1eabb3e3eb6c191d4db70c853c wants 10 OCX (10000000000000000000 wei)
 🔐 Generating claim signature for 0x5711B49b29680c1eabB3E3eb6c191d4DB70C853c: 10.0 OCX
-📊 Current nonce for 0x5711B49b29680c1eabB3E3eb6c191d4DB70C853c: 1
+📊 Current nonce for 0x5711B49b29680c1eabB3E3eb6c191d4DB70C853c: 2
 🔐 Signing typed data: {
   account: '0x5711B49b29680c1eabB3E3eb6c191d4DB70C853c',
   amount: '10000000000000000000',
-  nonce: '1',
-  deadline: '1762776644'
+  nonce: '2',
+  deadline: '1762831813'
 }
-✅ Signature generated: 0x5b3faf96...
-   v=27, r=0x5b3faf96..., s=0x4529b8b4...
-🔍 Confirming trade for 0x5711b49b29680c1eabb3e3eb6c191d4db70c853c, txHash: 0xe18f3c45fd7222eda56970b075a95f3e3a74c0070cbb39b5c55b9f47d58b40d6
-🔍 Verifying claim transaction: 0xe18f3c45fd7222eda56970b075a95f3e3a74c0070cbb39b5c55b9f47d58b40d6
+✅ Signature generated: 0xad3a1333...
+   v=27, r=0xad3a1333..., s=0x424b1c4a...
+🔍 Confirming trade for 0x5711b49b29680c1eabb3e3eb6c191d4db70c853c, txHash: 0xcd9eccd31c9447b5a9dc19311b2ba18cda5c87171bdda7b066833beef765f670
+🔍 Verifying claim transaction: 0xcd9eccd31c9447b5a9dc19311b2ba18cda5c87171bdda7b066833beef765f670
 ✅ Claim verified: 0x5711B49b29680c1eabB3E3eb6c191d4DB70C853c claimed 10.0 OCX
-^C ELIFECYCLE  Command failed with exit code 3221225786.
+^C

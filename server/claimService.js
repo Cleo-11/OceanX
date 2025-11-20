@@ -49,6 +49,10 @@ const CLAIM_TYPES = {
   ],
 };
 
+// Configurable claim signature expiry (seconds). Default to 5 minutes (300s).
+const CLAIM_SIGNATURE_EXPIRY_SEC = Number(process.env.CLAIM_SIGNATURE_EXPIRY_SEC ?? process.env.CLAIM_EXPIRY_SEC ?? 300);
+
+
 /**
  * Generate claim signature and execute claim transaction
  * @param {string} userAddress - Player's wallet address
@@ -70,8 +74,8 @@ async function claimTokens(userAddress, amount) {
     const nonce = await tokenContract.nonces(normalizedAddress);
     console.log(`📊 Current nonce for ${normalizedAddress}: ${nonce.toString()}`);
     
-    // Set deadline to 1 hour from now
-    const deadline = Math.floor(Date.now() / 1000) + 3600;
+    // Set deadline using configurable expiry (default 5 minutes)
+    const deadline = Math.floor(Date.now() / 1000) + Math.max(1, Math.floor(CLAIM_SIGNATURE_EXPIRY_SEC));
 
     // Create EIP-712 message (note: 'account' not 'player' to match contract CLAIM_TYPEHASH)
     const message = {
@@ -139,8 +143,8 @@ async function generateClaimSignature(userAddress, amount) {
     const nonce = await tokenContract.nonces(normalizedAddress);
     console.log(`📊 Current nonce for ${normalizedAddress}: ${nonce.toString()}`);
     
-    // Set deadline to 1 hour from now
-    const deadline = Math.floor(Date.now() / 1000) + 3600;
+    // Set deadline using configurable expiry (default 5 minutes)
+    const deadline = Math.floor(Date.now() / 1000) + Math.max(1, Math.floor(CLAIM_SIGNATURE_EXPIRY_SEC));
 
     // Create EIP-712 message
     const message = {

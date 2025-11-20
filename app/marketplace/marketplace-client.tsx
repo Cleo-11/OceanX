@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { motion, AnimatePresence } from "framer-motion"
+import { ethers } from "ethers"
 import {
   ArrowLeft,
   Coins,
@@ -14,6 +15,10 @@ import {
   Wallet,
   ChevronDown,
   Info,
+  ExternalLink,
+  AlertCircle,
+  CheckCircle,
+  Loader2,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -28,6 +33,7 @@ import {
 import { StyleWrapper } from "@/components/style-wrapper"
 import { supabase } from "@/lib/supabase"
 import { WalletManager } from "@/lib/wallet"
+import { executeMarketplaceTrade } from "@/lib/services/blockchain-trade.service"
 
 interface PlayerData {
   id: string
@@ -69,6 +75,12 @@ export default function MarketplaceClient({ playerData }: MarketplaceClientProps
   const [recentTrades, setRecentTrades] = useState<any[]>([])
   const [showHistory, setShowHistory] = useState(false)
   const [balanceLoading, setBalanceLoading] = useState(false)
+
+  // Transaction state
+  const [tradeStep, setTradeStep] = useState(0)
+  const [tradeStatus, setTradeStatus] = useState<string>("")
+  const [txHash, setTxHash] = useState<string>("")
+  const [tradeError, setTradeError] = useState<string>("")
 
   // Fetch OCX balance
   const fetchOCXBalance = useCallback(async () => {
@@ -171,18 +183,69 @@ export default function MarketplaceClient({ playerData }: MarketplaceClientProps
   const handleTrade = async () => {
     if (!selectedResource || tradeAmount <= 0 || tradeAmount > selectedResource.amount) return
 
+    // Reset state
     setIsTrading(true)
+    setTradeStep(0)
+    setTradeStatus("")
+    setTxHash("")
+    setTradeError("")
+
     try {
-        // Calculate OCX to receive (0 if market rate not available)
-        const ocxToReceive = selectedResource.ocxRate ? selectedResource.ocxRate * tradeAmount : 0
-
-      // TODO: Implement actual blockchain transaction here
-      // For now, just update local state and database
+      // Check wallet connection
+      const walletManager = WalletManager.getInstance()
+      const connection = walletManager.getConnection()
       
-      // Simulate transaction delay
-      await new Promise((resolve) => setTimeout(resolve, 2000))
+      if (!connection) {
+        setTradeError("Please connect your wallet first")
+        setIsTrading(false)
+        return
+      }
 
-      // Update resource amount
+      // Verify wallet matches player address
+      if (connection.address.toLowerCase() !== playerData.wallet_address.toLowerCase()) {
+        setTradeError("Connected wallet doesn't match your player account")
+        setIsTrading(false)
+        return
+      }
+
+      // Calculate OCX to receive
+      const ocxToReceive = selectedResource.ocxRate ? selectedResource.ocxRate * tradeAmount : 0
+      
+      if (ocxToReceive <= 0) {
+        setTradeError("This resource cannot be traded yet (market rate not available)")
+        setIsTrading(false)
+        return
+      }
+
+      // Get signer from wallet
+      const provider = new ethers.BrowserProvider(window.ethereum)
+      const signer = await provider.getSigner()
+
+      // Execute blockchain trade
+      const result = await executeMarketplaceTrade(
+        {
+          walletAddress: playerData.wallet_address,
+          ocxAmount: ocxToReceive,
+          resourceType: selectedResource.id,
+          resourceAmount: tradeAmount,
+        },
+        signer,
+        (step, message) => {
+          setTradeStep(step)
+          setTradeStatus(message)
+        }
+      )
+
+      if (!result.success) {
+        setTradeError(result.error || "Trade failed")
+        setIsTrading(false)
+        return
+      }
+
+      // Trade successful!
+      setTxHash(result.txHash)
+      
+      // Update resource amount locally
       const updatedResources = resources.map((r) =>
         r.id === selectedResource.id
           ? { ...r, amount: r.amount - tradeAmount }
@@ -195,7 +258,8 @@ export default function MarketplaceClient({ playerData }: MarketplaceClientProps
         id: Date.now().toString(),
         resourceName: selectedResource.name,
         amount: tradeAmount,
-        ocxReceived: ocxToReceive,
+        ocxReceived: result.ocxReceived,
+        txHash: result.txHash,
         timestamp: new Date().toISOString(),
       }
       setRecentTrades([trade, ...recentTrades.slice(0, 9)])
@@ -204,19 +268,27 @@ export default function MarketplaceClient({ playerData }: MarketplaceClientProps
       await supabase
         .from("players")
         .update({
-          total_ocx_earned: (playerData.total_ocx_earned || 0) + ocxToReceive,
+          total_ocx_earned: (playerData.total_ocx_earned || 0) + result.ocxReceived,
         })
         .eq("id", playerData.id)
 
       // Refresh balance
       await fetchOCXBalance()
 
-      // Close modal
-      setSelectedResource(null)
-      setTradeAmount(1)
-    } catch (error) {
+      // Keep modal open to show success message with tx link
+      setTradeStep(5)
+      setTradeStatus(`Successfully traded! Received ${result.ocxReceived} OCX`)
+      
+      // Close modal after 3 seconds
+      setTimeout(() => {
+        setSelectedResource(null)
+        setTradeAmount(1)
+        setIsTrading(false)
+      }, 3000)
+
+    } catch (error: any) {
       console.error("Trade error:", error)
-    } finally {
+      setTradeError(error.message || "Unknown error occurred")
       setIsTrading(false)
     }
   }
@@ -543,11 +615,52 @@ export default function MarketplaceClient({ playerData }: MarketplaceClientProps
                   </div>
                 </div>
 
+                {/* Transaction Status */}
+                {isTrading && (
+                  <div className="space-y-3 p-4 bg-depth-800/50 rounded-lg border border-cyan-500/20">
+                    <div className="flex items-center gap-3">
+                      {tradeStep < 5 ? (
+                        <Loader2 className="h-5 w-5 text-cyan-400 animate-spin" />
+                      ) : tradeError ? (
+                        <AlertCircle className="h-5 w-5 text-red-400" />
+                      ) : (
+                        <CheckCircle className="h-5 w-5 text-green-400" />
+                      )}
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-cyan-400">
+                          {tradeError ? "Trade Failed" : tradeStatus || "Processing..."}
+                        </p>
+                        {tradeError && (
+                          <p className="text-xs text-red-400 mt-1">{tradeError}</p>
+                        )}
+                        {txHash && (
+                          <a
+                            href={`https://sepolia.etherscan.io/tx/${txHash}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs text-cyan-400 hover:text-cyan-300 flex items-center gap-1 mt-1"
+                          >
+                            View on Etherscan <ExternalLink className="h-3 w-3" />
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                    {tradeStep > 0 && tradeStep < 5 && (
+                      <div className="w-full bg-depth-700 rounded-full h-1.5">
+                        <div
+                          className="bg-gradient-to-r from-cyan-500 to-blue-500 h-1.5 rounded-full transition-all duration-500"
+                          style={{ width: `${(tradeStep / 4) * 100}%` }}
+                        />
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {/* Info Notice */}
                 <div className="flex items-start gap-2 p-3 bg-blue-500/10 border border-blue-500/30 rounded-lg">
                   <Info className="h-4 w-4 text-blue-400 mt-0.5 flex-shrink-0" />
                   <p className="text-xs text-blue-400/80">
-                    Trades are processed on the blockchain and may take a few moments to complete.
+                    Trades are processed on the blockchain. You'll pay gas fees in ETH to complete the transaction.
                   </p>
                 </div>
 
@@ -555,27 +668,25 @@ export default function MarketplaceClient({ playerData }: MarketplaceClientProps
                 <div className="flex gap-3">
                   <Button
                     variant="outline"
-                    onClick={() => setSelectedResource(null)}
+                    onClick={() => {
+                      setSelectedResource(null)
+                      setTradeError("")
+                      setTxHash("")
+                    }}
                     className="flex-1 border-cyan-500/30 hover:bg-cyan-500/10"
-                    disabled={isTrading}
+                    disabled={isTrading && tradeStep > 0 && tradeStep < 4}
                   >
-                    Cancel
+                    {tradeError || tradeStep === 5 ? "Close" : "Cancel"}
                   </Button>
                   <Button
                     onClick={handleTrade}
                     disabled={isTrading || tradeAmount <= 0 || tradeAmount > selectedResource.amount}
-                    className="flex-1 bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600"
+                    className="flex-1 bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 disabled:opacity-50"
                   >
                     {isTrading ? (
                       <>
-                        <motion.div
-                          animate={{ rotate: 360 }}
-                          transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                          className="mr-2"
-                        >
-                          ⚙️
-                        </motion.div>
-                        Processing...
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        {tradeStep === 1 ? "Requesting..." : tradeStep === 2 ? "Confirm in Wallet" : tradeStep === 3 ? "Confirming..." : "Processing..."}
                       </>
                     ) : (
                       <>

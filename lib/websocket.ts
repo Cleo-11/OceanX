@@ -112,6 +112,11 @@ export class WebSocketManager {
           this.emit("player-moved", data)
         })
 
+        this.socket.on("movement-rejected", (data: any) => {
+          console.warn("⚠️ Movement rejected by server:", data.reason, data.details)
+          this.emit("movement-rejected", data)
+        })
+
         this.socket.on("resource-mined", (data: any) => {
           this.emit("resource-mined", data)
         })

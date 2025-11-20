@@ -52,7 +52,9 @@ async function main() {
 
   // Get nonce
   const nonce = await contract.nonces(PLAYER_ADDRESS);
-  const deadline = Math.floor(Date.now() / 1000) + 3600;
+  // Use configurable expiry if provided (seconds). Default to 5 minutes (300s).
+  const expiry = Number(process.env.CLAIM_SIGNATURE_EXPIRY_SEC ?? process.env.CLAIM_EXPIRY_SEC ?? 300);
+  const deadline = Math.floor(Date.now() / 1000) + Math.max(1, Math.floor(expiry));
   const amount = ethers.parseEther("10");
 
   const message = {

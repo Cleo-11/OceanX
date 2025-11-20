@@ -8,6 +8,7 @@ import rateLimit from "express-rate-limit";
 import { createClient } from "@supabase/supabase-js";
 import { ethers } from "ethers";
 import * as claimService from "./claimService.js";
+import * as miningService from "./miningService.js";
 import {
   verifyJoinSignature,
   createAuthMiddleware,
@@ -53,6 +54,59 @@ function sanitizePosition(position) {
 
 function isFiniteNumber(value) {
   return typeof value === "number" && Number.isFinite(value);
+}
+
+/**
+ * Calculate 3D distance between two positions
+ */
+function calculateDistance(pos1, pos2) {
+  const dx = pos1.x - pos2.x;
+  const dy = pos1.y - pos2.y;
+  const dz = pos1.z - pos2.z;
+  return Math.sqrt(dx * dx + dy * dy + dz * dz);
+}
+
+/**
+ * Validate if movement is physically possible
+ * Prevents teleportation exploits
+ */
+function isValidMovement(previousPosition, newPosition, deltaTime) {
+  // If no previous position, allow first movement (spawn)
+  if (!previousPosition) {
+    return { valid: true, reason: "initial_spawn" };
+  }
+  
+  // Configuration (adjust based on your game physics)
+  const MAX_SPEED = 50; // units per second (submarine max speed)
+  const TELEPORT_ABILITY_RANGE = 100; // max teleport distance for special ability
+  const MIN_UPDATE_INTERVAL = 16; // minimum ms between updates (60 FPS)
+  
+  // Calculate time delta (default to 100ms if not provided)
+  const dt = deltaTime || 100;
+  
+  // Prevent spam by enforcing minimum update interval
+  if (dt < MIN_UPDATE_INTERVAL) {
+    return { valid: false, reason: "update_too_frequent", details: `Min interval: ${MIN_UPDATE_INTERVAL}ms` };
+  }
+  
+  // Calculate distance moved
+  const distance = calculateDistance(previousPosition, newPosition);
+  
+  // Calculate maximum allowed distance based on time
+  const maxDistance = (MAX_SPEED * dt) / 1000; // convert ms to seconds
+  
+  // Allow teleport range for special abilities (future enhancement)
+  const allowedDistance = Math.max(maxDistance, TELEPORT_ABILITY_RANGE);
+  
+  if (distance > allowedDistance) {
+    return {
+      valid: false,
+      reason: "movement_too_fast",
+      details: `Moved ${distance.toFixed(2)} units in ${dt}ms (max: ${allowedDistance.toFixed(2)})`
+    };
+  }
+  
+  return { valid: true, reason: "ok" };
 }
 
 // Initialize express app BEFORE using it
@@ -133,6 +187,83 @@ const logServerError = (scope, error, context = {}) => {
   console.error("❌", payload)
 }
 
+/**
+ * Compute maximum claimable OCX amount for a wallet based on business rules
+ * @param {string} wallet - Normalized wallet address (lowercase)
+ * @returns {Promise<{maxClaimable: bigint, reason: string, playerData: object}>}
+ */
+async function computeMaxClaimableAmount(wallet) {
+  if (!supabase) {
+    return { maxClaimable: 0n, reason: "Database unavailable", playerData: null }
+  }
+
+  try {
+    // Fetch player data
+    const { data: player, error: playerError } = await supabase
+      .from("players")
+      .select("id, wallet_address, submarine_tier, coins, total_ocx_earned, nickel, cobalt, copper, manganese")
+      .ilike("wallet_address", wallet)
+      .single()
+
+    if (playerError || !player) {
+      return { maxClaimable: 0n, reason: "Player not found", playerData: null }
+    }
+
+    // Business Rules for Max Claimable Amount:
+    // 1. Base: Player's coins (off-chain currency) can be converted 1:1 to OCX
+    // 2. Bonus: Resources can be sold at marketplace rates (implement your rates here)
+    // 3. Tier multiplier: Higher tiers get better rates (future enhancement)
+
+    const RESOURCE_TO_OCX_RATE = {
+      nickel: 0.1,    // 1 nickel = 0.1 OCX
+      cobalt: 0.5,    // 1 cobalt = 0.5 OCX
+      copper: 1.0,    // 1 copper = 1 OCX
+      manganese: 2.0  // 1 manganese = 2 OCX
+    }
+
+    // Calculate value from resources
+    const nickelValue = Math.floor((player.nickel || 0) * RESOURCE_TO_OCX_RATE.nickel)
+    const cobaltValue = Math.floor((player.cobalt || 0) * RESOURCE_TO_OCX_RATE.cobalt)
+    const copperValue = Math.floor((player.copper || 0) * RESOURCE_TO_OCX_RATE.copper)
+    const manganeseValue = Math.floor((player.manganese || 0) * RESOURCE_TO_OCX_RATE.manganese)
+    const totalResourceValue = nickelValue + cobaltValue + copperValue + manganeseValue
+
+    // Calculate coins value (1:1 conversion)
+    const coinsValue = player.coins || 0
+
+    // Total claimable amount (coins + resources)
+    const maxClaimable = BigInt(coinsValue + totalResourceValue)
+
+    return {
+      maxClaimable: maxClaimable * BigInt(10 ** 18), // Convert to wei
+      reason: maxClaimable > 0n ? "OK" : "Insufficient balance",
+      playerData: {
+        id: player.id,
+        wallet: player.wallet_address,
+        tier: player.submarine_tier,
+        coins: player.coins,
+        resources: {
+          nickel: player.nickel || 0,
+          cobalt: player.cobalt || 0,
+          copper: player.copper || 0,
+          manganese: player.manganese || 0
+        },
+        resourceValue: totalResourceValue
+      }
+    }
+  } catch (error) {
+    logServerError("compute-max-claimable", error, { wallet })
+    return { maxClaimable: 0n, reason: "Error computing eligibility", playerData: null }
+  }
+}
+
+/**
+ * Generate unique idempotency key
+ */
+function generateIdempotencyKey() {
+  return `claim-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+}
+
 const createRateLimiter = ({ windowMs, max, message, code, skip }) =>
   rateLimit({
     windowMs,
@@ -175,6 +306,14 @@ const playerDataLimiter = createRateLimiter({
   max: 60,
   message: "Too many player data requests.",
   code: "PLAYER_RATE_LIMIT",
+})
+
+// Mining-specific rate limiter (Requirement #6: Rate limiting + anti-bot)
+const miningLimiter = createRateLimiter({
+  windowMs: 60 * 1000, // 1 minute
+  max: 30, // 30 mining attempts per minute per wallet/IP
+  message: "Too many mining attempts. Try again in a minute.",
+  code: "MINING_RATE_LIMIT",
 })
 
 app.use(globalApiLimiter)
@@ -1152,6 +1291,7 @@ io.on("connection", (socket) => {
             id: walletAddress,
             socketId: socket.id,
             position: { x: 0, y: 0, z: 0, rotation: 0 },
+            lastMoveTime: Date.now(), // Track last movement time for physics validation
             resources: { nickel: 0, cobalt: 0, copper: 0, manganese: 0 },
             submarineTier: 1, // Default tier
             joinedAt: Date.now()
@@ -1293,20 +1433,194 @@ io.on("connection", (socket) => {
             return;
         }
 
-        // Update player position
+        // Physics validation: prevent teleportation exploits
+        const now = Date.now();
+        const deltaTime = player.lastMoveTime ? now - player.lastMoveTime : null;
+        const previousPosition = player.position;
+        
+        const movementValidation = isValidMovement(previousPosition, position, deltaTime);
+        
+        if (!movementValidation.valid) {
+            console.warn(`⚠️ Invalid movement from ${walletAddress}: ${movementValidation.reason}`, movementValidation.details);
+            
+            // Send rejection to client with details
+            socket.emit("movement-rejected", {
+                reason: movementValidation.reason,
+                details: movementValidation.details,
+                currentPosition: previousPosition, // Send back last valid position
+                timestamp: now
+            });
+            
+            // Do not broadcast invalid movement
+            return;
+        }
+
+        // Update player position and timestamp
         player.position = position;
+        player.lastMoveTime = now;
         
         // Broadcast to other players in the same session
         const moveData = {
             id: walletAddress,
             position: player.position,
-            timestamp: Date.now()
+            timestamp: now
         };
         
         socket.to(actualSessionId).emit("player-moved", moveData);
         
         // Optional: Log movement for debugging (uncomment if needed)
         // console.log(`🚶 Player ${walletAddress} moved in session ${actualSessionId}:`, position);
+    });
+
+    /**
+     * Server-Authoritative Mining Handler
+     * Requirement #1: Server-side mining authority with full validation
+     */
+    socket.on("mine-resource", async (data) => {
+        const startTime = Date.now();
+        
+        try {
+            // Sanitize and validate input
+            const nodeId = typeof data?.nodeId === "string" ? sanitizePlainText(data.nodeId.trim(), 128) : null;
+            const sessionId = typeof data?.sessionId === "string" ? sanitizePlainText(data.sessionId.trim(), 128) : null;
+            const walletAddress = typeof data?.walletAddress === "string" ? sanitizePlainText(data.walletAddress.toLowerCase().trim(), 64) : null;
+            const requestedResourceType = data?.resourceType;
+            
+            // Validate required fields
+            if (!nodeId || !sessionId || !walletAddress) {
+                console.log(`❌ Invalid mine-resource data:`, { nodeId, sessionId, walletAddress });
+                socket.emit("mining-result", {
+                    success: false,
+                    reason: "invalid_request",
+                    message: "Missing required fields: nodeId, sessionId, walletAddress"
+                });
+                return;
+            }
+            
+            // Validate wallet address format
+            if (!isValidWalletAddress(walletAddress)) {
+                console.log(`❌ Invalid wallet address format: ${walletAddress}`);
+                socket.emit("mining-result", {
+                    success: false,
+                    reason: "invalid_wallet",
+                    message: "Invalid wallet address format"
+                });
+                return;
+            }
+            
+            // Requirement #6: Rate limiting (30 attempts per minute per wallet)
+            if (isSocketRateLimited(socket, `mining:${walletAddress}`, 30, 60000)) {
+                console.log(`⚠️ Mining rate limit exceeded for wallet: ${walletAddress}`);
+                socket.emit("mining-result", {
+                    success: false,
+                    reason: "rate_limit_exceeded",
+                    message: "Too many mining attempts. Please wait a minute."
+                });
+                return;
+            }
+            
+            // Get player position from session
+            const session = gameSessions.get(sessionId);
+            if (!session) {
+                console.log(`❌ Session not found: ${sessionId}`);
+                socket.emit("mining-result", {
+                    success: false,
+                    reason: "session_not_found",
+                    message: "Game session not found"
+                });
+                return;
+            }
+            
+            const player = session.players.get(walletAddress);
+            if (!player) {
+                console.log(`❌ Player not found in session: ${walletAddress}`);
+                socket.emit("mining-result", {
+                    success: false,
+                    reason: "player_not_found",
+                    message: "Player not found in session"
+                });
+                return;
+            }
+            
+            // Requirement #5: Idempotency - Generate unique attempt ID
+            const attemptId = miningService.generateAttemptId(walletAddress, nodeId);
+            
+            // Get IP address for rate limiting and fraud detection (Requirement #6)
+            const ipAddress = socket.handshake.headers['x-forwarded-for'] || 
+                             socket.handshake.headers['x-real-ip'] || 
+                             socket.handshake.address;
+            const userAgent = socket.handshake.headers['user-agent'] || 'unknown';
+            
+            // Requirement #8: Comprehensive logging
+            console.log(`⛏️ Mining attempt from ${walletAddress}:`, {
+                nodeId,
+                sessionId,
+                position: player.position,
+                attemptId: attemptId.slice(0, 30) + '...',
+                ip: ipAddress
+            });
+            
+            if (!supabase) {
+                console.error(`❌ Database not available`);
+                socket.emit("mining-result", {
+                    success: false,
+                    reason: "service_unavailable",
+                    message: "Mining service temporarily unavailable"
+                });
+                return;
+            }
+            
+            // Requirement #1-7: Execute server-authoritative mining
+            const result = await miningService.executeMiningAttempt(supabase, {
+                walletAddress,
+                sessionId,
+                nodeId,
+                playerPosition: player.position,
+                requestedResourceType,
+                attemptId,
+                ipAddress,
+                userAgent
+            });
+            
+            const processingTime = Date.now() - startTime;
+            
+            // Requirement #8: Log result
+            if (result.success) {
+                console.log(`✅ Mining success: ${walletAddress} mined ${result.amount}x ${result.resourceType} (${processingTime}ms)`);
+            } else {
+                console.log(`⚠️ Mining failed: ${walletAddress} - ${result.reason} (${processingTime}ms)`);
+            }
+            
+            // Send authoritative result to client
+            socket.emit("mining-result", {
+                ...result,
+                processingTime
+            });
+            
+            // If successful, broadcast to session (so other players see node claimed)
+            if (result.success) {
+                socket.to(sessionId).emit("resource-mined", {
+                    nodeId,
+                    minedBy: walletAddress,
+                    resourceType: result.resourceType,
+                    amount: result.amount,
+                    timestamp: Date.now()
+                });
+            }
+            
+        } catch (error) {
+            logServerError("mine-resource", error, {
+                wallet: data?.walletAddress,
+                nodeId: data?.nodeId,
+                sessionId: data?.sessionId
+            });
+            
+            socket.emit("mining-result", {
+                success: false,
+                reason: "server_error",
+                message: "Internal server error during mining"
+            });
+        }
     });
 
     /**
@@ -1405,12 +1719,17 @@ app.post("/claim", claimLimiter, requireClaimAuth, async (req, res) => {
     try {
         const wallet = req?.auth?.wallet;
         if (!wallet) {
-            return res.status(401).json({ error: "Wallet authentication required" });
+            return respondWithError(res, 401, "Wallet authentication required", "WALLET_REQUIRED");
         }
         
         const userAddress = typeof req.body?.userAddress === "string" 
             ? req.body.userAddress.toLowerCase().trim() 
             : wallet.toLowerCase();
+        
+        // Verify wallet address matches authenticated user
+        if (userAddress !== wallet.toLowerCase()) {
+            return respondWithError(res, 401, "Wallet address mismatch", "WALLET_MISMATCH");
+        }
         
         // Amount should come from backend logic (e.g., based on player tier or daily reward)
         const rawAmount = req.body?.amount;
@@ -1432,31 +1751,102 @@ app.post("/claim", claimLimiter, requireClaimAuth, async (req, res) => {
           return null;
         };
 
-        const amount = parseUint(rawAmount);
+        const requestedAmount = parseUint(rawAmount);
         
-        if (!userAddress || amount === null || amount <= 0n) {
-            return res.status(400).json({ error: "Missing or invalid parameters" });
+        if (!userAddress || requestedAmount === null || requestedAmount <= 0n) {
+            return respondWithError(res, 400, "Missing or invalid amount", "INVALID_AMOUNT");
         }
         
-        // Verify wallet address matches authenticated user
-        if (userAddress !== wallet.toLowerCase()) {
-            return res.status(401).json({ error: "Wallet address mismatch" });
+        // 🔒 CRITICAL: Server-side validation before signing/relaying
+        console.log(`🔍 Validating claim eligibility for ${userAddress}: ${ethers.formatEther(requestedAmount)} OCX`);
+        
+        const { maxClaimable, reason, playerData } = await computeMaxClaimableAmount(userAddress);
+        
+        if (requestedAmount > maxClaimable) {
+            console.warn(`⚠️ Claim rejected: ${userAddress} requested ${ethers.formatEther(requestedAmount)} OCX but max is ${ethers.formatEther(maxClaimable)}`);
+            return respondWithError(
+                res, 
+                403, 
+                `Requested amount exceeds allowable claim. Max: ${ethers.formatEther(maxClaimable)} OCX. Reason: ${reason}`,
+                "AMOUNT_EXCEEDS_LIMIT"
+            );
         }
         
         if (!claimService) {
-            return res.status(503).json({ error: "Claim service not available" });
+            return respondWithError(res, 503, "Claim service not available", "SERVICE_UNAVAILABLE");
         }
         
-        // FIXED: Backend now generates signature internally
+        // Check for duplicate claims using idempotency
+        const idempotencyKey = req.body?.idempotencyKey || generateIdempotencyKey();
+        
+        if (supabase) {
+            const { data: existingTrade } = await supabase
+                .from("trades")
+                .select("id, status, tx_hash")
+                .eq("idempotency_key", idempotencyKey)
+                .single();
+                
+            if (existingTrade) {
+                if (existingTrade.status === "confirmed") {
+                    return res.json({ 
+                        success: true, 
+                        txHash: existingTrade.tx_hash,
+                        message: "Claim already processed (idempotent)"
+                    });
+                } else if (existingTrade.status === "pending") {
+                    return respondWithError(res, 409, "Claim already pending", "DUPLICATE_CLAIM");
+                }
+            }
+        }
+        
+        // Create audit trail before relaying
+        let tradeId = null;
+        if (supabase && playerData) {
+            try {
+                const { data: trade, error: tradeError } = await supabase
+                    .from("trades")
+                    .insert({
+                        player_id: playerData.id,
+                        wallet_address: userAddress,
+                        ocx_amount: requestedAmount.toString(),
+                        status: "pending",
+                        idempotency_key: idempotencyKey,
+                        created_at: new Date().toISOString()
+                    })
+                    .select("id")
+                    .single();
+                    
+                if (!tradeError && trade) {
+                    tradeId = trade.id;
+                    console.log(`✅ Created audit record: trade ${tradeId}`);
+                }
+            } catch (dbErr) {
+                logServerError("claim-audit-creation", dbErr, { wallet: userAddress });
+            }
+        }
+        
+        // Log signature generation event
+        console.log(`🔐 Generating claim signature for ${userAddress}: ${ethers.formatEther(requestedAmount)} OCX (trade: ${tradeId})`);
+        
+        // WARNING: Backend relay flow - this will credit backend signer, not the user!
+        // Consider switching to sign-only flow where client submits the tx
         const txHash = await claimService.claimTokens(
           userAddress,
-          amount.toString()
+          requestedAmount.toString()
         );
         
-        res.json({ success: true, txHash });
+        // Update trade record with tx hash
+        if (supabase && tradeId) {
+            await supabase
+                .from("trades")
+                .update({ tx_hash: txHash, status: "confirmed", confirmed_at: new Date().toISOString() })
+                .eq("id", tradeId);
+        }
+        
+        res.json({ success: true, txHash, tradeId });
     } catch (err) {
-        console.error("Claim error:", err);
-        res.status(500).json({ error: err.message || "Internal error" });
+        logServerError("claim-endpoint", err, { wallet: req?.auth?.wallet });
+        respondWithError(res, 500, err.message || "Internal error", "CLAIM_FAILED");
     }
 });
 
@@ -1473,13 +1863,13 @@ app.post("/marketplace/sign-claim", claimLimiter, requireClaimAuth, async (req, 
     try {
         const wallet = req?.auth?.wallet;
         if (!wallet) {
-            return res.status(401).json({ error: "Wallet authentication required" });
+            return respondWithError(res, 401, "Wallet authentication required", "WALLET_REQUIRED");
         }
 
         // Get amount from request (in OCX, will convert to wei)
         const ocxAmount = parseFloat(req.body?.ocxAmount || req.body?.amount || 0);
         if (isNaN(ocxAmount) || ocxAmount <= 0) {
-            return res.status(400).json({ error: "Invalid OCX amount" });
+            return respondWithError(res, 400, "Invalid OCX amount", "INVALID_AMOUNT");
         }
 
         // Convert OCX to wei
@@ -1491,60 +1881,106 @@ app.post("/marketplace/sign-claim", claimLimiter, requireClaimAuth, async (req, 
 
         console.log(`📝 Sign-only claim request: ${wallet} wants ${ocxAmount} OCX (${amountWei.toString()} wei)`);
 
-        // Optional: verify player has resources if this is a trade
+        // 🔒 CRITICAL: Server-side validation before signing
+        const { maxClaimable, reason, playerData } = await computeMaxClaimableAmount(wallet);
+        
+        if (amountWei > maxClaimable) {
+            console.warn(`⚠️ Sign-claim rejected: ${wallet} requested ${ocxAmount} OCX but max is ${ethers.formatEther(maxClaimable)}`);
+            return respondWithError(
+                res,
+                403,
+                `Requested amount exceeds allowable claim. Max: ${ethers.formatEther(maxClaimable)} OCX. Reason: ${reason}`,
+                "AMOUNT_EXCEEDS_LIMIT"
+            );
+        }
+        
+        if (!playerData) {
+            return respondWithError(res, 404, "Player not found", "PLAYER_NOT_FOUND");
+        }
+
+        // Verify player has resources if this is a trade
         if (resourceType && resourceAmount > 0) {
-            // TODO: Query player inventory and validate sufficient resources
-            // For now we'll skip this check and add it in Phase 2
+            const availableResource = playerData.resources[resourceType] || 0;
+            if (resourceAmount > availableResource) {
+                return respondWithError(
+                    res,
+                    403,
+                    `Insufficient ${resourceType}. Available: ${availableResource}, requested: ${resourceAmount}`,
+                    "INSUFFICIENT_RESOURCES"
+                );
+            }
         }
 
         if (!claimService || !claimService.generateClaimSignature) {
-            return res.status(503).json({ error: "Claim service not available" });
+            return respondWithError(res, 503, "Claim service not available", "SERVICE_UNAVAILABLE");
+        }
+        
+        // Check for duplicate claims using idempotency
+        const idempotencyKey = req.body?.idempotencyKey || generateIdempotencyKey();
+        
+        if (supabase) {
+            const { data: existingTrade } = await supabase
+                .from("trades")
+                .select("id, status, nonce, deadline")
+                .eq("idempotency_key", idempotencyKey)
+                .single();
+                
+            if (existingTrade) {
+                if (existingTrade.status === "pending" && existingTrade.deadline && existingTrade.deadline > Date.now() / 1000) {
+                    console.log(`♻️ Returning existing pending signature for idempotency key: ${idempotencyKey}`);
+                    // Return existing pending signature if still valid
+                    return res.json({
+                        message: "Signature already issued (idempotent)",
+                        tradeId: existingTrade.id,
+                        // Note: We don't re-return the signature for security, client should use original
+                        warning: "Use previously issued signature"
+                    });
+                } else if (existingTrade.status === "confirmed") {
+                    return respondWithError(res, 409, "Claim already confirmed on-chain", "ALREADY_CLAIMED");
+                }
+            }
         }
 
+        // Log signature generation event
+        console.log(`🔐 Generating signature for ${wallet}: ${ocxAmount} OCX (idempotency: ${idempotencyKey})`);
+        
         // Generate signature (does NOT submit transaction)
         const signatureData = await claimService.generateClaimSignature(
             wallet,
             amountWei.toString()
         );
 
-        // Optional: Create pending trade record in DB
+        // Create pending trade record in DB (REQUIRED for audit trail)
         let tradeId = null;
-        if (supabase && resourceType) {
+        if (supabase && playerData) {
             try {
-                // Get player record
-                const { data: player, error: playerError } = await supabase
-                    .from('players')
+                const { data: trade, error: tradeError } = await supabase
+                    .from('trades')
+                    .insert({
+                        player_id: playerData.id,
+                        wallet_address: wallet.toLowerCase(),
+                        resource_type: resourceType || null,
+                        resource_amount: resourceAmount || null,
+                        ocx_amount: amountWei.toString(),
+                        status: 'pending',
+                        nonce: signatureData.nonce,
+                        deadline: signatureData.deadline,
+                        idempotency_key: idempotencyKey,
+                        created_at: new Date().toISOString()
+                    })
                     .select('id')
-                    .eq('wallet_address', wallet.toLowerCase())
                     .single();
 
-                if (!playerError && player) {
-                    // Insert trade record
-                    const { data: trade, error: tradeError } = await supabase
-                        .from('trades')
-                        .insert({
-                            player_id: player.id,
-                            wallet_address: wallet.toLowerCase(),
-                            resource_type: resourceType,
-                            resource_amount: resourceAmount,
-                            ocx_amount: ocxAmount.toString(),
-                            status: 'pending',
-                            nonce: signatureData.nonce,
-                            deadline: signatureData.deadline,
-                            created_at: new Date().toISOString()
-                        })
-                        .select()
-                        .single();
-
-                    if (!tradeError && trade) {
-                        tradeId = trade.id;
-                        console.log(`✅ Created pending trade: ${tradeId}`);
-                    } else {
-                        console.warn('⚠️ Failed to create trade record:', tradeError);
-                    }
+                if (!tradeError && trade) {
+                    tradeId = trade.id;
+                    console.log(`✅ Created pending trade: ${tradeId}`);
+                } else {
+                    console.error('❌ Failed to create trade record:', tradeError);
+                    // This is a critical failure - signature issued but not tracked
+                    logServerError('trade-creation-failed', tradeError, { wallet, amount: ocxAmount });
                 }
             } catch (dbErr) {
-                console.warn('⚠️ DB operation failed (non-fatal):', dbErr.message);
+                logServerError('trade-db-error', dbErr, { wallet, amount: ocxAmount });
             }
         }
 
