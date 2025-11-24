@@ -135,7 +135,7 @@ export function verifyClaimRequest(request: ClaimRequest): ClaimVerificationResu
 
     // 4. Validate amount format (must be positive)
     const amount = BigInt(request.payload.amount);
-    if (amount <= 0n) {
+    if (amount <= BigInt(0)) {
       return {
         valid: false,
         error: 'Invalid claim amount',
@@ -280,7 +280,7 @@ export function isValidClaimAmount(
     const amountBN = BigInt(amount);
     
     // Must be positive
-    if (amountBN <= 0n) {
+    if (amountBN <= BigInt(0)) {
       return false;
     }
 

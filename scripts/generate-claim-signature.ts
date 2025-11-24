@@ -93,7 +93,7 @@ async function generateClaimSignature(options: GenerateClaimOptions) {
     const normalizedWallet = ethers.getAddress(wallet);
     const amountBN = BigInt(amount);
     
-    if (amountBN <= 0n) {
+    if (amountBN <= BigInt(0)) {
       throw new Error('Amount must be positive');
     }
 
@@ -148,7 +148,7 @@ async function generateClaimSignature(options: GenerateClaimOptions) {
     console.log('\n✍️  Signing payload with EIP-712...');
 
     // 5. Sign the payload
-    const wallet_signer = new ethers.Wallet(CLAIM_SIGNER_PRIVATE_KEY);
+    const wallet_signer = new ethers.Wallet(CLAIM_SIGNER_PRIVATE_KEY!);
     const signature = await wallet_signer.signTypedData(
       CLAIM_DOMAIN,
       CLAIM_TYPES,

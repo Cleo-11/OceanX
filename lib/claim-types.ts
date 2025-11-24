@@ -31,7 +31,7 @@ export const CLAIM_TYPES = {
     { name: 'amount', type: 'uint256' },
     { name: 'expiresAt', type: 'uint256' },
   ],
-} as const;
+};
 
 // =====================================================
 // DATABASE TYPES
