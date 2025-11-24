@@ -1,5 +1,7 @@
 import { ethers } from "ethers";
 import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
 import "dotenv/config";
 
 const RPC_URL = process.env.RPC_URL;
@@ -8,9 +10,13 @@ const PLAYER_ADDRESS = process.env.TEST_PLAYER_PRIVATE_KEY
   ? new ethers.Wallet(process.env.TEST_PLAYER_PRIVATE_KEY).address 
   : "0x5711B49b29680c1eabB3E3eb6c191d4DB70C853c";
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 async function checkBalance() {
   const provider = new ethers.JsonRpcProvider(RPC_URL);
-  const abiJson = JSON.parse(fs.readFileSync("abis/OCXToken.json", "utf8"));
+  const abiPath = path.join(__dirname, "abis", "OCXToken.json");
+  const abiJson = JSON.parse(fs.readFileSync(abiPath, "utf8"));
   const contract = new ethers.Contract(TOKEN_ADDRESS, abiJson.abi, provider);
 
   console.log("🪙 OCX Token Balance Check\n");

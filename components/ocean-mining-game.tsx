@@ -28,10 +28,11 @@ import type {
 import { ScubaDiverGuide } from "./ScubaDiverGuide"
 
 /**
- * TESTING MODE: Set to true to bypass blockchain verification for submarine upgrades
- * TODO: Set back to false before production deployment
+ * TESTING MODE: Controlled by environment variables.
+ * Only allow bypass on non-production builds and when explicitly enabled via
+ * `NEXT_PUBLIC_ALLOW_BLOCKCHAIN_BYPASS=true` in local/dev env.
  */
-const TESTING_MODE_BYPASS_BLOCKCHAIN = false
+const TESTING_MODE_BYPASS_BLOCKCHAIN = (process.env.NODE_ENV !== 'production' && process.env.NEXT_PUBLIC_ALLOW_BLOCKCHAIN_BYPASS === 'true')
 
 interface OceanMiningGameProps {
   walletConnected: boolean

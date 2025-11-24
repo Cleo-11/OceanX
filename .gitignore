@@ -18,9 +18,14 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files
-.env*
+# env files (CRITICAL: Never commit secrets!)
+.env
 .env.local
+.env*.local
+.env.development
+.env.production
+.env.test
+!.env.example
 
 # vercel
 .vercel
@@ -28,3 +33,21 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# log files
+*.log
+server/*.log
+server/server-startup.log
+server/server.log
+
+# test output
+test-output.txt
+test-results.txt
+full-test-output.txt
+jest-output.txt
+
+# temporary files
+*.swp
+*.swo
+*~
+.DS_Store

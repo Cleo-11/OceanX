@@ -23,15 +23,24 @@ DECLARE
   v_current_amount INTEGER;
   v_new_amount INTEGER;
   v_node_status TEXT;
+  v_player_exists BOOLEAN;
   v_result JSONB;
 BEGIN
-  -- Start transaction (implicit in function)
+  -- Transaction starts implicitly
   
-  -- 1. Lock and verify node is still available (prevents race conditions)
+  -- 1. Lock player row first (prevents concurrent mining attempts from same player)
+  SELECT EXISTS(SELECT 1 FROM public.players WHERE id = p_player_id FOR UPDATE) 
+  INTO v_player_exists;
+  
+  IF NOT v_player_exists THEN
+    RAISE EXCEPTION 'Player % not found', p_player_id;
+  END IF;
+  
+  -- 2. Lock and verify node is still available (prevents race conditions)
   SELECT status INTO v_node_status
   FROM public.resource_nodes
   WHERE id = p_node_db_id
-  FOR UPDATE; -- Lock row for update
+  FOR UPDATE NOWAIT; -- Don't wait if locked, fail immediately
   
   IF v_node_status IS NULL THEN
     RAISE EXCEPTION 'Node % not found', p_node_db_id;
@@ -41,7 +50,7 @@ BEGIN
     RAISE EXCEPTION 'Node already claimed or unavailable (status: %)', v_node_status;
   END IF;
   
-  -- 2. Update node status to claimed
+  -- 3. Update node status to claimed
   UPDATE public.resource_nodes
   SET 
     status = 'claimed',
@@ -55,15 +64,21 @@ BEGIN
     AND status = 'available'; -- Double-check for concurrency safety
   
   IF NOT FOUND THEN
-    RAISE EXCEPTION 'Node update failed - concurrent claim detected';
+    RAISE EXCEPTION 'Concurrent claim detected - node update failed';
   END IF;
   
-  -- 3. Update player resources atomically
+  -- 4. Update player resources atomically
+  -- Validate resource type to prevent SQL injection
+  IF p_resource_type NOT IN ('nickel', 'cobalt', 'copper', 'manganese') THEN
+    RAISE EXCEPTION 'Invalid resource type: %', p_resource_type;
+  END IF;
+  
   -- Use dynamic SQL to update the correct resource column
   EXECUTE format(
     'UPDATE public.players 
      SET %I = COALESCE(%I, 0) + $1,
-         total_resources_mined = COALESCE(total_resources_mined, 0) + $1
+         total_resources_mined = COALESCE(total_resources_mined, 0) + $1,
+         updated_at = NOW()
      WHERE id = $2
      RETURNING %I',
     p_resource_type, 
@@ -73,10 +88,10 @@ BEGIN
   INTO v_new_amount;
   
   IF NOT FOUND THEN
-    RAISE EXCEPTION 'Player % not found', p_player_id;
+    RAISE EXCEPTION 'Player update failed';
   END IF;
   
-  -- 4. Log mining attempt
+  -- 5. Log mining attempt
   INSERT INTO public.mining_attempts (
     attempt_id,
     player_id,
@@ -115,7 +130,7 @@ BEGIN
     NOW()
   );
   
-  -- 5. Return success result
+  -- 6. Return success result
   v_result := jsonb_build_object(
     'success', true,
     'resource_type', p_resource_type,
@@ -127,14 +142,8 @@ BEGIN
   
   RETURN v_result;
   
-EXCEPTION
-  WHEN OTHERS THEN
-    -- Transaction will auto-rollback on exception
-    RAISE NOTICE 'Mining transaction failed: %', SQLERRM;
-    RETURN jsonb_build_object(
-      'success', false,
-      'error', SQLERRM
-    );
+  -- Note: No EXCEPTION handler - let errors propagate to application layer
+  -- This ensures proper error detection and transaction rollback
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 

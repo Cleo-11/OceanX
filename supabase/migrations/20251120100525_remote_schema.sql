@@ -1,0 +1,17 @@
+-- Migration: Remote Schema Sync (Initial)
+-- Date: 2025-11-20
+-- Status: Schema already exists in production database
+--
+-- This migration file was generated during initial Supabase connection.
+-- The actual schema was created manually via the Supabase dashboard and
+-- production SQL scripts.
+--
+-- Current schema is maintained in:
+-- - scripts/production-database-setup.sql
+-- - scripts/supabase-schema.sql
+-- - scripts/fix-mining-race-conditions.sql
+-- - scripts/production-rls-policies.sql
+-- - scripts/add-trades-rls-policies.sql
+--
+-- All tables, RLS policies, and RPC functions are already applied to production.
+-- No action required for this migration.

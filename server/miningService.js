@@ -372,6 +372,7 @@ async function executeMiningAttempt(supabase, {
     }
     
     // ATOMIC TRANSACTION: Update node + player resources + log attempt
+    // This uses a database RPC function with row-level locking (FOR UPDATE) to prevent race conditions
     const { data: transactionResult, error: transactionError } = await supabase.rpc(
       'execute_mining_transaction',
       {
@@ -393,37 +394,18 @@ async function executeMiningAttempt(supabase, {
       }
     );
     
-    // Fallback if RPC doesn't exist: manual transaction
+    // Handle transaction errors (race conditions, node already claimed, etc.)
     if (transactionError) {
-      console.warn('⚠️ RPC execute_mining_transaction not found, using manual updates');
+      console.error('❌ Mining transaction failed:', {
+        error: transactionError.message,
+        code: transactionError.code,
+        details: transactionError.details,
+        hint: transactionError.hint,
+        wallet: walletAddress,
+        nodeId
+      });
       
-      // Update node status
-      await supabase
-        .from('resource_nodes')
-        .update({
-          status: 'claimed',
-          claimed_by_wallet: walletAddress.toLowerCase(),
-          claimed_by_player_id: player.id,
-          claimed_at: new Date().toISOString(),
-          respawn_at: new Date(Date.now() + MINING_CONFIG.DEFAULT_RESPAWN_DELAY_SECONDS * 1000).toISOString()
-        })
-        .eq('id', node.id)
-        .eq('status', 'available'); // Optimistic locking
-      
-      // Update player resources
-      const resourceColumn = outcome.resourceType; // 'nickel', 'cobalt', etc.
-      const currentAmount = player[resourceColumn] || 0;
-      const updatePayload = {
-        [resourceColumn]: currentAmount + outcome.amount,
-        total_resources_mined: (player.total_resources_mined || 0) + outcome.amount
-      };
-      
-      await supabase
-        .from('players')
-        .update(updatePayload)
-        .eq('id', player.id);
-      
-      // Log successful attempt
+      // Log failed transaction attempt
       await supabase.from('mining_attempts').insert({
         attempt_id: attemptId,
         player_id: player.id,
@@ -435,13 +417,44 @@ async function executeMiningAttempt(supabase, {
         position_y: playerPosition?.y,
         position_z: playerPosition?.z,
         distance_to_node: validation.distanceToNode,
-        success: true,
-        resource_type: outcome.resourceType,
-        resource_amount: outcome.amount,
+        success: false,
+        failure_reason: 'transaction_error',
         ip_address: ipAddress,
         user_agent: userAgent,
         processing_duration_ms: Date.now() - startTime
       });
+      
+      // Determine failure reason from error message
+      const errorMsg = transactionError.message?.toLowerCase() || '';
+      if (errorMsg.includes('already claimed') || errorMsg.includes('concurrent claim')) {
+        return {
+          success: false,
+          reason: 'node_already_claimed',
+          message: 'This resource node was just claimed by another player'
+        };
+      } else if (errorMsg.includes('not found')) {
+        return {
+          success: false,
+          reason: 'node_not_found',
+          message: 'Resource node no longer exists'
+        };
+      } else {
+        return {
+          success: false,
+          reason: 'transaction_failed',
+          message: 'Mining transaction failed - please try again'
+        };
+      }
+    }
+    
+    // Verify transaction success
+    if (!transactionResult || transactionResult.success === false) {
+      console.error('❌ Transaction returned failure:', transactionResult);
+      return {
+        success: false,
+        reason: 'transaction_failed',
+        message: transactionResult?.error || 'Mining transaction failed'
+      };
     }
     
     return {

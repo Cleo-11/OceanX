@@ -14,82 +14,102 @@ describe('Authentication System', () => {
   describe('verifyJoinSignature', () => {
     it('should verify valid join signatures', async () => {
       const payload = {
+        domain: 'OceanX',
         action: 'join-game',
-        address: testAddress,
+        wallet: testAddress,
         timestamp: Date.now(),
-        nonce: 'test-nonce-123'
+        session: 'test-session-123'
       };
       
       const message = JSON.stringify(payload);
       const signature = await testWallet.signMessage(message);
       
-      const result = await verifyJoinSignature(signature, payload);
-      expect(result.isValid).toBe(true);
-      expect(result.recoveredAddress).toBe(testAddress);
+      const result = verifyJoinSignature({
+        walletAddress: testAddress,
+        sessionId: 'test-session-123',
+        signature,
+        message
+      });
+      expect(result.wallet).toBe(testAddress);
+      expect(result.session).toBe('test-session-123');
     });
 
     it('should reject invalid signatures', async () => {
       const payload = {
+        domain: 'OceanX',
         action: 'join-game',
-        address: testAddress,
+        wallet: testAddress,
         timestamp: Date.now(),
-        nonce: 'test-nonce-123'
+        session: 'test-session-123'
       };
       
+      const message = JSON.stringify(payload);
       const invalidSignature = '0x' + '0'.repeat(130);
       
-      const result = await verifyJoinSignature(invalidSignature, payload);
-      expect(result.isValid).toBe(false);
+      expect(() => {
+        verifyJoinSignature({
+          walletAddress: testAddress,
+          sessionId: 'test-session-123',
+          signature: invalidSignature,
+          message
+        });
+      }).toThrow('Signature verification failed');
     });
 
     it('should reject expired signatures', async () => {
       const payload = {
+        domain: 'OceanX',
         action: 'join-game',
-        address: testAddress,
+        wallet: testAddress,
         timestamp: Date.now() - (10 * 60 * 1000), // 10 minutes ago
-        nonce: 'test-nonce-123'
+        session: 'test-session-123'
       };
       
       const message = JSON.stringify(payload);
       const signature = await testWallet.signMessage(message);
       
-      const result = await verifyJoinSignature(signature, payload, 5 * 60 * 1000); // 5 min max age
-      expect(result.isValid).toBe(false);
-      expect(result.error).toContain('expired');
+      expect(() => {
+        verifyJoinSignature({
+          walletAddress: testAddress,
+          sessionId: 'test-session-123',
+          signature,
+          message,
+          maxAgeMs: 5 * 60 * 1000
+        });
+      }).toThrow('expired');
     });
   });
 
   describe('verifyAuthSignature', () => {
     it('should verify valid auth signatures', async () => {
-      const payload = {
-        action: 'get-balance',
-        address: testAddress,
-        timestamp: Date.now(),
-        nonce: 'test-nonce-456'
-      };
-      
-      const message = JSON.stringify(payload);
+      const timestamp = Date.now();
+      const message = `AbyssX get-balance\n\nWallet: ${testAddress}\nTimestamp: ${timestamp}\nNetwork: Sepolia`;
       const signature = await testWallet.signMessage(message);
       
-      const result = await verifyAuthSignature(signature, payload);
-      expect(result.isValid).toBe(true);
-      expect(result.recoveredAddress).toBe(testAddress);
+      const result = verifyAuthSignature({
+        walletAddress: testAddress,
+        signature,
+        message,
+        expectedActions: ['get-balance']
+      });
+      expect(result.wallet).toBe(testAddress);
+      expect(result.action).toBe('get-balance');
     });
 
     it('should reject address mismatch', async () => {
-      const payload = {
-        action: 'get-balance',
-        address: ethers.Wallet.createRandom().address.toLowerCase(),
-        timestamp: Date.now(),
-        nonce: 'test-nonce-456'
-      };
-      
-      const message = JSON.stringify(payload);
+      const wrongAddress = ethers.Wallet.createRandom().address.toLowerCase();
+      const timestamp = Date.now();
+      const message = `AbyssX get-balance\n\nWallet: ${wrongAddress}\nTimestamp: ${timestamp}\nNetwork: Sepolia`;
       const signature = await testWallet.signMessage(message);
       
-      const result = await verifyAuthSignature(signature, payload);
-      expect(result.isValid).toBe(false);
-      expect(result.error).toContain('address mismatch');
+      expect(() => {
+        verifyAuthSignature({
+          walletAddress: wrongAddress,
+          signature,
+          message,
+          expectedActions: ['get-balance']
+        });
+      }).toThrow(/does not correspond/);
     });
   });
 
@@ -107,19 +127,29 @@ describe('Authentication System', () => {
     it('should reject requests with missing signature', (done) => {
       const middleware = createAuthMiddleware({
         expectedActions: ['test-action'],
-        bodyKeys: { address: 'string' },
-        headerKeys: { signature: 'string' }
+        bodyKeys: { 
+          address: ['address'], 
+          message: ['message'],
+          signature: ['signature']
+        },
+        headerKeys: { 
+          address: ['x-wallet'], 
+          message: ['x-message'],
+          signature: ['x-signature']
+        }
       });
 
       const req = {
-        body: { address: testAddress },
-        headers: {}
+        body: { address: testAddress, message: 'AbyssX test-action\\n\\nWallet: ' + testAddress + '\\nTimestamp: ' + Date.now() },
+        headers: {},
+        get: () => undefined,
+        query: {}
       };
       const res = {
         status: jest.fn().mockReturnThis(),
         json: jest.fn((data) => {
           expect(res.status).toHaveBeenCalledWith(401);
-          expect(data.error).toContain('signature');
+          expect(data.error).toContain('Signature');
           done();
         })
       };

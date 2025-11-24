@@ -3,10 +3,11 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
 /**
- * TESTING MODE: Set to true to bypass authentication checks
- * TODO: Set back to false before production deployment
+ * TESTING MODE: Controlled by environment variables.
+ * Only allow bypass when not in production AND explicit allow flag is set.
+ * Environment variable to set on dev machines: `ALLOW_AUTH_BYPASS=true`
  */
-const TESTING_MODE_BYPASS_AUTH = false
+const TESTING_MODE_BYPASS_AUTH = (process.env.NODE_ENV !== 'production' && process.env.ALLOW_AUTH_BYPASS === 'true')
 
 export async function middleware(req: NextRequest) {
   const startTime = Date.now()

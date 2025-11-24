@@ -7,8 +7,14 @@ import cors from "cors";
 import rateLimit from "express-rate-limit";
 import { createClient } from "@supabase/supabase-js";
 import { ethers } from "ethers";
+import helmet from "helmet";
+import pino from "pino";
+import pinoHttp from "pino-http";
+import * as Sentry from "@sentry/node";
 import * as claimService from "./claimService.js";
+import { tokenContract } from "./claimService.js";
 import * as miningService from "./miningService.js";
+import NonceManager from "./lib/nonceManager.js";
 import {
   verifyJoinSignature,
   createAuthMiddleware,
@@ -24,6 +30,176 @@ import {
   playerResourcesSchema,
 } from "./lib/validation.ts";
 import { sanitizeHtml, sanitizePlainText } from "./lib/sanitize.ts";
+
+// ========================================
+// 🔒 SECURITY & LOGGING INITIALIZATION
+// ========================================
+
+// Initialize Sentry for error monitoring (before other code)
+if (process.env.SENTRY_DSN && process.env.NODE_ENV !== 'test') {
+  Sentry.init({
+    dsn: process.env.SENTRY_DSN,
+    environment: process.env.NODE_ENV || 'development',
+    tracesSampleRate: process.env.NODE_ENV === 'production' ? 0.1 : 1.0,
+    beforeSend(event) {
+      // Scrub sensitive data
+      if (event.request) {
+        delete event.request.cookies;
+        if (event.request.headers) {
+          delete event.request.headers['authorization'];
+          delete event.request.headers['cookie'];
+        }
+      }
+      return event;
+    },
+  });
+  console.log('✅ Sentry error monitoring initialized');
+} else {
+  console.log('ℹ️  Sentry disabled (set SENTRY_DSN to enable)');
+}
+
+// Initialize Pino structured logger
+const logger = pino({
+  level: process.env.LOG_LEVEL || 'info',
+  transport: process.env.NODE_ENV === 'development' ? {
+    target: 'pino-pretty',
+    options: {
+      colorize: true,
+      translateTime: 'HH:MM:ss',
+      ignore: 'pid,hostname',
+    }
+  } : undefined,
+  formatters: {
+    level: (label) => ({ level: label }),
+  },
+});
+
+// Export logger for use in other modules
+export { logger };
+
+// ========================================
+// 🔒 STARTUP ENVIRONMENT VALIDATION
+// ========================================
+/**
+ * Validates all required environment variables before server starts.
+ * Prevents server from starting with missing or invalid configuration.
+ * This is a critical security measure - DO NOT BYPASS.
+ */
+function validateServerEnvironment() {
+  logger.info('🔍 Validating server environment variables...');
+
+  const REQUIRED_ENV_VARS = [
+    { name: "BACKEND_PRIVATE_KEY", validator: validatePrivateKey },
+    { name: "RPC_URL", validator: validateURL },
+    { name: "TOKEN_CONTRACT_ADDRESS", validator: validateEthereumAddress },
+    { name: "SUPABASE_URL", validator: validateURL },
+    { name: "SUPABASE_ANON_KEY", validator: validateNonEmpty },
+    { name: "SUPABASE_SERVICE_ROLE_KEY", validator: validateNonEmpty },
+    { name: "CHAIN_ID", validator: validateChainId },
+  ];
+
+  const errors = [];
+
+  for (const { name, validator } of REQUIRED_ENV_VARS) {
+    const value = process.env[name];
+
+    if (!value) {
+      errors.push(`❌ Missing required environment variable: ${name}`);
+      continue;
+    }
+
+    const validationResult = validator(value, name);
+    if (!validationResult.valid) {
+      errors.push(`❌ Invalid ${name}: ${validationResult.error}`);
+    }
+  }
+
+  if (errors.length > 0) {
+    logger.error({ errors, requiredVars: REQUIRED_ENV_VARS.map(v => v.name) }, '🚨 ENVIRONMENT VALIDATION FAILED');
+    logger.error('Please configure these in your .env file or deployment platform (Render).');
+    process.exit(1);
+  }
+
+  logger.info({
+    chainId: process.env.CHAIN_ID,
+    rpcUrl: process.env.RPC_URL,
+    contractAddress: process.env.TOKEN_CONTRACT_ADDRESS,
+    privateKeyHint: `****${process.env.BACKEND_PRIVATE_KEY.slice(-8)}`
+  }, '✅ All required environment variables validated successfully');
+}
+
+// Validation helper functions
+function validatePrivateKey(value, name) {
+  // Ethereum private key: 64 hex characters with or without 0x prefix
+  const cleanKey = value.startsWith("0x") ? value.slice(2) : value;
+
+  if (!/^[a-fA-F0-9]{64}$/.test(cleanKey)) {
+    return {
+      valid: false,
+      error: "Must be 64 hex characters (with or without 0x prefix)",
+    };
+  }
+
+  // Additional security check: ensure it's not a commonly known test key
+  const TEST_KEYS = [
+    "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80", // Hardhat #0
+    "0000000000000000000000000000000000000000000000000000000000000001", // Weak key
+  ];
+
+  if (TEST_KEYS.includes(cleanKey.toLowerCase())) {
+    return {
+      valid: false,
+      error: "Cannot use well-known test private key in production",
+    };
+  }
+
+  return { valid: true };
+}
+
+function validateURL(value, name) {
+  try {
+    const url = new URL(value);
+    if (!url.protocol.startsWith("http")) {
+      return { valid: false, error: "Must be HTTP or HTTPS URL" };
+    }
+    return { valid: true };
+  } catch (e) {
+    return { valid: false, error: "Invalid URL format" };
+  }
+}
+
+function validateEthereumAddress(value, name) {
+  if (!/^0x[a-fA-F0-9]{40}$/.test(value)) {
+    return {
+      valid: false,
+      error: "Must be valid Ethereum address (0x + 40 hex characters)",
+    };
+  }
+  return { valid: true };
+}
+
+function validateNonEmpty(value, name) {
+  if (value.trim().length === 0) {
+    return { valid: false, error: "Cannot be empty" };
+  }
+  return { valid: true };
+}
+
+function validateChainId(value, name) {
+  const chainId = parseInt(value);
+  if (isNaN(chainId) || chainId <= 0) {
+    return { valid: false, error: "Must be positive integer" };
+  }
+  return { valid: true };
+}
+
+// 🚨 VALIDATE ENVIRONMENT BEFORE CONTINUING
+// In `test` environment we skip the hard exit so unit tests can run without full production env.
+if (process.env.NODE_ENV !== 'test') {
+  validateServerEnvironment();
+} else {
+  console.log('ℹ️  Skipping strict environment validation in test mode');
+}
 
 // Utility functions for input validation and sanitization
 function isValidWalletAddress(address) {
@@ -397,11 +573,11 @@ app.post("/player/balance", playerDataLimiter, requirePlayerBalanceAuth, async (
   }
 
   try {
-    // Query the players table for the wallet address (case-insensitive)
+    // Query the players table for the wallet address (exact match, case-insensitive normalized)
     const { data: player, error } = await supabase
       .from("players")
       .select("coins, total_ocx_earned")
-      .ilike("wallet_address", wallet)
+      .eq("wallet_address", wallet.toLowerCase())
       .single();
     if (error || !player) {
       return res.status(404).json({ error: "Player not found" });
@@ -438,11 +614,11 @@ app.post("/player/submarine", playerDataLimiter, requirePlayerSubmarineAuth, asy
   }
 
   try {
-    // Query the players table for the wallet address (case-insensitive)
+    // Query the players table for the wallet address (exact match, case-insensitive normalized)
     const { data: player, error } = await supabase
       .from("players")
       .select("submarine_tier")
-      .ilike("wallet_address", wallet)
+      .eq("wallet_address", wallet.toLowerCase())
       .single();
     if (error || !player) {
       return res.status(404).json({ error: "Player not found" });
@@ -628,7 +804,7 @@ app.post("/player/claim", claimLimiter, requireClaimAuth, async (req, res) => {
     const { data: player, error: fetchError } = await supabase
       .from("players")
       .select("*")
-      .ilike("wallet_address", wallet)
+      .eq("wallet_address", wallet.toLowerCase())
       .single();
 
     if (fetchError) {
@@ -703,6 +879,39 @@ const corsOptions = {
   allowedHeaders: ["Content-Type", "Authorization"],
 };
 
+// Sentry request handler (must be first)
+if (process.env.SENTRY_DSN) {
+  app.use(Sentry.Handlers.requestHandler());
+  app.use(Sentry.Handlers.tracingHandler());
+}
+
+// Helmet security headers
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      fontSrc: ["'self'", "https://fonts.gstatic.com"],
+      imgSrc: ["'self'", "data:", "https:"],
+      connectSrc: [
+        "'self'",
+        process.env.SUPABASE_URL,
+        process.env.RPC_URL,
+        process.env.FRONTEND_URL,
+      ].filter(Boolean),
+    },
+  },
+  hsts: {
+    maxAge: 31536000,
+    includeSubDomains: true,
+    preload: true,
+  },
+}));
+
+// Pino HTTP logger
+app.use(pinoHttp({ logger }));
+
 app.use(cors(corsOptions));
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
@@ -729,6 +938,28 @@ try {
   }
 } catch (error) {
   console.error("❌ Failed to initialize Supabase:", error);
+}
+
+// Initialize Nonce Manager for signature replay prevention
+let nonceManager = null;
+try {
+  if (supabase && tokenContract) {
+    nonceManager = new NonceManager(supabase, tokenContract);
+    console.log("✅ Nonce Manager initialized");
+    
+    // Run cleanup every 5 minutes
+    setInterval(async () => {
+      try {
+        await nonceManager.cleanupExpired();
+      } catch (error) {
+        console.error("❌ Nonce cleanup error:", error);
+      }
+    }, 5 * 60 * 1000);
+  } else {
+    console.warn("⚠️ Nonce Manager not initialized - missing dependencies");
+  }
+} catch (error) {
+  console.error("❌ Failed to initialize Nonce Manager:", error);
 }
 
 console.log("✅ Claim service loaded");
@@ -1480,6 +1711,17 @@ io.on("connection", (socket) => {
         const startTime = Date.now();
         
         try {
+            // Per-socket rate limiting (prevents multi-connection spam)
+            if (isSocketRateLimited(socket, 'mine-resource', 30, 60000)) {
+                console.warn(`⚠️ Mining rate limit exceeded for socket: ${socket.id}`);
+                socket.emit("mining-result", {
+                    success: false,
+                    reason: "rate_limit_exceeded",
+                    message: "Too many mining attempts from this connection. Please wait a minute."
+                });
+                return;
+            }
+            
             // Sanitize and validate input
             const nodeId = typeof data?.nodeId === "string" ? sanitizePlainText(data.nodeId.trim(), 128) : null;
             const sessionId = typeof data?.sessionId === "string" ? sanitizePlainText(data.sessionId.trim(), 128) : null;
@@ -1508,7 +1750,7 @@ io.on("connection", (socket) => {
                 return;
             }
             
-            // Requirement #6: Rate limiting (30 attempts per minute per wallet)
+            // Per-wallet rate limiting (additional layer)
             if (isSocketRateLimited(socket, `mining:${walletAddress}`, 30, 60000)) {
                 console.log(`⚠️ Mining rate limit exceeded for wallet: ${walletAddress}`);
                 socket.emit("mining-result", {
@@ -1609,6 +1851,20 @@ io.on("connection", (socket) => {
             }
             
         } catch (error) {
+            // Capture error in Sentry
+            if (process.env.SENTRY_DSN) {
+                Sentry.captureException(error, {
+                    extra: {
+                        wallet: data?.walletAddress,
+                        nodeId: data?.nodeId,
+                        sessionId: data?.sessionId,
+                    },
+                    tags: {
+                        handler: 'mine-resource',
+                    },
+                });
+            }
+            
             logServerError("mine-resource", error, {
                 wallet: data?.walletAddress,
                 nodeId: data?.nodeId,
@@ -1714,140 +1970,16 @@ app.get("/sessions/:sessionId", (req, res) => {
     });
 });
 
-// Endpoint to claim tokens (trigger contract claim)
+// ⚠️ DEPRECATED: This endpoint has the backend pay gas fees - DO NOT USE
+// Use /marketplace/sign-claim instead (user pays gas)
 app.post("/claim", claimLimiter, requireClaimAuth, async (req, res) => {
-    try {
-        const wallet = req?.auth?.wallet;
-        if (!wallet) {
-            return respondWithError(res, 401, "Wallet authentication required", "WALLET_REQUIRED");
-        }
-        
-        const userAddress = typeof req.body?.userAddress === "string" 
-            ? req.body.userAddress.toLowerCase().trim() 
-            : wallet.toLowerCase();
-        
-        // Verify wallet address matches authenticated user
-        if (userAddress !== wallet.toLowerCase()) {
-            return respondWithError(res, 401, "Wallet address mismatch", "WALLET_MISMATCH");
-        }
-        
-        // Amount should come from backend logic (e.g., based on player tier or daily reward)
-        const rawAmount = req.body?.amount;
-        
-        const parseUint = (value) => {
-          if (typeof value === "number") {
-            if (!Number.isFinite(value) || value < 0) return null;
-            return BigInt(Math.floor(value));
-          }
-          if (typeof value === "string") {
-            const trimmed = value.trim();
-            if (!trimmed || !/^\d+$/.test(trimmed)) return null;
-            try {
-              return BigInt(trimmed);
-            } catch (err) {
-              return null;
-            }
-          }
-          return null;
-        };
-
-        const requestedAmount = parseUint(rawAmount);
-        
-        if (!userAddress || requestedAmount === null || requestedAmount <= 0n) {
-            return respondWithError(res, 400, "Missing or invalid amount", "INVALID_AMOUNT");
-        }
-        
-        // 🔒 CRITICAL: Server-side validation before signing/relaying
-        console.log(`🔍 Validating claim eligibility for ${userAddress}: ${ethers.formatEther(requestedAmount)} OCX`);
-        
-        const { maxClaimable, reason, playerData } = await computeMaxClaimableAmount(userAddress);
-        
-        if (requestedAmount > maxClaimable) {
-            console.warn(`⚠️ Claim rejected: ${userAddress} requested ${ethers.formatEther(requestedAmount)} OCX but max is ${ethers.formatEther(maxClaimable)}`);
-            return respondWithError(
-                res, 
-                403, 
-                `Requested amount exceeds allowable claim. Max: ${ethers.formatEther(maxClaimable)} OCX. Reason: ${reason}`,
-                "AMOUNT_EXCEEDS_LIMIT"
-            );
-        }
-        
-        if (!claimService) {
-            return respondWithError(res, 503, "Claim service not available", "SERVICE_UNAVAILABLE");
-        }
-        
-        // Check for duplicate claims using idempotency
-        const idempotencyKey = req.body?.idempotencyKey || generateIdempotencyKey();
-        
-        if (supabase) {
-            const { data: existingTrade } = await supabase
-                .from("trades")
-                .select("id, status, tx_hash")
-                .eq("idempotency_key", idempotencyKey)
-                .single();
-                
-            if (existingTrade) {
-                if (existingTrade.status === "confirmed") {
-                    return res.json({ 
-                        success: true, 
-                        txHash: existingTrade.tx_hash,
-                        message: "Claim already processed (idempotent)"
-                    });
-                } else if (existingTrade.status === "pending") {
-                    return respondWithError(res, 409, "Claim already pending", "DUPLICATE_CLAIM");
-                }
-            }
-        }
-        
-        // Create audit trail before relaying
-        let tradeId = null;
-        if (supabase && playerData) {
-            try {
-                const { data: trade, error: tradeError } = await supabase
-                    .from("trades")
-                    .insert({
-                        player_id: playerData.id,
-                        wallet_address: userAddress,
-                        ocx_amount: requestedAmount.toString(),
-                        status: "pending",
-                        idempotency_key: idempotencyKey,
-                        created_at: new Date().toISOString()
-                    })
-                    .select("id")
-                    .single();
-                    
-                if (!tradeError && trade) {
-                    tradeId = trade.id;
-                    console.log(`✅ Created audit record: trade ${tradeId}`);
-                }
-            } catch (dbErr) {
-                logServerError("claim-audit-creation", dbErr, { wallet: userAddress });
-            }
-        }
-        
-        // Log signature generation event
-        console.log(`🔐 Generating claim signature for ${userAddress}: ${ethers.formatEther(requestedAmount)} OCX (trade: ${tradeId})`);
-        
-        // WARNING: Backend relay flow - this will credit backend signer, not the user!
-        // Consider switching to sign-only flow where client submits the tx
-        const txHash = await claimService.claimTokens(
-          userAddress,
-          requestedAmount.toString()
-        );
-        
-        // Update trade record with tx hash
-        if (supabase && tradeId) {
-            await supabase
-                .from("trades")
-                .update({ tx_hash: txHash, status: "confirmed", confirmed_at: new Date().toISOString() })
-                .eq("id", tradeId);
-        }
-        
-        res.json({ success: true, txHash, tradeId });
-    } catch (err) {
-        logServerError("claim-endpoint", err, { wallet: req?.auth?.wallet });
-        respondWithError(res, 500, err.message || "Internal error", "CLAIM_FAILED");
-    }
+    console.warn(`⚠️ DEPRECATED /claim endpoint called by ${req?.auth?.wallet}`);
+    return respondWithError(
+        res,
+        410,
+        "This endpoint is deprecated for security and cost reasons. Use POST /marketplace/sign-claim instead, which returns a signature for the user to submit (user pays gas).",
+        "ENDPOINT_DEPRECATED"
+    );
 });
 
 // ==========================================
@@ -1880,6 +2012,33 @@ app.post("/marketplace/sign-claim", claimLimiter, requireClaimAuth, async (req, 
         const resourceAmount = parseInt(req.body?.resourceAmount || 0);
 
         console.log(`📝 Sign-only claim request: ${wallet} wants ${ocxAmount} OCX (${amountWei.toString()} wei)`);
+
+        // 🔒 CRITICAL: Check nonce for replay attack prevention
+        if (!nonceManager) {
+            console.error("❌ Nonce Manager not available");
+            return respondWithError(res, 503, "Signature service temporarily unavailable", "SERVICE_UNAVAILABLE");
+        }
+
+        // Get current nonce from blockchain
+        const currentNonce = await nonceManager.getCurrentNonce(wallet);
+
+        // Check if this nonce already has a signature (prevents replay)
+        const existingClaim = await nonceManager.checkNonceUsage(wallet, currentNonce);
+        
+        if (existingClaim) {
+            console.warn(`⚠️ Nonce ${currentNonce} already signed for ${wallet}`);
+            
+            // Return existing signature instead of creating a new one
+            return res.json({
+                success: true,
+                message: "Signature already generated for this nonce",
+                signature: existingClaim.signature,
+                nonce: existingClaim.nonce,
+                amount: existingClaim.amount,
+                deadline: Math.floor(Date.now() / 1000) + 3600, // 1 hour from now
+                isExisting: true,
+            });
+        }
 
         // 🔒 CRITICAL: Server-side validation before signing
         const { maxClaimable, reason, playerData } = await computeMaxClaimableAmount(wallet);
@@ -1915,34 +2074,18 @@ app.post("/marketplace/sign-claim", claimLimiter, requireClaimAuth, async (req, 
             return respondWithError(res, 503, "Claim service not available", "SERVICE_UNAVAILABLE");
         }
         
-        // Check for duplicate claims using idempotency
-        const idempotencyKey = req.body?.idempotencyKey || generateIdempotencyKey();
-        
-        if (supabase) {
-            const { data: existingTrade } = await supabase
-                .from("trades")
-                .select("id, status, nonce, deadline")
-                .eq("idempotency_key", idempotencyKey)
-                .single();
-                
-            if (existingTrade) {
-                if (existingTrade.status === "pending" && existingTrade.deadline && existingTrade.deadline > Date.now() / 1000) {
-                    console.log(`♻️ Returning existing pending signature for idempotency key: ${idempotencyKey}`);
-                    // Return existing pending signature if still valid
-                    return res.json({
-                        message: "Signature already issued (idempotent)",
-                        tradeId: existingTrade.id,
-                        // Note: We don't re-return the signature for security, client should use original
-                        warning: "Use previously issued signature"
-                    });
-                } else if (existingTrade.status === "confirmed") {
-                    return respondWithError(res, 409, "Claim already confirmed on-chain", "ALREADY_CLAIMED");
-                }
+        // 🔒 Reserve nonce (prevents concurrent signing with same nonce)
+        try {
+            await nonceManager.reserveNonce(wallet, currentNonce, amountWei.toString());
+        } catch (error) {
+            if (error.message.includes('already in use')) {
+                return respondWithError(res, 409, "Concurrent claim detected. Please try again.", "NONCE_CONFLICT");
             }
+            throw error;
         }
 
         // Log signature generation event
-        console.log(`🔐 Generating signature for ${wallet}: ${ocxAmount} OCX (idempotency: ${idempotencyKey})`);
+        console.log(`🔐 Generating signature for ${wallet}: ${ocxAmount} OCX (nonce: ${currentNonce})`);
         
         // Generate signature (does NOT submit transaction)
         const signatureData = await claimService.generateClaimSignature(
@@ -1950,8 +2093,12 @@ app.post("/marketplace/sign-claim", claimLimiter, requireClaimAuth, async (req, 
             amountWei.toString()
         );
 
-        // Create pending trade record in DB (REQUIRED for audit trail)
+        // 🔒 Store signature in database (critical for audit trail)
+        await nonceManager.storeSignature(wallet, currentNonce, signatureData.signature);
+
+        // Create pending trade record in DB (for marketplace tracking)
         let tradeId = null;
+        const idempotencyKey = req.body?.idempotencyKey || generateIdempotencyKey();
         if (supabase && playerData) {
             try {
                 const { data: trade, error: tradeError } = await supabase
@@ -2053,6 +2200,25 @@ app.post("/marketplace/trade/confirm", claimLimiter, requireClaimAuth, async (re
 
             // Convert OCX amount back to wei for verification
             expectedAmount = ethers.parseEther(trade.ocx_amount).toString();
+            
+            // 🔒 CRITICAL: Verify nonce was actually consumed on-chain (replay protection)
+            if (claimService && tokenContract) {
+                try {
+                    const currentNonce = await tokenContract.nonces(wallet);
+                    const expectedNonce = BigInt(trade.nonce) + 1n;
+                    
+                    if (currentNonce < expectedNonce) {
+                        console.warn(`⚠️ Nonce mismatch: on-chain ${currentNonce}, expected ${expectedNonce}`);
+                        return res.status(400).json({ 
+                            error: "Transaction not confirmed on-chain. Nonce not incremented.",
+                            code: "NONCE_NOT_INCREMENTED"
+                        });
+                    }
+                } catch (nonceErr) {
+                    console.error('❌ Failed to verify nonce:', nonceErr);
+                    // Continue anyway - verification is best effort
+                }
+            }
         }
 
         if (!claimService || !claimService.verifyClaimTransaction) {
@@ -2206,10 +2372,94 @@ setInterval(() => {
     }
 }, 5 * 60 * 1000); // Run every 5 minutes
 
+// 🔐 Webhook: Mark claim as processed on blockchain
+// This endpoint is called when a claim transaction is confirmed on-chain
+app.post("/webhook/claim-processed", async (req, res) => {
+  try {
+    const { wallet, nonce, txHash } = req.body;
+    
+    if (!wallet || !nonce) {
+      return res.status(400).json({ 
+        success: false, 
+        error: "Missing wallet or nonce" 
+      });
+    }
+
+    // Optional: Verify webhook authenticity (add signature verification here)
+    // const webhookSignature = req.headers['x-webhook-signature'];
+    // if (!verifyWebhookSignature(webhookSignature, req.body)) {
+    //   return res.status(401).json({ success: false, error: "Invalid webhook signature" });
+    // }
+
+    if (nonceManager) {
+      await nonceManager.markAsClaimed(wallet, nonce);
+      console.log(`✅ Marked claim as processed: ${wallet}, nonce ${nonce}, tx ${txHash}`);
+    }
+    
+    res.json({ success: true });
+  } catch (error) {
+    console.error('❌ Webhook error:', error);
+    res.status(500).json({ success: false, error: "Internal error" });
+  }
+});
+
+// 🔍 Debug endpoint: Get nonce statistics (development only)
+if (process.env.NODE_ENV !== 'production') {
+  app.get("/debug/nonce-stats", async (req, res) => {
+    try {
+      if (!nonceManager) {
+        return res.json({ error: "Nonce Manager not available" });
+      }
+
+      const stats = await nonceManager.getStats();
+      res.json(stats);
+    } catch (error) {
+      console.error('❌ Stats error:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/debug/pending-claims/:wallet", async (req, res) => {
+    try {
+      const { wallet } = req.params;
+      
+      if (!nonceManager) {
+        return res.json({ error: "Nonce Manager not available" });
+      }
+
+      const claims = await nonceManager.getPendingClaims(wallet);
+      res.json({ wallet, claims });
+    } catch (error) {
+      console.error('❌ Pending claims error:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+}
+
 // Global error handling middleware
 app.use((err, req, res, next) => {
   console.error('[server] Unhandled error:', err.message);
   res.status(500).json({ error: 'Internal server error' });
+});
+
+// Sentry error handler (must be before other error handlers)
+if (process.env.SENTRY_DSN) {
+  app.use(Sentry.Handlers.errorHandler());
+}
+
+// Global error handler
+app.use((err, req, res, next) => {
+  logger.error({ err, url: req.url, method: req.method }, 'Unhandled error');
+  
+  // Don't leak error details in production
+  const message = process.env.NODE_ENV === 'production' 
+    ? 'Internal server error' 
+    : err.message;
+  
+  res.status(err.status || 500).json({ 
+    error: message,
+    ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
+  });
 });
 
 // 404 handler for unknown routes
@@ -2217,12 +2467,19 @@ app.use((req, res) => {
   res.status(404).json({ error: 'Route not found' });
 });
 
-// Start the server
+// Export the app/server for tests
+export { app, server };
+
+// Start the server only when not running tests
 const PORT = process.env.PORT || 5000;
-server.listen(PORT, "0.0.0.0", () => {
+if (process.env.NODE_ENV !== 'test') {
+  server.listen(PORT, "0.0.0.0", () => {
     console.log(`✅ Server is live on port ${PORT}`);
     console.log(`🎮 Waiting for player connections...`);
-});
+  });
+} else {
+  console.log('ℹ️  Test mode detected — server.listen suppressed');
+}
 
 // Graceful shutdown
 const gracefulShutdown = () => {

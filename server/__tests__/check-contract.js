@@ -11,15 +11,14 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
+// Use file-relative path so script runs regardless of cwd
 const RPC_URL = process.env.RPC_URL;
 const TOKEN_CONTRACT_ADDRESS = process.env.TOKEN_CONTRACT_ADDRESS;
 const BACKEND_SIGNER_ADDRESS = process.env.BACKEND_SIGNER_ADDRESS;
 
-// Load ABI
-const tokenAbiPath = path.join(__dirname, "./abis/OCXToken.json");
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const tokenAbiPath = path.join(__dirname, "abis", "OCXToken.json");
 const tokenAbi = JSON.parse(fs.readFileSync(tokenAbiPath, "utf8"));
 
 async function main() {

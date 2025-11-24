@@ -3,14 +3,12 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 
-// ESM equivalent of __dirname
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-// Load OCXToken ABI
+// Load OCXToken ABI (resolve relative to this file)
 let tokenAbi;
 try {
-  const tokenAbiPath = path.join(__dirname, "./abis/OCXToken.json");
+  const __filename = fileURLToPath(import.meta.url);
+  const __dirname = path.dirname(__filename);
+  const tokenAbiPath = path.join(__dirname, "abis", "OCXToken.json");
   if (fs.existsSync(tokenAbiPath)) {
     const tokenAbiData = fs.readFileSync(tokenAbiPath, "utf8");
     tokenAbi = JSON.parse(tokenAbiData);
@@ -23,14 +21,38 @@ try {
   throw error; // Don't continue without the correct ABI
 }
 
-const provider = new ethers.JsonRpcProvider(process.env.RPC_URL);
-const backendSigner = new ethers.Wallet(process.env.BACKEND_PRIVATE_KEY, provider);
+// 🔒 Validate private key format before creating wallet (deferred)
+const BACKEND_PRIVATE_KEY = process.env.BACKEND_PRIVATE_KEY;
+let provider = null;
+let backendSigner = null;
+let tokenContract = null;
+if (!BACKEND_PRIVATE_KEY) {
+  console.warn("⚠️  BACKEND_PRIVATE_KEY not set — claim signing disabled in this runtime");
+} else {
+  // Remove 0x prefix if present for validation
+  const cleanKey = BACKEND_PRIVATE_KEY.startsWith("0x") 
+    ? BACKEND_PRIVATE_KEY.slice(2) 
+    : BACKEND_PRIVATE_KEY;
 
-const tokenContract = new ethers.Contract(
-  process.env.TOKEN_CONTRACT_ADDRESS,
-  tokenAbi.abi,
-  backendSigner
-);
+  if (!/^[a-fA-F0-9]{64}$/.test(cleanKey)) {
+    throw new Error(
+      "BACKEND_PRIVATE_KEY must be 64 hex characters (with or without 0x prefix)"
+    );
+  }
+
+  // Initialize provider and signer with validated key
+  provider = new ethers.JsonRpcProvider(process.env.RPC_URL);
+  backendSigner = new ethers.Wallet(BACKEND_PRIVATE_KEY, provider);
+
+  console.log("✅ Backend signer initialized:", backendSigner.address);
+  console.log("🔐 Private key loaded securely from environment (last 8 chars: ****" + BACKEND_PRIVATE_KEY.slice(-8) + ")");
+
+  tokenContract = new ethers.Contract(
+    process.env.TOKEN_CONTRACT_ADDRESS,
+    tokenAbi.abi,
+    backendSigner
+  );
+}
 
 // EIP-712 Domain for OCXToken (must match contract constructor)
 const DOMAIN = {
@@ -265,4 +287,4 @@ async function verifyClaimTransaction(txHash, expectedRecipient, expectedAmount)
   }
 }
 
-export { claimTokens, generateClaimSignature, verifyClaimTransaction };
+export { claimTokens, generateClaimSignature, verifyClaimTransaction, tokenContract };

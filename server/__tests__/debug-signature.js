@@ -10,16 +10,14 @@ import { ethers } from "ethers";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
 const RPC_URL = process.env.RPC_URL;
 const TOKEN_CONTRACT_ADDRESS = process.env.TOKEN_CONTRACT_ADDRESS;
 const BACKEND_PRIVATE_KEY = process.env.BACKEND_PRIVATE_KEY;
 const PLAYER_ADDRESS = "0x5711B49b29680c1eabB3E3eb6c191d4DB70C853c";
 
-const tokenAbiPath = path.join(__dirname, "./abis/OCXToken.json");
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const tokenAbiPath = path.join(__dirname, "abis", "OCXToken.json");
 const tokenAbi = JSON.parse(fs.readFileSync(tokenAbiPath, "utf8"));
 
 const DOMAIN = {

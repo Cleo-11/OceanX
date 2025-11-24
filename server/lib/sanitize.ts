@@ -1,6 +1,8 @@
 import sanitizeHtmlLib from "sanitize-html"
 
-const CONTROL_CHAR_PATTERN = /[\u0000-\u001F\u007F\u202A-\u202E\u2066-\u2069]/g
+// Control characters to remove, EXCLUDING normal whitespace (tab=09, LF=0A, CR=0D)
+// Removes chars 00-08, 0B-0C, 0E-1F, and other special control chars
+const CONTROL_CHAR_PATTERN = /[\u0000-\u0008\u000B-\u000C\u000E-\u001F\u007F\u202A-\u202E\u2066-\u2069]/g
 
 const DEFAULT_ALLOWED_TAGS: string[] = [
   "a",
@@ -74,7 +76,23 @@ export const sanitizePlainText = (value: unknown, maxLength = 512): string => {
     return ""
   }
 
-  const stripped = sanitizeWithOptions(value, { allowedTags: [], allowedAttributes: {} })
+  // For plain text that needs whitespace preserved, manually strip HTML tags
+  // This avoids sanitize-html's whitespace normalization
+  let stripped = value
+    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '') // Remove script tags
+    .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '') // Remove style tags
+    .replace(/<[^>]+>/g, '') // Remove all other HTML tags
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&')
+    .replace(/&quot;/g, '"')
+    .replace(/&#x27;/g, "'")
+    .replace(/&#x2F;/g, '/')
+
+  // Remove control chars (but preserve normal whitespace like \\n, \\t, \\r)
   const withoutControlChars = stripped.replace(CONTROL_CHAR_PATTERN, "")
-  return withoutControlChars.trim().slice(0, maxLength)
+  if (Number.isFinite(maxLength) && withoutControlChars.length > maxLength) {
+    return withoutControlChars.slice(0, maxLength)
+  }
+  return withoutControlChars
 }

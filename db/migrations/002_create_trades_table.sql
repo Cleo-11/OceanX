@@ -90,3 +90,57 @@ COMMENT ON COLUMN trades.status IS 'pending: signature generated but tx not conf
 COMMENT ON COLUMN trades.nonce IS 'On-chain nonce from OCXToken contract used for this claim (prevents replay)';
 COMMENT ON COLUMN trades.deadline IS 'Unix timestamp when the EIP-712 signature expires';
 COMMENT ON COLUMN trades.idempotency_key IS 'Client-provided key to prevent duplicate trade processing on retries';
+
+-- ========================================
+-- ROW LEVEL SECURITY (RLS) POLICIES
+-- ========================================
+
+-- Enable RLS on trades table
+ALTER TABLE trades ENABLE ROW LEVEL SECURITY;
+
+-- Policy 1: Service role has full access (for backend operations)
+CREATE POLICY "service_role_all_trades" ON trades
+  FOR ALL
+  USING (auth.role() = 'service_role');
+
+-- Policy 2: Users can read their own trades
+CREATE POLICY "trades_select" ON trades
+  FOR SELECT
+  USING (
+    auth.role() = 'authenticated'
+    AND auth.uid() = player_id
+  );
+
+-- Policy 3: Users can insert their own trades
+-- (backend typically creates via service_role, but allows client-side creation)
+CREATE POLICY "trades_insert" ON trades
+  FOR INSERT
+  WITH CHECK (
+    auth.role() = 'authenticated'
+    AND auth.uid() = player_id
+  );
+
+-- Policy 4: Users can update their own trades
+-- (e.g., updating tx_hash after submission, or cancelling pending trades)
+CREATE POLICY "trades_update" ON trades
+  FOR UPDATE
+  USING (
+    auth.role() = 'authenticated'
+    AND auth.uid() = player_id
+  )
+  WITH CHECK (
+    auth.role() = 'authenticated'
+    AND auth.uid() = player_id
+  );
+
+-- Policy 5: Prevent users from deleting trades (audit trail)
+-- Only service_role can delete (for cleanup/admin purposes)
+CREATE POLICY "trades_delete" ON trades
+  FOR DELETE
+  USING (false);
+
+-- Add policy documentation
+COMMENT ON POLICY "trades_select" ON trades IS 'Users can only view their own trade history';
+COMMENT ON POLICY "trades_insert" ON trades IS 'Users can only create trades for themselves';
+COMMENT ON POLICY "trades_update" ON trades IS 'Users can only update their own trades (e.g., tx_hash, status)';
+COMMENT ON POLICY "trades_delete" ON trades IS 'Deletes prevented for audit trail; only service_role can delete via backend';
