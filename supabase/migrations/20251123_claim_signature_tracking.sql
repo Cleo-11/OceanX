@@ -88,8 +88,10 @@ BEGIN
   SET used = true,
       used_at = NOW()
   WHERE expires_at < current_timestamp_seconds
-    AND used = false
-  RETURNING COUNT(*) INTO expired_count;
+    AND used = false;
+  
+  -- Get the count of affected rows
+  GET DIAGNOSTICS expired_count = ROW_COUNT;
   
   RETURN expired_count;
 END;
