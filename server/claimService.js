@@ -46,12 +46,15 @@ if (!BACKEND_PRIVATE_KEY) {
 
   console.log("✅ Backend signer initialized:", backendSigner.address);
   console.log("🔐 Private key loaded securely from environment (last 8 chars: ****" + BACKEND_PRIVATE_KEY.slice(-8) + ")");
+  // Ensure the token contract address is provided
+  const tokenAddress = process.env.TOKEN_CONTRACT_ADDRESS;
+  if (!tokenAddress) {
+    throw new Error(
+      'Missing required environment variable: TOKEN_CONTRACT_ADDRESS. Set this to your deployed OCX token contract address.'
+    );
+  }
 
-  tokenContract = new ethers.Contract(
-    process.env.TOKEN_CONTRACT_ADDRESS,
-    tokenAbi.abi,
-    backendSigner
-  );
+  tokenContract = new ethers.Contract(tokenAddress, tokenAbi.abi, backendSigner);
 }
 
 // EIP-712 Domain for OCXToken (must match contract constructor)
@@ -59,7 +62,7 @@ const DOMAIN = {
   name: "OCXToken",
   version: "1",
   chainId: parseInt(process.env.CHAIN_ID || "11155111"), // Default to Sepolia if not set
-  verifyingContract: process.env.TOKEN_CONTRACT_ADDRESS,
+  verifyingContract: process.env.TOKEN_CONTRACT_ADDRESS || null,
 };
 
 const CLAIM_TYPES = {
