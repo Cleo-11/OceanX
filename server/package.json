@@ -5,20 +5,24 @@
   "type": "module",
   "main": "index.js",
   "scripts": {
-    "start": "node check-env.js && node index.js",
+    "start": "node check-env.js && node --import tsx --no-warnings index.js",
     "dev": "node --import tsx --no-warnings index.js",
     "dev:watch": "nodemon --exec 'node --import tsx --no-warnings' index.js",
     "check-env": "node check-env.js",
-    "start-no-check": "node index.js"
+    "start-no-check": "node --import tsx --no-warnings index.js"
   },
   "dependencies": {
+    "@sentry/node": "^10.26.0",
     "@supabase/supabase-js": "^2.39.3",
     "cors": "^2.8.5",
     "dotenv": "^16.4.1",
     "ethers": "^6.10.0",
     "express": "^4.18.2",
     "express-rate-limit": "^6.10.0",
+    "helmet": "^8.1.0",
     "node-fetch": "^3.3.2",
+    "pino": "^10.1.0",
+    "pino-http": "^11.0.0",
     "sanitize-html": "^2.17.0",
     "socket.io": "^4.7.4",
     "ts-node": "^10.9.2",
