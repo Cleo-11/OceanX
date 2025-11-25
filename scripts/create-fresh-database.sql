@@ -92,7 +92,12 @@ BEGIN
     updated_at
   ) VALUES (
     NEW.id,
-    COALESCE(NEW.email, 'Player'),
+    COALESCE(
+      NEW.raw_user_meta_data->>'username',  -- Username from signup form
+      NEW.raw_user_meta_data->>'full_name', -- Google display name
+      SPLIT_PART(NEW.email, '@', 1),       -- Email prefix as fallback
+      'Player'                              -- Ultimate fallback
+    ),
     1,
     0,
     0,

@@ -44,12 +44,15 @@ export const signInWithEmail = async (email: string, password: string) => {
   return { data, error }
 }
 
-export const signUpWithEmail = async (email: string, password: string) => {
+export const signUpWithEmail = async (email: string, password: string, username?: string) => {
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
     options: {
       emailRedirectTo: `${getSiteUrl()}/auth/callback`,
+      data: {
+        username: username || email.split('@')[0], // Store username in user metadata
+      },
     },
   })
   return { data, error }

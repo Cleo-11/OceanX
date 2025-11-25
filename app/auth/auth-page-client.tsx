@@ -14,8 +14,11 @@ function AuthPageContent() {
   const [error, setError] = useState<string>("")
   const [success, setSuccess] = useState<string>("")
   const [email, setEmail] = useState("")
+  const [username, setUsername] = useState("")
   const [password, setPassword] = useState("")
+  const [confirmPassword, setConfirmPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [mounted, setMounted] = useState(false)
 
   const router = useRouter()
@@ -81,7 +84,28 @@ function AuthPageContent() {
     try {
       let result
       if (isSignUp) {
-        result = await signUpWithEmail(email, password)
+        // Validate username
+        if (!username || username.trim().length < 3) {
+          setError("Username must be at least 3 characters long")
+          setIsLoading(false)
+          return
+        }
+
+        // Validate password match
+        if (password !== confirmPassword) {
+          setError("Passwords do not match")
+          setIsLoading(false)
+          return
+        }
+
+        // Validate password strength
+        if (password.length < 8) {
+          setError("Password must be at least 8 characters long")
+          setIsLoading(false)
+          return
+        }
+
+        result = await signUpWithEmail(email, password, username)
         if (!result.error && !result.data.session) {
           setSuccess("Please check your email to confirm your account before signing in.")
           setIsLoading(false)
@@ -110,7 +134,9 @@ function AuthPageContent() {
     setError("")
     setSuccess("")
     setEmail("")
+    setUsername("")
     setPassword("")
+    setConfirmPassword("")
     router.push(`/auth?mode=${isSignUp ? "login" : "signup"}`)
   }
 
@@ -212,6 +238,27 @@ function AuthPageContent() {
               </div>
             </div>
 
+            {isSignUp && (
+              <div className="space-y-2">
+                <Label htmlFor="username" className="text-depth-300">
+                  Username
+                </Label>
+                <div className="relative">
+                  <Input
+                    id="username"
+                    type="text"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    required
+                    minLength={3}
+                    maxLength={30}
+                    className="bg-depth-700 border-depth-600 text-white placeholder-depth-400 focus:border-ocean-500 focus:ring-ocean-500"
+                    placeholder="Choose a username (3-30 characters)"
+                  />
+                </div>
+              </div>
+            )}
+
             <div className="space-y-2">
               <Label htmlFor="password" className="text-depth-300">
                 Password
@@ -224,9 +271,9 @@ function AuthPageContent() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
-                  minLength={6}
+                  minLength={8}
                   className="pl-10 pr-10 bg-depth-700 border-depth-600 text-white placeholder-depth-400 focus:border-ocean-500 focus:ring-ocean-500"
-                  placeholder="Enter your password"
+                  placeholder={isSignUp ? "Create a password (min 8 characters)" : "Enter your password"}
                 />
                 <Button
                   type="button"
@@ -239,6 +286,36 @@ function AuthPageContent() {
                 </Button>
               </div>
             </div>
+
+            {isSignUp && (
+              <div className="space-y-2">
+                <Label htmlFor="confirmPassword" className="text-depth-300">
+                  Confirm Password
+                </Label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-depth-400 w-4 h-4" />
+                  <Input
+                    id="confirmPassword"
+                    type={showConfirmPassword ? "text" : "password"}
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    required
+                    minLength={8}
+                    className="pl-10 pr-10 bg-depth-700 border-depth-600 text-white placeholder-depth-400 focus:border-ocean-500 focus:ring-ocean-500"
+                    placeholder="Confirm your password"
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  >
+                    {showConfirmPassword ? <EyeOff className="h-4 w-4 text-depth-400" /> : <Eye className="h-4 w-4 text-depth-400" />}
+                  </Button>
+                </div>
+              </div>
+            )}
 
             <Button
               type="submit"
