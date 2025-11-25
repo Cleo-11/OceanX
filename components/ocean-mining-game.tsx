@@ -26,6 +26,8 @@ import type {
   ConnectionStatus,
 } from "@/lib/game-types"
 import { ScubaDiverGuide } from "./ScubaDiverGuide"
+import { loadGameState, saveGameState, setupAutoSave, clearGameState, getDefaultGameState } from "@/lib/gameStateStorage"
+import { getCurrentUser } from "@/lib/supabase"
 
 /**
  * TESTING MODE: Controlled by environment variables.
@@ -133,6 +135,7 @@ export function OceanMiningGame({
   const [viewportOffset, setViewportOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 })
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>("disconnected")
   const [showGuide, setShowGuide] = useState<boolean>(true);
+  const [userId, setUserId] = useState<string | null>(null);
 
   // --- AQUATIC FEATURE STATE ---
   const [aquaticState] = useState<AquaticState>(() => {
@@ -172,6 +175,42 @@ export function OceanMiningGame({
   // Restore backend and database connectivity, but keep multiplayer visuals disabled
   useEffect(() => {
     generateInitialResourceNodes();
+    
+    // Load userId and restore game state from localStorage
+    const initGameState = async () => {
+      try {
+        const { user } = await getCurrentUser();
+        if (user) {
+          setUserId(user.id);
+          
+          // Try to load saved game state from localStorage
+          const savedState = loadGameState(user.id);
+          if (savedState) {
+            console.log("✅ Restored game state from localStorage:", savedState);
+            setPlayerPosition({
+              x: savedState.position.x,
+              y: savedState.position.y,
+              rotation: 0,
+            });
+            setPlayerStats((prev) => ({
+              ...prev,
+              energy: savedState.energy,
+              health: savedState.hull,
+            }));
+            setSessionId(savedState.sessionId);
+          } else {
+            console.log("ℹ️ No saved game state found, using defaults");
+            const defaults = getDefaultGameState();
+            setPlayerPosition({ x: defaults.position.x, y: defaults.position.y, rotation: 0 });
+          }
+        }
+      } catch (error) {
+        console.error("Failed to load game state:", error);
+      }
+    };
+    
+    initGameState();
+    
     const init = async () => {
       try {
         setConnectionStatus("connecting");
@@ -210,6 +249,26 @@ export function OceanMiningGame({
 
   // SubmarineStore auto-open removed (store is now a dedicated route)
 
+  // Setup auto-save for game state to localStorage
+  useEffect(() => {
+    if (!userId) return;
+
+    const getGameState = () => ({
+      position: { x: playerPosition.x, y: playerPosition.y },
+      energy: playerStats.energy,
+      hull: playerStats.health,
+      sessionId: sessionId || "global",
+    });
+
+    const cleanup = setupAutoSave(userId, getGameState);
+    console.log("✅ Auto-save enabled for user:", userId);
+
+    return () => {
+      cleanup();
+      console.log("ℹ️ Auto-save disabled");
+    };
+  }, [userId, playerPosition.x, playerPosition.y, playerStats.energy, playerStats.health, sessionId]);
+
   // Generate resource nodes function
   const generateInitialResourceNodes = () => {
     const types = ["nickel", "cobalt", "copper", "manganese"] as const
@@ -240,6 +299,11 @@ export function OceanMiningGame({
     wsManager.disconnect()
     setConnectionStatus("disconnected")
     setSessionId(null)
+    // Clear saved game state from localStorage on disconnect
+    if (userId) {
+      clearGameState(userId);
+      console.log("🗑️ Cleared game state from localStorage");
+    }
     // Note: Multiplayer disabled - no other players to clear
     // Don't clear resource nodes on cleanup - keep them for offline play
   }
