@@ -10,16 +10,6 @@ import { Badge } from "@/components/ui/badge"
 import { supabase, signOut } from "@/lib/supabase"
 import { sanitizeReturnTo } from '@/lib/utils'
 import { StyleWrapper } from "@/components/style-wrapper"
-import {
-  AlertDialog,
-  AlertDialogContent,
-  AlertDialogHeader,
-  AlertDialogFooter,
-  AlertDialogTitle,
-  AlertDialogDescription,
-  AlertDialogAction,
-  AlertDialogCancel,
-} from "@/components/ui/alert-dialog"
 
 // Avoid conflicting Window.ethereum declarations across lib.dom and other ambient
 // types by keeping the global declaration broad. Consumers can cast to a
@@ -80,10 +70,6 @@ export default function ConnectWalletClient({ user, existingPlayer }: ConnectWal
   const [walletAddress, setWalletAddress] = useState<string>("")
   const [error, setError] = useState<string>("")
   const [isLoading, setIsLoading] = useState(false)
-  const [showTransferDialog, setShowTransferDialog] = useState(false)
-  const [pendingWalletAddress, setPendingWalletAddress] = useState<string>("")
-  const [pendingOldUserId, setPendingOldUserId] = useState<string>("")
-  const [pendingLinking, setPendingLinking] = useState(false)
   const logPrefix = "[connect-wallet/client]"
 
   useEffect(() => {
@@ -234,11 +220,10 @@ export default function ConnectWalletClient({ user, existingPlayer }: ConnectWal
           userId: user.id,
           existingUserId: existingPlayerByWallet.user_id,
         })
-        setPendingWalletAddress(address)
-        setPendingOldUserId(existingPlayerByWallet.user_id)
-        setShowTransferDialog(true)
-        setStep("connect")
-        return
+        throw new Error(
+          `This wallet is already linked to another account (${existingPlayerByWallet.username || 'Unknown User'}). ` +
+          `Please use a different wallet or contact support if you believe this is an error.`
+        )
       }
 
       // Player row should already exist from auth trigger
@@ -273,10 +258,6 @@ export default function ConnectWalletClient({ user, existingPlayer }: ConnectWal
         userId: user.id,
         address,
       })
-      setPendingWalletAddress("")
-      setPendingOldUserId("")
-      setShowTransferDialog(false)
-      setPendingLinking(false)
 
       setStep("complete")
 
@@ -327,47 +308,6 @@ export default function ConnectWalletClient({ user, existingPlayer }: ConnectWal
         setError("Failed to link wallet to account")
       }
       setStep("error")
-    }
-  }
-
-  const handleConfirmTransfer = async () => {
-    console.info(`${logPrefix} Confirming wallet transfer`, {
-      userId: user.id,
-      pendingOldUserId,
-      pendingWalletAddress,
-    })
-    setPendingLinking(true)
-    setShowTransferDialog(false)
-    try {
-      if (!pendingOldUserId) {
-        throw new Error("Could not determine the previous account for this wallet.")
-      }
-
-      await supabase
-        .from("players")
-        .update({ wallet_address: null })
-        .eq("user_id", pendingOldUserId)
-
-      console.info(`${logPrefix} Previous wallet link cleared`, {
-        userId: user.id,
-        previousUserId: pendingOldUserId,
-      })
-
-      await linkWalletToAccount(pendingWalletAddress)
-      setPendingWalletAddress("")
-      setPendingOldUserId("")
-      setPendingLinking(false)
-      setShowTransferDialog(false)
-    } catch (err) {
-      console.error("Error transferring wallet:", err)
-      if (err instanceof Error) {
-        setError(err.message || "Failed to transfer wallet")
-      } else {
-        setError("Failed to transfer wallet")
-      }
-      setStep("error")
-      setPendingLinking(false)
-      setShowTransferDialog(false)
     }
   }
 
@@ -527,27 +467,6 @@ export default function ConnectWalletClient({ user, existingPlayer }: ConnectWal
             {renderStepContent()}
           </CardContent>
         </Card>
-
-        <AlertDialog open={showTransferDialog} onOpenChange={setShowTransferDialog}>
-          <AlertDialogContent className="bg-depth-900 border border-depth-700">
-            <AlertDialogHeader>
-              <AlertDialogTitle className="text-white">Wallet Already Linked</AlertDialogTitle>
-              <AlertDialogDescription className="text-depth-300">
-                This wallet is currently linked to another account. Would you like to transfer it to this account?
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel className="border-depth-700 text-depth-300">Cancel</AlertDialogCancel>
-              <AlertDialogAction
-                onClick={handleConfirmTransfer}
-                disabled={pendingLinking}
-                className="bg-gradient-to-r from-ocean-500 to-abyss-600 hover:from-ocean-600 hover:to-abyss-700"
-              >
-                {pendingLinking ? <Loader2 className="w-4 h-4 animate-spin" /> : "Transfer Wallet"}
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
       </div>
     </StyleWrapper>
   )

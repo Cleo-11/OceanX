@@ -26,7 +26,7 @@ import type {
   ConnectionStatus,
 } from "@/lib/game-types"
 import { ScubaDiverGuide } from "./ScubaDiverGuide"
-import { loadGameState, saveGameState, setupAutoSave, clearGameState, getDefaultGameState } from "@/lib/gameStateStorage"
+import { loadGameState, setupAutoSave, clearGameState, getDefaultGameState } from "@/lib/gameStateStorage"
 import { getCurrentUser } from "@/lib/supabase"
 
 /**
@@ -254,7 +254,7 @@ export function OceanMiningGame({
     if (!userId) return;
 
     const getGameState = () => ({
-      position: { x: playerPosition.x, y: playerPosition.y },
+      position: { x: playerPosition.x, y: playerPosition.y, z: 0 },
       energy: playerStats.energy,
       hull: playerStats.health,
       sessionId: sessionId || "global",

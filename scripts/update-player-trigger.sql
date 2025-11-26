@@ -109,4 +109,5 @@ SELECT
 -- Email Prefix       | test
 -- Ultimate Fallback  | Player
 
-RAISE NOTICE '✅ Trigger update complete! Test by creating a new user.';
+-- Success message
+SELECT '✅ Trigger update complete! Test by creating a new user.' AS status;
