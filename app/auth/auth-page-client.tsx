@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { signInWithGoogle, signInWithEmail, signUpWithEmail } from "@/lib/supabase"
+import { signInWithEthereum, signInWithSolana, signInWithCoinbase, isEthereumAvailable, isSolanaAvailable, isCoinbaseAvailable } from "@/lib/web3auth"
 
 function AuthPageContent() {
   const [isLoading, setIsLoading] = useState(false)
@@ -71,6 +72,78 @@ function AuthPageContent() {
     } catch (error) {
       console.error("Google authentication error:", error)
       setError(error instanceof Error ? error.message : "Google authentication failed")
+      setIsLoading(false)
+    }
+  }
+
+  const handleEthereumAuth = async () => {
+    setIsLoading(true)
+    setError("")
+    setSuccess("")
+
+    try {
+      const { data, error, address } = await signInWithEthereum()
+      
+      if (error) {
+        throw error
+      }
+
+      if (data?.session) {
+        console.log("✅ Ethereum wallet authenticated:", address)
+        router.push("/connect-wallet")
+      }
+    } catch (error) {
+      console.error("Ethereum authentication error:", error)
+      setError(error instanceof Error ? error.message : "Ethereum wallet authentication failed")
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleSolanaAuth = async () => {
+    setIsLoading(true)
+    setError("")
+    setSuccess("")
+
+    try {
+      const { data, error, address } = await signInWithSolana()
+      
+      if (error) {
+        throw error
+      }
+
+      if (data?.session) {
+        console.log("✅ Solana wallet authenticated:", address)
+        router.push("/connect-wallet")
+      }
+    } catch (error) {
+      console.error("Solana authentication error:", error)
+      setError(error instanceof Error ? error.message : "Solana wallet authentication failed")
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleCoinbaseAuth = async () => {
+    setIsLoading(true)
+    setError("")
+    setSuccess("")
+
+    try {
+      const { data, error, address } = await signInWithCoinbase()
+      
+      if (error) {
+        throw error
+      }
+
+      if (data?.session) {
+        console.log("✅ Coinbase Wallet authenticated:", address)
+        router.push("/connect-wallet")
+      }
+    } catch (error) {
+      console.error("Coinbase Wallet authentication error:", error)
+      setError(error instanceof Error ? error.message : "Coinbase Wallet authentication failed")
+    } finally {
       setIsLoading(false)
     }
   }
@@ -209,6 +282,52 @@ function AuthPageContent() {
             )}
             Continue with Google
           </Button>
+
+          {/* Web3 Wallet Sign-In Options */}
+          {isEthereumAvailable() && (
+            <Button
+              onClick={handleEthereumAuth}
+              disabled={isLoading}
+              className="w-full flex items-center justify-center px-4 py-3 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-lg font-medium hover:from-purple-700 hover:to-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed mb-4"
+            >
+              {isLoading ? (
+                <Loader2 className="w-5 h-5 animate-spin mr-2" />
+              ) : (
+                <span className="text-xl mr-2">🦊</span>
+              )}
+              Sign in with Ethereum
+            </Button>
+          )}
+
+          {isSolanaAvailable() && (
+            <Button
+              onClick={handleSolanaAuth}
+              disabled={isLoading}
+              className="w-full flex items-center justify-center px-4 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg font-medium hover:from-purple-600 hover:to-pink-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed mb-4"
+            >
+              {isLoading ? (
+                <Loader2 className="w-5 h-5 animate-spin mr-2" />
+              ) : (
+                <span className="text-xl mr-2">◎</span>
+              )}
+              Sign in with Solana
+            </Button>
+          )}
+
+          {isCoinbaseAvailable() && (
+            <Button
+              onClick={handleCoinbaseAuth}
+              disabled={isLoading}
+              className="w-full flex items-center justify-center px-4 py-3 bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-lg font-medium hover:from-blue-700 hover:to-cyan-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed mb-4"
+            >
+              {isLoading ? (
+                <Loader2 className="w-5 h-5 animate-spin mr-2" />
+              ) : (
+                <span className="text-xl mr-2">🔷</span>
+              )}
+              Sign in with Coinbase Wallet
+            </Button>
+          )}
 
           <div className="relative mb-4">
             <div className="absolute inset-0 flex items-center">
