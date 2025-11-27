@@ -12,10 +12,6 @@ interface PurchaseRequest {
   targetTier: number;
 }
 
-// In-memory cache for processed transactions (prevents replay attacks)
-// In production, use Redis or database
-const processedTransactions = new Set<string>()
-
 /**
  * POST /api/hangar/purchase
  * 
@@ -25,8 +21,9 @@ const processedTransactions = new Set<string>()
  * - Verifies transaction exists on blockchain
  * - Validates transaction sender matches player
  * - Checks transaction calls correct contract method
- * - Prevents replay attacks via transaction hash tracking
+ * - Prevents replay attacks via database transaction hash tracking
  * - Validates tier progression
+ * - Uses upgrade_transactions table for persistent replay prevention
  */
 export async function POST(req: NextRequest) {
   try {
@@ -55,8 +52,17 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // Check for replay attack
-    if (processedTransactions.has(txHash.toLowerCase())) {
+    // Initialize Supabase early for replay attack check
+    const supabase = await createSupabaseServerClient()
+
+    // Check for replay attack using database (persistent across server restarts)
+    const { data: existingTx } = await supabase
+      .from('upgrade_transactions')
+      .select('id')
+      .eq('tx_hash', txHash.toLowerCase())
+      .single()
+
+    if (existingTx) {
       return NextResponse.json(
         { error: 'Transaction already processed' },
         { status: 409 }
@@ -199,9 +205,7 @@ export async function POST(req: NextRequest) {
     // ✅ Transaction verified successfully
     // Now update Supabase with new tier
 
-    const supabase = await createSupabaseServerClient()
-
-    // Find player by wallet address
+    // Find player by wallet address (supabase already initialized)
     const { data: player, error: fetchError } = await supabase
       .from('players')
       .select('id, tier, wallet_address')
@@ -240,11 +244,8 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // Record transaction hash to prevent replay
-    processedTransactions.add(txHash.toLowerCase())
-
-    // Optional: Store transaction record in database for audit trail
-    const { error: auditError } = await supabase.from('upgrade_transactions').insert({
+    // Store transaction record to prevent replay attacks (CRITICAL - must succeed)
+    const { error: txRecordError } = await supabase.from('upgrade_transactions').insert({
       player_id: player.id,
       tx_hash: txHash.toLowerCase(),
       from_tier: previousTier,
@@ -254,9 +255,13 @@ export async function POST(req: NextRequest) {
       verified_at: new Date().toISOString(),
     })
     
-    if (auditError) {
-      console.warn('Failed to store transaction record:', auditError)
-      // Don't fail the request if audit log fails
+    if (txRecordError) {
+      console.error('CRITICAL: Failed to store transaction record:', txRecordError)
+      // This is critical - without this record, replay attacks are possible
+      return NextResponse.json(
+        { error: 'Failed to record transaction - upgrade may be vulnerable to replay' },
+        { status: 500 }
+      )
     }
 
     return NextResponse.json({
