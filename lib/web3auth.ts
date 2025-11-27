@@ -65,29 +65,37 @@ export async function signInWithEthereum() {
     // Sign the message
     const signature = await signer.signMessage(message)
 
-    // For Supabase Web3 auth, we need to use the standard signInWithPassword
-    // but with the wallet address as the "email" and signature as "password"
-    // This is a workaround until Supabase native Web3 support is fully available
-    
-    // Alternative: Store wallet auth in user metadata
-    const { data, error } = await supabase.auth.signUp({
-      email: `${address}@ethereum.wallet`,
-      password: signature,
-      options: {
-        data: {
-          wallet_address: address,
-          wallet_type: 'ethereum',
-          auth_method: 'siwe',
-          siwe_message: message,
-        },
-      },
+    // Call server-side SIWE endpoint for proper authentication
+    // This prevents duplicate account creation and verifies signature server-side
+    const response = await fetch('/api/auth/siwe', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message, signature, address }),
     })
 
-    if (error) {
-      throw error
+    if (!response.ok) {
+      const errorData = await response.json()
+      throw new Error(errorData.error || 'SIWE authentication failed')
     }
 
-    return { data, error: null, address }
+    const { session, user, isNewUser } = await response.json()
+
+    // Set the session in Supabase client
+    const { error: sessionError } = await supabase.auth.setSession({
+      access_token: session.access_token,
+      refresh_token: session.refresh_token,
+    })
+
+    if (sessionError) {
+      throw sessionError
+    }
+
+    return { 
+      data: { session, user }, 
+      error: null, 
+      address,
+      isNewUser 
+    }
   } catch (error) {
     console.error('Ethereum sign-in error:', error)
     return { 
@@ -110,8 +118,8 @@ export async function signInWithSolana() {
     const solana = (window as any).solana
     
     // Connect to wallet
-    const response = await solana.connect()
-    const publicKey = response.publicKey.toString()
+    const connectResponse = await solana.connect()
+    const publicKey = connectResponse.publicKey.toString()
 
     // Create SIWS message
     const domain = window.location.host
@@ -137,25 +145,43 @@ export async function signInWithSolana() {
     const signedMessage = await solana.signMessage(encodedMessage, 'utf8')
     const signature = Buffer.from(signedMessage.signature).toString('base64')
 
-    // For Supabase Web3 auth with Solana
-    const { data, error } = await supabase.auth.signUp({
-      email: `${publicKey}@solana.wallet`,
-      password: signature,
-      options: {
-        data: {
-          wallet_address: publicKey,
-          wallet_type: 'solana',
-          auth_method: 'siws',
-          siws_message: message,
-        },
-      },
+    // Call server-side SIWE endpoint (works for Solana too)
+    const response = await fetch('/api/auth/siwe', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message, signature, address: publicKey }),
     })
 
-    if (error) {
-      throw error
+    if (!response.ok) {
+      const errorData = await response.json()
+      throw new Error(errorData.error || 'Solana authentication failed')
     }
 
-    return { data, error: null, address: publicKey }
+    const { session, user, isNewUser } = await response.json()
+
+    // Set the session in Supabase client
+    const { error: sessionError } = await supabase.auth.setSession({
+      access_token: session.access_token,
+      refresh_token: session.refresh_token,
+    })
+
+    if (sessionError) {
+      throw sessionError
+    }
+
+    return { 
+      data: { session, user }, 
+      error: null, 
+      address: publicKey,
+      isNewUser 
+    }
+
+    return { 
+      data: { session, user }, 
+      error: null, 
+      address: publicKey,
+      isNewUser 
+    }
   } catch (error) {
     console.error('Solana sign-in error:', error)
     return { 
@@ -209,26 +235,37 @@ export async function signInWithCoinbase() {
     // Sign the message
     const signature = await signer.signMessage(message)
 
-    // For Supabase Web3 auth with Ethereum (Coinbase Wallet variant)
-    const { data, error } = await supabase.auth.signUp({
-      email: `${address}@coinbase.wallet`,
-      password: signature,
-      options: {
-        data: {
-          wallet_address: address,
-          wallet_type: 'coinbase',
-          auth_method: 'siwe',
-          siwe_message: message,
-        },
-      },
+    // Call server-side SIWE endpoint for proper authentication
+    const response = await fetch('/api/auth/siwe', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message, signature, address }),
     })
 
-    if (error) {
-      throw error
+    if (!response.ok) {
+      const errorData = await response.json()
+      throw new Error(errorData.error || 'Coinbase Wallet authentication failed')
+    }
+
+    const { session, user, isNewUser } = await response.json()
+
+    // Set the session in Supabase client
+    const { error: sessionError } = await supabase.auth.setSession({
+      access_token: session.access_token,
+      refresh_token: session.refresh_token,
+    })
+
+    if (sessionError) {
+      throw sessionError
     }
 
     console.log('Coinbase Wallet auth successful:', address)
-    return { data, error: null, address }
+    return { 
+      data: { session, user }, 
+      error: null, 
+      address,
+      isNewUser 
+    }
   } catch (error) {
     console.error('Coinbase Wallet auth error:', error)
     return {
