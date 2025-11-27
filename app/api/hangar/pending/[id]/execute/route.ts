@@ -4,41 +4,46 @@ import { getServerProvider } from '@/lib/server-provider'
 import { CONTRACT_ADDRESSES, UPGRADE_MANAGER_ABI } from '@/lib/contracts'
 import { ethers } from 'ethers'
 import { env } from '@/lib/env'
-
-/**
- * TESTING MODE: Set to true to bypass authentication and blockchain verification
- * TODO: Set back to false before production deployment
- */
-const TESTING_MODE_BYPASS_AUTH = false
-const TESTING_MODE_BYPASS_BLOCKCHAIN = false
+import { randomUUID } from 'crypto'
 
 export async function POST(_req: Request, { params }: { params: { id: string } }) {
   try {
     const supabase = await createSupabaseServerClient()
 
-    // Authenticated user (bypass in testing mode)
+    // Ensure user is authenticated
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user && !TESTING_MODE_BYPASS_AUTH) return NextResponse.json({ error: 'Unauthenticated' }, { status: 401 })
+    if (!user) return NextResponse.json({ error: 'Unauthenticated' }, { status: 401 })
 
     const pendingId = params.id
 
-    const { data: pending, error: fetchErr } = await supabase
+    // Generate unique execution token for atomic race condition prevention
+    const executionToken = randomUUID()
+
+    // ATOMIC OPERATION: Try to claim this action for execution
+    // This prevents race conditions by using database-level constraints
+    const { data: claimed, error: claimError } = await supabase
       .from('pending_actions')
-      .select('*')
+      .update({ 
+        execution_token: executionToken,
+        status: 'executing'
+      })
       .eq('id', pendingId)
-      .maybeSingle()
+      .eq('status', 'pending') // Only claim if still pending
+      .is('execution_token', null) // Only claim if not already claimed
+      .eq('user_id', user.id) // Ensure user owns this action
+      .select()
+      .single()
 
-    if (fetchErr) return NextResponse.json({ error: fetchErr.message }, { status: 500 })
-    if (!pending) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-    
-    // In testing mode, skip user ID validation
-    if (!TESTING_MODE_BYPASS_AUTH && pending.user_id !== user?.id) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    if (claimError || !claimed) {
+      // Action already claimed/executed by another request or doesn't exist
+      return NextResponse.json({ 
+        error: 'Action unavailable', 
+        message: 'Action already being executed, completed, or not found' 
+      }, { status: 409 })
     }
 
-    if (pending.status !== 'pending') {
-      return NextResponse.json({ error: 'Already executed or invalid status' }, { status: 400 })
-    }
+    // Action successfully claimed, proceed with execution
+    const pending = claimed
 
     // Currently support 'purchase' action. Implement other actions as needed.
     if (pending.action_type === 'purchase') {
@@ -50,48 +55,6 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
         return NextResponse.json({ error: 'invalid_payload' }, { status: 400 })
       }
 
-      // TESTING MODE: Skip blockchain verification
-      if (TESTING_MODE_BYPASS_BLOCKCHAIN) {
-        // Get user ID (use dummy if in testing mode without auth)
-        const userId = user?.id ?? (TESTING_MODE_BYPASS_AUTH ? pending.user_id : null)
-        if (!userId) {
-          return NextResponse.json({ error: 'Unauthenticated' }, { status: 401 })
-        }
-
-        // Directly update player tier without blockchain verification
-        const { error: updatePlayerError } = await supabase
-          .from('players')
-          .upsert({ 
-            user_id: userId,
-            submarine_tier: targetTier,
-            updated_at: new Date().toISOString()
-          }, { 
-            onConflict: 'user_id' 
-          })
-
-        if (updatePlayerError) {
-          console.error('Testing mode: player update failed', updatePlayerError)
-          // In testing mode, continue even if player update fails
-        }
-
-        // Mark pending as executed
-        const { error: updatePendingError } = await supabase
-          .from('pending_actions')
-          .update({ 
-            status: 'executed', 
-            executed_at: new Date().toISOString(),
-            tx_hash: 'testing-mode-no-tx'
-          })
-          .eq('id', pendingId)
-
-        if (updatePendingError) {
-          console.error('Testing mode: pending update failed', updatePendingError)
-        }
-
-        return NextResponse.json({ ok: true, testing_mode: true })
-      }
-
-      // Original blockchain verification code (only runs when TESTING_MODE_BYPASS_BLOCKCHAIN = false)
       // Require a txHash to verify on-chain. Accept txHash from pending.payload.txHash
       const txHash = (pending.payload && pending.payload.txHash) || null
       if (!txHash) {
@@ -195,16 +158,36 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
         .eq('user_id', userId)
 
       if (updatePlayerError) {
+        // Rollback: Reset execution status if player update fails
+        await supabase
+          .from('pending_actions')
+          .update({ status: 'pending', execution_token: null })
+          .eq('id', pendingId)
+          .eq('execution_token', executionToken)
+        
         return NextResponse.json({ error: 'player_update_failed', detail: updatePlayerError.message }, { status: 500 })
       }
 
+      // Final atomic update: Mark as executed ONLY if our execution_token matches
       const { error: updatePendingError } = await supabase
         .from('pending_actions')
-        .update({ status: 'executed', executed_at: new Date().toISOString(), tx_hash: txHash, tx_receipt: receipt })
+        .update({ 
+          status: 'executed', 
+          executed_at: new Date().toISOString(), 
+          tx_hash: txHash, 
+          tx_receipt: receipt 
+        })
         .eq('id', pendingId)
+        .eq('execution_token', executionToken) // Ensure we still own this execution
 
       if (updatePendingError) {
-        return NextResponse.json({ error: 'pending_update_failed', detail: updatePendingError.message }, { status: 500 })
+        // This shouldn't happen, but if it does we've already updated the player
+        console.error('Failed to mark pending as executed (player was updated):', updatePendingError)
+        return NextResponse.json({ 
+          error: 'pending_update_failed', 
+          detail: updatePendingError.message,
+          warning: 'Player tier was updated successfully' 
+        }, { status: 500 })
       }
 
       return NextResponse.json({ ok: true })
