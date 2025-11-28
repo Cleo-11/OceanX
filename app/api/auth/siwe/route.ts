@@ -13,19 +13,20 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { ethers } from 'ethers'
 import { createClient } from '@supabase/supabase-js'
-import { env } from '@/lib/env'
 
-// Use service role for admin operations (checking/creating users)
-const supabaseAdmin = createClient(
-  env.NEXT_PUBLIC_SUPABASE_URL,
-  env.SUPABASE_SERVICE_ROLE_KEY!,
-  {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false
+// Initialize Supabase client lazily to avoid build-time errors
+function getSupabaseAdmin() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false
+      }
     }
-  }
-)
+  )
+}
 
 interface SIWERequest {
   message: string
@@ -108,6 +109,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if wallet already exists in players table
+    const supabaseAdmin = getSupabaseAdmin()
     const { data: existingPlayer } = await supabaseAdmin
       .from('players')
       .select('user_id, wallet_address')
