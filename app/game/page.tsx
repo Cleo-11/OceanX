@@ -79,7 +79,7 @@ export default function GamePage() {
           .maybeSingle()
   // We don't require this data to render the game; ignoring if missing
         // Best-effort: update last_login
-        await supabase.from("players").upsert({ user_id: user.id, last_login: new Date().toISOString(), is_active: true }, { onConflict: "user_id" })
+        await supabase.from("players").update({ last_login: new Date().toISOString(), is_active: true }).eq("user_id", user.id)
       }
     } catch (error) {
       console.error("Error initializing game:", error)
@@ -189,13 +189,12 @@ export default function GamePage() {
                       manganese: res.manganese,
                       is_active: true,
                     }
-                    let { error } = await supabase.from("players").upsert(payload, { onConflict: "user_id" })
+                    let { error } = await supabase.from("players").update(payload).eq("user_id", user.id)
                     if (error) {
-                      console.warn("[GamePage] Upsert with resource columns failed; falling back to totals only", error?.message)
-                      await supabase.from("players").upsert(
-                        { user_id: user.id, last_login: new Date().toISOString(), total_resources_mined: totals, is_active: true },
-                        { onConflict: "user_id" }
-                      )
+                      console.warn("[GamePage] Update with resource columns failed; falling back to totals only", error?.message)
+                      await supabase.from("players").update(
+                        { last_login: new Date().toISOString(), total_resources_mined: totals, is_active: true }
+                      ).eq("user_id", user.id)
                     }
                   } finally {
                     savingRef.current = false

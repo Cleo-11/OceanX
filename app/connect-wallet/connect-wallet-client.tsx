@@ -228,9 +228,7 @@ export default function ConnectWalletClient({ user, existingPlayer }: ConnectWal
 
       // Player row should already exist from auth trigger
       // We only need to UPDATE the wallet_address (and refresh last_login)
-      // If the row doesn't exist (legacy/edge case), upsert will create it
       const playerData = {
-        user_id: user.id,
         wallet_address: address,
         username: fallbackUsername,
         last_login: new Date().toISOString(),
@@ -240,18 +238,19 @@ export default function ConnectWalletClient({ user, existingPlayer }: ConnectWal
         total_ocx_earned: existingPlayer?.total_ocx_earned ?? 0,
       }
 
-      const { error: upsertError } = await supabase.from("players").upsert(playerData, {
-        onConflict: "user_id",
-      })
+      const { error: updateError } = await supabase
+        .from("players")
+        .update(playerData)
+        .eq("user_id", user.id)
 
-      if (upsertError) {
-        console.error(`${logPrefix} Player upsert failed`, {
+      if (updateError) {
+        console.error(`${logPrefix} Player update failed`, {
           userId: user.id,
-          message: upsertError.message,
-          code: upsertError.code,
-          details: upsertError.details,
+          message: updateError.message,
+          code: updateError.code,
+          details: updateError.details,
         })
-        throw upsertError
+        throw updateError
       }
 
       console.info(`${logPrefix} Wallet linked successfully`, {
