@@ -52,6 +52,7 @@ export default function GamePage() {
   const [gameState, setGameState] = useState<GameState>("idle");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const savingRef = useRef(false)
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const latestResourcesRef = useRef<{ nickel: number; cobalt: number; copper: number; manganese: number }>({ nickel: 0, cobalt: 0, copper: 0, manganese: 0 })
   // SubmarineStore moved to dedicated route; no local modal state anymore
   const router = useRouter()
@@ -62,6 +63,13 @@ export default function GamePage() {
     })
     logCssDiagnostics("mount")
     initializeGame()
+    
+    // Cleanup timeout on unmount
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current)
+      }
+    }
   }, [])
 
   // No need to check wallet connection for gameplay
@@ -172,67 +180,75 @@ export default function GamePage() {
             onFullDisconnect={handleFullDisconnect}
             onResourcesChange={(res) => {
               latestResourcesRef.current = res
-              if (!savingRef.current) {
-                savingRef.current = true
-                setTimeout(async () => {
-                  try {
-                    const { user } = await getCurrentUser()
-                    if (!user) {
-                      console.warn("[GamePage] No user found, skipping resource save")
-                      return
-                    }
-                    const totals = res.nickel + res.cobalt + res.copper + res.manganese
-                    
-                    console.info("[GamePage] Saving resources to database", {
-                      userId: user.id,
-                      resources: res,
-                      total: totals,
-                    })
-                    
-                    const payload: Record<string, any> = {
-                      last_login: new Date().toISOString(),
-                      total_resources_mined: totals,
-                      nickel: res.nickel,
-                      cobalt: res.cobalt,
-                      copper: res.copper,
-                      manganese: res.manganese,
-                      is_active: true,
-                    }
-                    
-                    const { data, error } = await supabase
-                      .from("players")
-                      .update(payload)
-                      .eq("user_id", user.id)
-                      .select()
-                    
-                    if (error) {
-                      console.error("[GamePage] Failed to save resources:", {
-                        error: error.message,
-                        code: error.code,
-                        details: error.details,
-                        hint: error.hint,
-                      })
-                    } else if (data && data.length > 0) {
-                      console.info("[GamePage] Resources saved successfully", {
-                        updatedRows: data.length,
-                        savedData: {
-                          nickel: data[0].nickel,
-                          cobalt: data[0].cobalt,
-                          copper: data[0].copper,
-                          manganese: data[0].manganese,
-                          total: data[0].total_resources_mined,
-                        },
-                      })
-                    } else {
-                      console.warn("[GamePage] Update succeeded but no rows returned - player record may not exist")
-                    }
-                  } catch (err) {
-                    console.error("[GamePage] Unexpected error saving resources:", err)
-                  } finally {
-                    savingRef.current = false
-                  }
-                }, 1500)
+              
+              // Clear any existing timeout
+              if (saveTimeoutRef.current) {
+                clearTimeout(saveTimeoutRef.current)
               }
+              
+              // Debounce save to avoid too many DB calls, but make it faster (500ms instead of 1500ms)
+              saveTimeoutRef.current = setTimeout(async () => {
+                if (savingRef.current) return
+                
+                savingRef.current = true
+                try {
+                  const { user } = await getCurrentUser()
+                  if (!user) {
+                    console.warn("[GamePage] No user found, skipping resource save")
+                    return
+                  }
+                  
+                  const totals = res.nickel + res.cobalt + res.copper + res.manganese
+                  
+                  console.info("[GamePage] Saving resources to database", {
+                    userId: user.id,
+                    resources: res,
+                    total: totals,
+                  })
+                  
+                  const payload = {
+                    last_login: new Date().toISOString(),
+                    total_resources_mined: totals,
+                    nickel: res.nickel,
+                    cobalt: res.cobalt,
+                    copper: res.copper,
+                    manganese: res.manganese,
+                    is_active: true,
+                  }
+                  
+                  const { data, error } = await supabase
+                    .from("players")
+                    .update(payload)
+                    .eq("user_id", user.id)
+                    .select()
+                  
+                  if (error) {
+                    console.error("[GamePage] Failed to save resources:", {
+                      error: error.message,
+                      code: error.code,
+                      details: error.details,
+                      hint: error.hint,
+                    })
+                  } else if (data && data.length > 0) {
+                    console.info("[GamePage] ✅ Resources saved successfully", {
+                      updatedRows: data.length,
+                      savedData: {
+                        nickel: data[0].nickel,
+                        cobalt: data[0].cobalt,
+                        copper: data[0].copper,
+                        manganese: data[0].manganese,
+                        total: data[0].total_resources_mined,
+                      },
+                    })
+                  } else {
+                    console.warn("[GamePage] Update succeeded but no rows returned - player record may not exist")
+                  }
+                } catch (err) {
+                  console.error("[GamePage] Unexpected error saving resources:", err)
+                } finally {
+                  savingRef.current = false
+                }
+              }, 500) // Reduced from 1500ms to 500ms for faster saves
             }}
           />
         </div>
