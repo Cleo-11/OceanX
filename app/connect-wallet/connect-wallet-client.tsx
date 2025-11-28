@@ -200,62 +200,33 @@ export default function ConnectWalletClient({ user, existingPlayer }: ConnectWal
     console.info(`${logPrefix} Linking wallet to account`, { userId: user.id, address })
 
     try {
-      const { data: existingPlayerByWallet, error: lookupError } = await supabase
-        .from("players")
-        .select("user_id, username")
-        .eq("wallet_address", address)
-        .maybeSingle()
+      // Call server API to link wallet (handles RLS and ensures player record exists)
+      const response = await fetch("/api/wallet/link", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          walletAddress: address,
+          username: fallbackUsername,
+        }),
+      })
 
-      if (lookupError && lookupError.code !== "PGRST116") {
-        console.error(`${logPrefix} Wallet lookup error`, {
+      const data = await response.json()
+
+      if (!response.ok) {
+        console.error(`${logPrefix} Wallet link API failed`, {
           userId: user.id,
-          code: lookupError.code,
-          message: lookupError.message,
+          status: response.status,
+          error: data.error,
         })
-        throw lookupError
-      }
-
-      if (existingPlayerByWallet && existingPlayerByWallet.user_id !== user.id) {
-        console.warn(`${logPrefix} Wallet already linked to another user`, {
-          userId: user.id,
-          existingUserId: existingPlayerByWallet.user_id,
-        })
-        throw new Error(
-          `This wallet is already linked to another account (${existingPlayerByWallet.username || 'Unknown User'}). ` +
-          `Please use a different wallet or contact support if you believe this is an error.`
-        )
-      }
-
-      // Player row should already exist from auth trigger
-      // We only need to UPDATE the wallet_address (and refresh last_login)
-      const playerData = {
-        wallet_address: address,
-        username: fallbackUsername,
-        last_login: new Date().toISOString(),
-        is_active: true,
-        submarine_tier: existingPlayer?.submarine_tier ?? 1,
-        total_resources_mined: existingPlayer?.total_resources_mined ?? 0,
-        total_ocx_earned: existingPlayer?.total_ocx_earned ?? 0,
-      }
-
-      const { error: updateError } = await supabase
-        .from("players")
-        .update(playerData)
-        .eq("user_id", user.id)
-
-      if (updateError) {
-        console.error(`${logPrefix} Player update failed`, {
-          userId: user.id,
-          message: updateError.message,
-          code: updateError.code,
-          details: updateError.details,
-        })
-        throw updateError
+        throw new Error(data.error || "Failed to link wallet to account")
       }
 
       console.info(`${logPrefix} Wallet linked successfully`, {
         userId: user.id,
         address,
+        playerId: data.player?.id,
       })
 
       setStep("complete")
@@ -289,14 +260,16 @@ export default function ConnectWalletClient({ user, existingPlayer }: ConnectWal
                 console.error(`${logPrefix} Error executing pending action`, execErr)
               }
             }
-                  } catch {
-                    // ignore malformed URL; fall back to raw returnTo
-                  }
+          } catch {
+            // ignore malformed URL; fall back to raw returnTo
+          }
 
-          router.replace(target)
+          // Use window.location.href for hard refresh to ensure server-side revalidation
+          // This prevents redirect loops caused by stale cache
+          window.location.href = target
         } catch (e) {
           console.warn(`${logPrefix} Failed to parse returnTo, falling back to /home`, e)
-          router.replace('/home')
+          window.location.href = '/home'
         }
       }, 1000)
     } catch (err) {
