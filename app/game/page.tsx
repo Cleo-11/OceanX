@@ -177,10 +177,19 @@ export default function GamePage() {
                 setTimeout(async () => {
                   try {
                     const { user } = await getCurrentUser()
-                    if (!user) return
+                    if (!user) {
+                      console.warn("[GamePage] No user found, skipping resource save")
+                      return
+                    }
                     const totals = res.nickel + res.cobalt + res.copper + res.manganese
+                    
+                    console.info("[GamePage] Saving resources to database", {
+                      userId: user.id,
+                      resources: res,
+                      total: totals,
+                    })
+                    
                     const payload: Record<string, any> = {
-                      user_id: user.id,
                       last_login: new Date().toISOString(),
                       total_resources_mined: totals,
                       nickel: res.nickel,
@@ -189,13 +198,36 @@ export default function GamePage() {
                       manganese: res.manganese,
                       is_active: true,
                     }
-                    let { error } = await supabase.from("players").update(payload).eq("user_id", user.id)
+                    
+                    const { data, error } = await supabase
+                      .from("players")
+                      .update(payload)
+                      .eq("user_id", user.id)
+                      .select()
+                    
                     if (error) {
-                      console.warn("[GamePage] Update with resource columns failed; falling back to totals only", error?.message)
-                      await supabase.from("players").update(
-                        { last_login: new Date().toISOString(), total_resources_mined: totals, is_active: true }
-                      ).eq("user_id", user.id)
+                      console.error("[GamePage] Failed to save resources:", {
+                        error: error.message,
+                        code: error.code,
+                        details: error.details,
+                        hint: error.hint,
+                      })
+                    } else if (data && data.length > 0) {
+                      console.info("[GamePage] Resources saved successfully", {
+                        updatedRows: data.length,
+                        savedData: {
+                          nickel: data[0].nickel,
+                          cobalt: data[0].cobalt,
+                          copper: data[0].copper,
+                          manganese: data[0].manganese,
+                          total: data[0].total_resources_mined,
+                        },
+                      })
+                    } else {
+                      console.warn("[GamePage] Update succeeded but no rows returned - player record may not exist")
                     }
+                  } catch (err) {
+                    console.error("[GamePage] Unexpected error saving resources:", err)
                   } finally {
                     savingRef.current = false
                   }

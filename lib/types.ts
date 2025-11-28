@@ -111,6 +111,10 @@ export interface Database {
           updated_at: string | null
           is_active: boolean | null
           last_daily_trade: string | null
+          nickel: number | null
+          cobalt: number | null
+          copper: number | null
+          manganese: number | null
         }
         Insert: {
           id?: string
@@ -127,6 +131,10 @@ export interface Database {
           updated_at?: string | null
           is_active?: boolean | null
           last_daily_trade?: string | null
+          nickel?: number | null
+          cobalt?: number | null
+          copper?: number | null
+          manganese?: number | null
         }
         Update: {
           id?: string
@@ -143,6 +151,10 @@ export interface Database {
           updated_at?: string | null
           is_active?: boolean | null
           last_daily_trade?: string | null
+          nickel?: number | null
+          cobalt?: number | null
+          copper?: number | null
+          manganese?: number | null
         }
       }
       submarine_tiers: {
