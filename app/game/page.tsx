@@ -51,6 +51,7 @@ export default function GamePage() {
   // Wallet connection is not required for gameplay
   const [gameState, setGameState] = useState<GameState>("idle");
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [isSaving, setIsSaving] = useState(false)
   const savingRef = useRef(false)
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const latestResourcesRef = useRef<{ nickel: number; cobalt: number; copper: number; manganese: number }>({ nickel: 0, cobalt: 0, copper: 0, manganese: 0 })
@@ -80,12 +81,29 @@ export default function GamePage() {
       const { user } = await getCurrentUser()
       if (user) {
         // Try to load player record for display, but don't block gameplay
-          await supabase
+        const { data: playerData, error: playerError } = await supabase
           .from("players")
           .select("*")
           .eq("user_id", user.id)
           .maybeSingle()
-  // We don't require this data to render the game; ignoring if missing
+        
+        if (playerError) {
+          console.error("[GamePage] Error loading player data:", playerError)
+        } else if (playerData) {
+          console.info("[GamePage] Player data loaded:", {
+            hasNickelColumn: 'nickel' in playerData,
+            hasCobaltColumn: 'cobalt' in playerData,
+            hasCopperColumn: 'copper' in playerData,
+            hasManganeseColumn: 'manganese' in playerData,
+            currentResources: {
+              nickel: playerData.nickel,
+              cobalt: playerData.cobalt,
+              copper: playerData.copper,
+              manganese: playerData.manganese,
+            }
+          })
+        }
+        
         // Best-effort: update last_login
         await supabase.from("players").update({ last_login: new Date().toISOString(), is_active: true }).eq("user_id", user.id)
       }
@@ -168,6 +186,14 @@ export default function GamePage() {
     <StyleWrapper>
       <ErrorBoundary>
         <div className="min-h-screen bg-depth-900">
+          {/* Saving indicator */}
+          {isSaving && (
+            <div className="fixed top-4 right-4 z-50 bg-depth-800 border border-ocean-500 rounded-lg px-4 py-2 flex items-center gap-2 shadow-lg">
+              <Loader2 className="w-4 h-4 text-ocean-400 animate-spin" />
+              <span className="text-sm text-ocean-300">Saving resources...</span>
+            </div>
+          )}
+          
           {/* Submarine Store moved to dedicated route at /submarine-store */}
 
           {/* Render game directly without submarine selection modal */}
@@ -191,6 +217,7 @@ export default function GamePage() {
                 if (savingRef.current) return
                 
                 savingRef.current = true
+                setIsSaving(true)
                 try {
                   const { user } = await getCurrentUser()
                   if (!user) {
@@ -200,7 +227,7 @@ export default function GamePage() {
                   
                   const totals = res.nickel + res.cobalt + res.copper + res.manganese
                   
-                  console.info("[GamePage] Saving resources to database", {
+                  console.info("[GamePage] 💾 Saving resources to database", {
                     userId: user.id,
                     resources: res,
                     total: totals,
@@ -223,12 +250,15 @@ export default function GamePage() {
                     .select()
                   
                   if (error) {
-                    console.error("[GamePage] Failed to save resources:", {
+                    console.error("[GamePage] ❌ Failed to save resources:", {
                       error: error.message,
                       code: error.code,
                       details: error.details,
                       hint: error.hint,
                     })
+                    
+                    // Show alert to user
+                    alert(`Failed to save resources: ${error.message}\n\nPlease check the console and run the migration in Supabase.`)
                   } else if (data && data.length > 0) {
                     console.info("[GamePage] ✅ Resources saved successfully", {
                       updatedRows: data.length,
@@ -241,12 +271,13 @@ export default function GamePage() {
                       },
                     })
                   } else {
-                    console.warn("[GamePage] Update succeeded but no rows returned - player record may not exist")
+                    console.warn("[GamePage] ⚠️ Update succeeded but no rows returned - player record may not exist")
                   }
                 } catch (err) {
-                  console.error("[GamePage] Unexpected error saving resources:", err)
+                  console.error("[GamePage] ❌ Unexpected error saving resources:", err)
                 } finally {
                   savingRef.current = false
+                  setIsSaving(false)
                 }
               }, 500) // Reduced from 1500ms to 500ms for faster saves
             }}
