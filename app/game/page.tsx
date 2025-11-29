@@ -81,7 +81,7 @@ export default function GamePage() {
       console.info("[GamePage] Starting initialization...")
       
       // First, try standard auth methods
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+      const { data: { session } } = await supabase.auth.getSession()
       
       if (session && session.user) {
         console.info("[GamePage] Session found:", {
