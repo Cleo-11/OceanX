@@ -59,13 +59,13 @@ BEGIN
   ELSE
     RAISE NOTICE 'manganese column already exists';
   END IF;
+  
+  -- Add comments for documentation
+  COMMENT ON COLUMN public.players.nickel IS 'Amount of nickel resources currently held by the player';
+  COMMENT ON COLUMN public.players.cobalt IS 'Amount of cobalt resources currently held by the player';
+  COMMENT ON COLUMN public.players.copper IS 'Amount of copper resources currently held by the player';
+  COMMENT ON COLUMN public.players.manganese IS 'Amount of manganese resources currently held by the player';
 END $$;
-
--- Add comments for documentation
-COMMENT ON COLUMN public.players.nickel IS 'Amount of nickel resources currently held by the player';
-COMMENT ON COLUMN public.players.cobalt IS 'Amount of cobalt resources currently held by the player';
-COMMENT ON COLUMN public.players.copper IS 'Amount of copper resources currently held by the player';
-COMMENT ON COLUMN public.players.manganese IS 'Amount of manganese resources currently held by the player';
 
 -- ============================================================================
 -- VERIFICATION
