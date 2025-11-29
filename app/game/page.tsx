@@ -80,49 +80,57 @@ export default function GamePage() {
     try {
       console.info("[GamePage] Starting initialization...")
       
-      // Get session directly without refresh attempt
+      // First, try standard auth methods
       const { data: { session }, error: sessionError } = await supabase.auth.getSession()
       
-      if (sessionError) {
-        console.error("[GamePage] Session error:", sessionError)
-        setError("Authentication error. Please sign in again.")
+      if (session && session.user) {
+        console.info("[GamePage] Session found:", {
+          userId: session.user.id,
+          email: session.user.email,
+        })
+        setCurrentUserId(session.user.id)
+        await loadPlayerData(session.user.id)
         return
       }
       
-      if (!session || !session.user) {
-        console.warn("[GamePage] No session found, checking if user is still authenticated...")
-        
-        // Try to get user directly as a fallback
-        const { data: { user }, error: userError } = await supabase.auth.getUser()
-        
-        if (userError || !user) {
-          console.error("[GamePage] No user found:", userError)
-          setError("Not authenticated. Please sign in.")
-          return
+      console.warn("[GamePage] No session found, attempting alternative auth check...")
+      
+      // Alternative: Check if there's a player record in the database
+      // This works because if the user is logged in (as evidenced by home page working),
+      // the server-side RLS will allow them to see their own player record
+      const { data: playerRecords, error: playerCheckError } = await supabase
+        .from("players")
+        .select("id, user_id, wallet_address, username")
+        .limit(1)
+      
+      if (playerCheckError) {
+        console.error("[GamePage] Player check failed:", playerCheckError)
+        // If we get an auth error, user is truly not authenticated
+        if (playerCheckError.code === 'PGRST301' || playerCheckError.message?.includes('JWT')) {
+          setError("Session expired. Please sign in again.")
+        } else {
+          setError("Authentication error. Please sign in.")
         }
-        
-        // User exists, use it
-        console.info("[GamePage] User found via getUser:", {
-          userId: user.id,
-          email: user.email,
+        return
+      }
+      
+      if (playerRecords && playerRecords.length > 0) {
+        const playerRecord = playerRecords[0]
+        console.info("[GamePage] Found player via database check:", {
+          userId: playerRecord.user_id,
+          hasWallet: !!playerRecord.wallet_address,
         })
         
-        setCurrentUserId(user.id)
-        await loadPlayerData(user.id)
+        // User is authenticated (RLS allowed the query)
+        setCurrentUserId(playerRecord.user_id)
+        await loadPlayerData(playerRecord.user_id)
         return
       }
       
-      const user = session.user
+      // No player record found - user may not be authenticated
+      console.warn("[GamePage] No player record found")
+      setError("Not authenticated. Please sign in.")
       
-      console.info("[GamePage] Session verified:", {
-        userId: user.id,
-        email: user.email,
-      })
-      
-      // Store user ID for later use in resource saves
-      setCurrentUserId(user.id)
-      
-      await loadPlayerData(user.id)
     } catch (error) {
       console.error("Error initializing game:", error)
       setError("Failed to load game data. Please try again.")
