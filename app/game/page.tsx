@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { Loader2, AlertCircle, LogOut } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { getCurrentUser, signOut } from "@/lib/supabase"
+import { signOut, getSession } from "@/lib/supabase"
 import { supabase } from "@/lib/supabase"
 import { OceanMiningGame } from "@/components/ocean-mining-game";
 // import { walletManager } from "@/lib/wallet";
@@ -78,16 +78,26 @@ export default function GamePage() {
 
   const initializeGame = async () => {
     try {
-      // Fetch user (optional), but do not redirect from here
-      const { user } = await getCurrentUser()
+      console.info("[GamePage] Starting initialization...")
       
-      if (!user) {
-        console.warn("[GamePage] No user found during initialization")
+      // Use getSession instead of getCurrentUser for more reliable auth check
+      const { session, error: sessionError } = await getSession()
+      
+      if (sessionError) {
+        console.error("[GamePage] Session error:", sessionError)
+        setError("Authentication error. Please sign in again.")
+        return
+      }
+      
+      if (!session || !session.user) {
+        console.warn("[GamePage] No session found")
         setError("Not authenticated. Please sign in.")
         return
       }
       
-      console.info("[GamePage] User authenticated:", {
+      const user = session.user
+      
+      console.info("[GamePage] Session verified:", {
         userId: user.id,
         email: user.email,
       })
@@ -106,6 +116,8 @@ export default function GamePage() {
         console.error("[GamePage] Error loading player data:", playerError)
       } else if (playerData) {
         console.info("[GamePage] Player data loaded:", {
+          hasWallet: !!playerData.wallet_address,
+          walletAddress: playerData.wallet_address?.slice(0, 10) + "...",
           hasNickelColumn: 'nickel' in playerData,
           hasCobaltColumn: 'cobalt' in playerData,
           hasCopperColumn: 'copper' in playerData,
