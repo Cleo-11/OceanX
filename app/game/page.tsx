@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { Loader2, AlertCircle, LogOut } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { signOut, getSession } from "@/lib/supabase"
+import { signOut } from "@/lib/supabase"
 import { supabase } from "@/lib/supabase"
 import { OceanMiningGame } from "@/components/ocean-mining-game";
 // import { walletManager } from "@/lib/wallet";
@@ -80,8 +80,8 @@ export default function GamePage() {
     try {
       console.info("[GamePage] Starting initialization...")
       
-      // Use getSession instead of getCurrentUser for more reliable auth check
-      const { session, error: sessionError } = await getSession()
+      // Get session directly without refresh attempt
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession()
       
       if (sessionError) {
         console.error("[GamePage] Session error:", sessionError)
@@ -90,8 +90,25 @@ export default function GamePage() {
       }
       
       if (!session || !session.user) {
-        console.warn("[GamePage] No session found")
-        setError("Not authenticated. Please sign in.")
+        console.warn("[GamePage] No session found, checking if user is still authenticated...")
+        
+        // Try to get user directly as a fallback
+        const { data: { user }, error: userError } = await supabase.auth.getUser()
+        
+        if (userError || !user) {
+          console.error("[GamePage] No user found:", userError)
+          setError("Not authenticated. Please sign in.")
+          return
+        }
+        
+        // User exists, use it
+        console.info("[GamePage] User found via getUser:", {
+          userId: user.id,
+          email: user.email,
+        })
+        
+        setCurrentUserId(user.id)
+        await loadPlayerData(user.id)
         return
       }
       
@@ -105,11 +122,22 @@ export default function GamePage() {
       // Store user ID for later use in resource saves
       setCurrentUserId(user.id)
       
+      await loadPlayerData(user.id)
+    } catch (error) {
+      console.error("Error initializing game:", error)
+      setError("Failed to load game data. Please try again.")
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const loadPlayerData = async (userId: string) => {
+    try {
       // Try to load player record for display, but don't block gameplay
       const { data: playerData, error: playerError } = await supabase
         .from("players")
         .select("*")
-        .eq("user_id", user.id)
+        .eq("user_id", userId)
         .maybeSingle()
       
       if (playerError) {
@@ -134,12 +162,9 @@ export default function GamePage() {
       }
       
       // Best-effort: update last_login
-      await supabase.from("players").update({ last_login: new Date().toISOString(), is_active: true }).eq("user_id", user.id)
+      await supabase.from("players").update({ last_login: new Date().toISOString(), is_active: true }).eq("user_id", userId)
     } catch (error) {
-      console.error("Error initializing game:", error)
-      setError("Failed to load game data. Please try again.")
-    } finally {
-      setIsLoading(false)
+      console.error("[GamePage] Error loading player data:", error)
     }
   }
 
