@@ -47,6 +47,7 @@ function logCssDiagnostics(context: string) {
 export default function GamePage() {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string>("")
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   // Optional: we no longer require pre-existing player data to play
   // Wallet connection is not required for gameplay
   const [gameState, setGameState] = useState<GameState>("idle");
@@ -79,34 +80,49 @@ export default function GamePage() {
     try {
       // Fetch user (optional), but do not redirect from here
       const { user } = await getCurrentUser()
-      if (user) {
-        // Try to load player record for display, but don't block gameplay
-        const { data: playerData, error: playerError } = await supabase
-          .from("players")
-          .select("*")
-          .eq("user_id", user.id)
-          .maybeSingle()
-        
-        if (playerError) {
-          console.error("[GamePage] Error loading player data:", playerError)
-        } else if (playerData) {
-          console.info("[GamePage] Player data loaded:", {
-            hasNickelColumn: 'nickel' in playerData,
-            hasCobaltColumn: 'cobalt' in playerData,
-            hasCopperColumn: 'copper' in playerData,
-            hasManganeseColumn: 'manganese' in playerData,
-            currentResources: {
-              nickel: playerData.nickel,
-              cobalt: playerData.cobalt,
-              copper: playerData.copper,
-              manganese: playerData.manganese,
-            }
-          })
-        }
-        
-        // Best-effort: update last_login
-        await supabase.from("players").update({ last_login: new Date().toISOString(), is_active: true }).eq("user_id", user.id)
+      
+      if (!user) {
+        console.warn("[GamePage] No user found during initialization")
+        setError("Not authenticated. Please sign in.")
+        return
       }
+      
+      console.info("[GamePage] User authenticated:", {
+        userId: user.id,
+        email: user.email,
+      })
+      
+      // Store user ID for later use in resource saves
+      setCurrentUserId(user.id)
+      
+      // Try to load player record for display, but don't block gameplay
+      const { data: playerData, error: playerError } = await supabase
+        .from("players")
+        .select("*")
+        .eq("user_id", user.id)
+        .maybeSingle()
+      
+      if (playerError) {
+        console.error("[GamePage] Error loading player data:", playerError)
+      } else if (playerData) {
+        console.info("[GamePage] Player data loaded:", {
+          hasNickelColumn: 'nickel' in playerData,
+          hasCobaltColumn: 'cobalt' in playerData,
+          hasCopperColumn: 'copper' in playerData,
+          hasManganeseColumn: 'manganese' in playerData,
+          currentResources: {
+            nickel: playerData.nickel,
+            cobalt: playerData.cobalt,
+            copper: playerData.copper,
+            manganese: playerData.manganese,
+          }
+        })
+      } else {
+        console.warn("[GamePage] No player record found - may need to create one")
+      }
+      
+      // Best-effort: update last_login
+      await supabase.from("players").update({ last_login: new Date().toISOString(), is_active: true }).eq("user_id", user.id)
     } catch (error) {
       console.error("Error initializing game:", error)
       setError("Failed to load game data. Please try again.")
@@ -216,19 +232,19 @@ export default function GamePage() {
               saveTimeoutRef.current = setTimeout(async () => {
                 if (savingRef.current) return
                 
+                // Use stored user ID instead of calling getCurrentUser()
+                if (!currentUserId) {
+                  console.warn("[GamePage] No user ID available, skipping resource save")
+                  return
+                }
+                
                 savingRef.current = true
                 setIsSaving(true)
                 try {
-                  const { user } = await getCurrentUser()
-                  if (!user) {
-                    console.warn("[GamePage] No user found, skipping resource save")
-                    return
-                  }
-                  
                   const totals = res.nickel + res.cobalt + res.copper + res.manganese
                   
                   console.info("[GamePage] 💾 Saving resources to database", {
-                    userId: user.id,
+                    userId: currentUserId,
                     resources: res,
                     total: totals,
                   })
@@ -246,7 +262,7 @@ export default function GamePage() {
                   const { data, error } = await supabase
                     .from("players")
                     .update(payload)
-                    .eq("user_id", user.id)
+                    .eq("user_id", currentUserId)
                     .select()
                   
                   if (error) {
