@@ -153,49 +153,24 @@ export default function GameClient({ userId, playerData }: GameClientProps) {
                     total: totals,
                   })
 
-                  const payload = {
-                    last_login: new Date().toISOString(),
-                    total_resources_mined: totals,
-                    nickel: res.nickel,
-                    cobalt: res.cobalt,
-                    copper: res.copper,
-                    manganese: res.manganese,
-                    is_active: true,
-                  }
+                  // Use API route to bypass RLS
+                  const response = await fetch("/api/player/save-resources", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      nickel: res.nickel,
+                      cobalt: res.cobalt,
+                      copper: res.copper,
+                      manganese: res.manganese,
+                    }),
+                  })
 
-                  const { data, error } = await supabase
-                    .from("players")
-                    .update(payload)
-                    .eq("user_id", userId)
-                    .select()
+                  const result = await response.json()
 
-                  if (error) {
-                    console.error("[GameClient] ❌ Failed to save resources:", {
-                      error: error.message,
-                      code: error.code,
-                      details: error.details,
-                      hint: error.hint,
-                    })
-
-                    // Show alert to user
-                    alert(
-                      `Failed to save resources: ${error.message}\n\nPlease check the console and run the migration in Supabase.`
-                    )
-                  } else if (data && data.length > 0) {
-                    console.info("[GameClient] ✅ Resources saved successfully", {
-                      updatedRows: data.length,
-                      savedData: {
-                        nickel: data[0].nickel,
-                        cobalt: data[0].cobalt,
-                        copper: data[0].copper,
-                        manganese: data[0].manganese,
-                        total: data[0].total_resources_mined,
-                      },
-                    })
+                  if (!response.ok) {
+                    console.error("[GameClient] ❌ Failed to save resources:", result.error)
                   } else {
-                    console.warn(
-                      "[GameClient] ⚠️ Update succeeded but no rows returned - player record may not exist"
-                    )
+                    console.info("[GameClient] ✅ Resources saved successfully", result.data)
                   }
                 } catch (err) {
                   console.error("[GameClient] ❌ Unexpected error saving resources:", err)
