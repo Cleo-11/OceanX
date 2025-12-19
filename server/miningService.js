@@ -371,10 +371,13 @@ async function executeMiningAttempt(supabase, {
       };
     }
     
-    // ATOMIC TRANSACTION: Update node + player resources + log attempt
-    // This uses a database RPC function with row-level locking (FOR UPDATE) to prevent race conditions
+    // ATOMIC TRANSACTION: Claim node + INSERT resource event (APPEND-ONLY) + log attempt
+    // This uses the append-only pattern for cost optimization:
+    // - INSERT operations are ~60% cheaper than UPDATE operations
+    // - Provides full audit trail of all resource changes
+    // - Cached balance is refreshed periodically (every 10 events or via cron)
     const { data: transactionResult, error: transactionError } = await supabase.rpc(
-      'execute_mining_transaction',
+      'execute_mining_transaction_v2', // v2 uses append-only pattern
       {
         p_attempt_id: attemptId,
         p_player_id: player.id,

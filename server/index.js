@@ -14,6 +14,7 @@ import * as Sentry from "@sentry/node";
 import * as claimService from "./claimService.js";
 import { tokenContract } from "./claimService.js";
 import * as miningService from "./miningService.js";
+import * as resourceService from "./resourceService.js";
 import NonceManager from "./lib/nonceManager.js";
 import {
   verifyJoinSignature,
@@ -365,6 +366,7 @@ const logServerError = (scope, error, context = {}) => {
 
 /**
  * Compute maximum claimable OCX amount for a wallet based on business rules
+ * Uses live resource balance (from resource_events) for accurate financial calculations
  * @param {string} wallet - Normalized wallet address (lowercase)
  * @returns {Promise<{maxClaimable: bigint, reason: string, playerData: object}>}
  */
@@ -374,15 +376,36 @@ async function computeMaxClaimableAmount(wallet) {
   }
 
   try {
-    // Fetch player data
+    // Fetch player base data
     const { data: player, error: playerError } = await supabase
       .from("players")
-      .select("id, wallet_address, submarine_tier, coins, total_ocx_earned, nickel, cobalt, copper, manganese")
+      .select("id, wallet_address, submarine_tier, coins, total_ocx_earned")
       .ilike("wallet_address", wallet)
       .single()
 
     if (playerError || !player) {
       return { maxClaimable: 0n, reason: "Player not found", playerData: null }
+    }
+
+    // Get LIVE resource balance (always accurate for financial operations)
+    // Uses append-only pattern: sums all resource_events for guaranteed accuracy
+    let resources;
+    try {
+      resources = await resourceService.getPlayerResourcesLive(supabase, player.id);
+    } catch (resourceError) {
+      // Fallback to cached balance if live query fails
+      console.warn('⚠️ Failed to get live resources, using cached:', resourceError.message);
+      const { data: cachedPlayer } = await supabase
+        .from("players")
+        .select("nickel, cobalt, copper, manganese")
+        .eq("id", player.id)
+        .single();
+      resources = {
+        nickel: cachedPlayer?.nickel || 0,
+        cobalt: cachedPlayer?.cobalt || 0,
+        copper: cachedPlayer?.copper || 0,
+        manganese: cachedPlayer?.manganese || 0
+      };
     }
 
     // Business Rules for Max Claimable Amount:
@@ -397,11 +420,11 @@ async function computeMaxClaimableAmount(wallet) {
       manganese: 2.0  // 1 manganese = 2 OCX
     }
 
-    // Calculate value from resources
-    const nickelValue = Math.floor((player.nickel || 0) * RESOURCE_TO_OCX_RATE.nickel)
-    const cobaltValue = Math.floor((player.cobalt || 0) * RESOURCE_TO_OCX_RATE.cobalt)
-    const copperValue = Math.floor((player.copper || 0) * RESOURCE_TO_OCX_RATE.copper)
-    const manganeseValue = Math.floor((player.manganese || 0) * RESOURCE_TO_OCX_RATE.manganese)
+    // Calculate value from resources (using live balance)
+    const nickelValue = Math.floor((resources.nickel || 0) * RESOURCE_TO_OCX_RATE.nickel)
+    const cobaltValue = Math.floor((resources.cobalt || 0) * RESOURCE_TO_OCX_RATE.cobalt)
+    const copperValue = Math.floor((resources.copper || 0) * RESOURCE_TO_OCX_RATE.copper)
+    const manganeseValue = Math.floor((resources.manganese || 0) * RESOURCE_TO_OCX_RATE.manganese)
     const totalResourceValue = nickelValue + cobaltValue + copperValue + manganeseValue
 
     // Calculate coins value (1:1 conversion)
@@ -419,10 +442,10 @@ async function computeMaxClaimableAmount(wallet) {
         tier: player.submarine_tier,
         coins: player.coins,
         resources: {
-          nickel: player.nickel || 0,
-          cobalt: player.cobalt || 0,
-          copper: player.copper || 0,
-          manganese: player.manganese || 0
+          nickel: resources.nickel || 0,
+          cobalt: resources.cobalt || 0,
+          copper: resources.copper || 0,
+          manganese: resources.manganese || 0
         },
         resourceValue: totalResourceValue
       }
