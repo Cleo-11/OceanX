@@ -33,6 +33,7 @@ import {
 import { StyleWrapper } from "@/components/style-wrapper"
 import { supabase } from "@/lib/supabase"
 import { WalletManager } from "@/lib/wallet"
+import { DEFAULT_MARKETPLACE_RESOURCES, getMockPlayerResources } from "@/lib/marketplace-utils"
 import { executeMarketplaceTrade } from "@/lib/services/blockchain-trade.service"
 
 interface PlayerData {
@@ -108,43 +109,75 @@ export default function MarketplaceClient({ playerData }: MarketplaceClientProps
     }
   }, [playerData.wallet_address, playerData.total_ocx_earned])
 
-  // Mock resource data - In production, fetch from Supabase
+  // Load marketplace resources and player's available amounts from Supabase.
+  // Falls back to local mock data when the DB or RPC isn't available.
   useEffect(() => {
-    const mockResources: Resource[] = [
-      {
-        id: "nickel",
-        name: "Nickel",
-        icon: "⚪",
-        // ocxRate intentionally left undefined to reflect dynamic market
-        amount: 156,
-        description: "Common nickel deposits found on the ocean floor",
-      },
-      {
-        id: "cobalt",
-        name: "Cobalt",
-        icon: "🔵",
-        amount: 89,
-        description: "Valuable cobalt-rich mineral nodules from deep waters",
-      },
-      {
-        id: "copper",
-        name: "Copper",
-        icon: "🟠",
-        amount: 42,
-        description: "Rare copper ore deposits from volcanic vents",
-      },
-      {
-        id: "manganese",
-        name: "Manganese",
-        icon: "⚫",
-        amount: 23,
-        description: "Premium manganese nodules from the abyssal plains",
-      },
-    ]
+    let mounted = true
 
-    setResources(mockResources)
-    setFilteredResources(mockResources)
-  }, [])
+    const loadResources = async () => {
+      try {
+        // Fetch marketplace definitions (rates, icons, descriptions)
+        const { data: marketData, error: marketError } = await supabase
+          .from("marketplace_resources")
+          .select("id, name, icon, base_ocx_rate, description")
+
+        if (marketError) throw marketError
+
+        // Fetch player's resource balances via RPC (returns nickel/cobalt/copper/manganese)
+        const { data: playerRes, error: playerErr } = await supabase.rpc("get_player_resources", {
+          p_player_id: playerData.id,
+        })
+
+        if (playerErr) {
+          // Not fatal — continue with marketData but amounts may be 0
+          console.warn("get_player_resources RPC failed:", playerErr)
+        }
+
+        const pr = Array.isArray(playerRes) ? playerRes[0] : playerRes
+
+        const source = marketData && marketData.length ? marketData : DEFAULT_MARKETPLACE_RESOURCES
+
+        const mapped: Resource[] = source.map((m: any) => {
+          const ocxRate = m.base_ocx_rate ?? m.ocxRate
+          const amount = (() => {
+            if (!pr) return 0
+            if (m.id === "nickel") return pr.nickel ?? 0
+            if (m.id === "cobalt") return pr.cobalt ?? 0
+            if (m.id === "copper") return pr.copper ?? 0
+            if (m.id === "manganese") return pr.manganese ?? 0
+            return 0
+          })()
+
+          return {
+            id: m.id,
+            name: m.name,
+            icon: m.icon,
+            ocxRate,
+            amount,
+            description: m.description,
+          }
+        })
+
+        if (mounted) {
+          setResources(mapped)
+          setFilteredResources(mapped)
+        }
+      } catch (err) {
+        console.error("Failed to load marketplace resources, falling back to mocks:", err)
+        const mocks = getMockPlayerResources()
+        if (mounted) {
+          setResources(mocks)
+          setFilteredResources(mocks)
+        }
+      }
+    }
+
+    loadResources()
+
+    return () => {
+      mounted = false
+    }
+  }, [playerData.id])
 
   useEffect(() => {
     fetchOCXBalance()
