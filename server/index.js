@@ -2,6 +2,7 @@
 import "dotenv/config";
 import express from "express";
 import http from "http";
+import crypto from "crypto";
 import { Server as SocketIOServer } from "socket.io";
 import cors from "cors";
 import rateLimit from "express-rate-limit";
@@ -296,6 +297,8 @@ app.use(
     limit: "1mb",
     strict: true,
     verify: (req, res, buf) => {
+      // Capture raw body for HMAC verification (webhooks)
+      req.rawBody = buf;
       if (buf && buf.length > 1024 * 1024) {
         throw new Error("Payload too large")
       }
@@ -936,7 +939,10 @@ app.use(helmet({
 app.use(pinoHttp({ logger }));
 
 app.use(cors(corsOptions));
-app.use(express.json({ limit: "10mb" }));
+app.use(express.json({ 
+  limit: "10mb",
+  verify: (req, res, buf) => { req.rawBody = buf; }
+}));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
 // Socket.IO setup with production optimizations
@@ -1953,8 +1959,55 @@ app.get("/health", (req, res) => {
     });
 });
 
-// Enhanced sessions endpoint with more details
-app.get("/sessions", (req, res) => {
+// Rate limiter for session endpoints (prevent enumeration attacks)
+const sessionsLimiter = rateLimit({
+    windowMs: 60 * 1000, // 1 minute
+    max: 30, // 30 requests per minute
+    message: { error: "Too many requests, please try again later" },
+    standardHeaders: true,
+    legacyHeaders: false,
+});
+
+// Admin API key check middleware for sensitive endpoints
+const requireAdminApiKey = (req, res, next) => {
+    const adminApiKey = process.env.ADMIN_API_KEY;
+    
+    // If no admin key configured, only allow in development
+    if (!adminApiKey) {
+        if (process.env.NODE_ENV === 'production') {
+            return res.status(403).json({ error: "Admin access not configured" });
+        }
+        // Allow in development without key
+        return next();
+    }
+    
+    const providedKey = req.headers['x-admin-api-key'];
+    if (!providedKey || providedKey !== adminApiKey) {
+        logger.warn({ ip: req.ip }, 'Unauthorized admin access attempt');
+        return res.status(401).json({ error: "Invalid or missing admin API key" });
+    }
+    
+    next();
+};
+
+// Public sessions endpoint - returns limited info only
+app.get("/sessions", sessionsLimiter, (req, res) => {
+    const sessions = Array.from(gameSessions.values()).map(session => ({
+        id: session.id,
+        playerCount: session.players.size,
+        createdAt: session.createdAt,
+        // Don't expose detailed player info in public endpoint
+    }));
+    
+    res.json({ 
+        sessions,
+        totalSessions: gameSessions.size,
+        totalPlayers: Array.from(gameSessions.values()).reduce((total, session) => total + session.players.size, 0)
+    });
+});
+
+// Admin-only detailed sessions endpoint
+app.get("/admin/sessions", sessionsLimiter, requireAdminApiKey, (req, res) => {
     const sessions = Array.from(gameSessions.values()).map(session => ({
         id: session.id,
         playerCount: session.players.size,
@@ -1977,8 +2030,24 @@ app.get("/sessions", (req, res) => {
     });
 });
 
-// New endpoint to get specific session details
-app.get("/sessions/:sessionId", (req, res) => {
+// New endpoint to get specific session details (admin-only for full details)
+app.get("/sessions/:sessionId", sessionsLimiter, (req, res) => {
+    const session = gameSessions.get(req.params.sessionId);
+    if (!session) {
+        return res.status(404).json({ error: "Session not found" });
+    }
+    
+    // Return limited info for public access
+    res.json({
+        id: session.id,
+        playerCount: session.players.size,
+        createdAt: session.createdAt,
+        // Full player details require admin access via /admin/sessions/:sessionId
+    });
+});
+
+// Admin-only endpoint for full session details
+app.get("/admin/sessions/:sessionId", sessionsLimiter, requireAdminApiKey, (req, res) => {
     const session = gameSessions.get(req.params.sessionId);
     if (!session) {
         return res.status(404).json({ error: "Session not found" });
@@ -2397,7 +2466,43 @@ setInterval(() => {
 
 // 🔐 Webhook: Mark claim as processed on blockchain
 // This endpoint is called when a claim transaction is confirmed on-chain
-app.post("/webhook/claim-processed", async (req, res) => {
+
+/**
+ * Verify webhook signature using HMAC-SHA256
+ * @param {string} signature - The signature from x-webhook-signature header
+ * @param {Buffer} rawBody - The raw request body buffer (for exact HMAC verification)
+ * @param {string} secret - The webhook secret
+ * @returns {boolean} - Whether the signature is valid
+ */
+function verifyWebhookSignature(signature, rawBody, secret) {
+  if (!signature || !secret || !rawBody) return false;
+  
+  const expectedSignature = crypto
+    .createHmac('sha256', secret)
+    .update(rawBody)
+    .digest('hex');
+  
+  // Use timing-safe comparison to prevent timing attacks
+  const signatureBuffer = Buffer.from(signature);
+  const expectedBuffer = Buffer.from(`sha256=${expectedSignature}`);
+  
+  if (signatureBuffer.length !== expectedBuffer.length) {
+    return false;
+  }
+  
+  return crypto.timingSafeEqual(signatureBuffer, expectedBuffer);
+}
+
+// Webhook rate limiter - more restrictive for external webhooks
+const webhookLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 100, // 100 requests per minute (adjust based on expected claim volume)
+  message: { success: false, error: "Too many webhook requests" },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+app.post("/webhook/claim-processed", webhookLimiter, async (req, res) => {
   try {
     const { wallet, nonce, txHash } = req.body;
     
@@ -2408,20 +2513,28 @@ app.post("/webhook/claim-processed", async (req, res) => {
       });
     }
 
-    // Optional: Verify webhook authenticity (add signature verification here)
-    // const webhookSignature = req.headers['x-webhook-signature'];
-    // if (!verifyWebhookSignature(webhookSignature, req.body)) {
-    //   return res.status(401).json({ success: false, error: "Invalid webhook signature" });
-    // }
+    // 🔐 Verify webhook authenticity with HMAC signature
+    const webhookSecret = process.env.WEBHOOK_SECRET;
+    if (webhookSecret) {
+      const signature = req.headers['x-webhook-signature'];
+      if (!verifyWebhookSignature(signature, req.rawBody, webhookSecret)) {
+        logger.warn({ wallet, ip: req.ip }, 'Invalid webhook signature attempted');
+        return res.status(401).json({ success: false, error: "Invalid webhook signature" });
+      }
+    } else if (process.env.NODE_ENV === 'production') {
+      // In production, require webhook secret
+      logger.error('WEBHOOK_SECRET not configured in production!');
+      return res.status(500).json({ success: false, error: "Webhook not configured" });
+    }
 
     if (nonceManager) {
       await nonceManager.markAsClaimed(wallet, nonce);
-      console.log(`✅ Marked claim as processed: ${wallet}, nonce ${nonce}, tx ${txHash}`);
+      logger.info({ wallet, nonce, txHash }, 'Claim marked as processed');
     }
     
     res.json({ success: true });
   } catch (error) {
-    console.error('❌ Webhook error:', error);
+    logger.error({ err: error }, 'Webhook error');
     res.status(500).json({ success: false, error: "Internal error" });
   }
 });
