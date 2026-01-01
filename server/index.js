@@ -810,70 +810,6 @@ app.post("/submarine/upgrade", sensitiveActionLimiter, requireSubmarineUpgradeAu
   }
 });
 
-// Daily claim endpoint
-app.post("/player/claim", claimLimiter, requireClaimAuth, async (req, res) => {
-  if (!supabase) {
-    return res.status(500).json({ error: "Supabase not initialized" });
-  }
-
-  const wallet = req?.auth?.wallet;
-  if (!wallet) {
-    return res.status(401).json({ error: "Wallet authentication required" });
-  }
-  const providedAddress = typeof req.body?.address === "string" ? req.body.address.toLowerCase().trim() : undefined;
-  if (providedAddress && wallet && providedAddress !== wallet) {
-    return res.status(401).json({ error: "Wallet mismatch" });
-  }
-
-  try {
-    const today = new Date().toISOString().split("T")[0];
-    const { data: player, error: fetchError } = await supabase
-      .from("players")
-      .select("*")
-      .eq("wallet_address", wallet.toLowerCase())
-      .single();
-
-    if (fetchError) {
-      console.error("[server] Error fetching player for claim:", fetchError.message);
-      return res.status(500).json({ error: "Error fetching player data" });
-    }
-
-    if (!player) {
-      return res.status(404).json({ error: "Player not found" });
-    }
-
-    // Check if already claimed today
-    if (player.last_daily_claim === today) {
-      return res.status(409).json({ error: "Already claimed today" });
-    }
-
-    const claimAmount = player.submarine_tier === "luxury" ? 1000 : 500;
-    const newBalance = player.balance + claimAmount;
-
-    const { error: updateError } = await supabase
-      .from("players")
-      .update({
-        balance: newBalance,
-        last_daily_claim: today,
-      })
-      .eq("wallet_address", wallet);
-
-    if (updateError) {
-      console.error("[server] Error updating player claim:", updateError.message);
-      return res.status(500).json({ error: "Error processing claim" });
-    }
-
-    res.json({
-      success: true,
-      amount: claimAmount,
-      new_balance: newBalance,
-    });
-  } catch (err) {
-    console.error("[server] Error in claim endpoint:", err.message);
-    res.status(500).json({ error: "Internal server error" });
-  }
-});
-
 // CORS configuration
 const allowedOrigins = [
   // Production domains
@@ -2514,17 +2450,20 @@ app.post("/webhook/claim-processed", webhookLimiter, async (req, res) => {
     }
 
     // 🔐 Verify webhook authenticity with HMAC signature
+    // 🚨 SECURITY: Webhook secret is ALWAYS required to prevent unauthorized access
     const webhookSecret = process.env.WEBHOOK_SECRET;
-    if (webhookSecret) {
-      const signature = req.headers['x-webhook-signature'];
-      if (!verifyWebhookSignature(signature, req.rawBody, webhookSecret)) {
-        logger.warn({ wallet, ip: req.ip }, 'Invalid webhook signature attempted');
-        return res.status(401).json({ success: false, error: "Invalid webhook signature" });
-      }
-    } else if (process.env.NODE_ENV === 'production') {
-      // In production, require webhook secret
-      logger.error('WEBHOOK_SECRET not configured in production!');
-      return res.status(500).json({ success: false, error: "Webhook not configured" });
+    if (!webhookSecret) {
+      logger.error('WEBHOOK_SECRET not configured - webhook endpoint disabled for security');
+      return res.status(503).json({ 
+        success: false, 
+        error: "Webhook service not configured. Set WEBHOOK_SECRET environment variable." 
+      });
+    }
+    
+    const signature = req.headers['x-webhook-signature'];
+    if (!verifyWebhookSignature(signature, req.rawBody, webhookSecret)) {
+      logger.warn({ wallet, ip: req.ip }, 'Invalid webhook signature attempted');
+      return res.status(401).json({ success: false, error: "Invalid webhook signature" });
     }
 
     if (nonceManager) {

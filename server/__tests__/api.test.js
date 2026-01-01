@@ -173,60 +173,6 @@ describe('API Endpoints', () => {
     });
   });
 
-  describe('POST /player/claim', () => {
-    it('should process daily claim successfully', async () => {
-      const today = new Date().toISOString().split('T')[0];
-      
-      // Mock player data (not claimed today)
-      mockSupabase.single.mockResolvedValueOnce({
-        data: { 
-          balance: 500, 
-          submarine_tier: 'basic',
-          last_daily_claim: '2024-01-01' // Old date
-        },
-        error: null
-      });
-
-      // Mock successful update
-      mockSupabase.eq.mockResolvedValueOnce({
-        error: null
-      });
-
-      const { message, signature } = await signAction('claim');
-
-      const response = await request(app)
-        .post('/player/claim')
-        .send({ address: testAddress, signature, message });
-
-      expect(response.status).toBe(200);
-      expect(response.body).toHaveProperty('success', true);
-      expect(response.body).toHaveProperty('amount', 500); // Basic tier
-      expect(response.body).toHaveProperty('new_balance', 1000);
-    });
-
-    it('should reject double claims on same day', async () => {
-      const today = new Date().toISOString().split('T')[0];
-      
-      mockSupabase.single.mockResolvedValueOnce({
-        data: { 
-          balance: 1000, 
-          submarine_tier: 'basic',
-          last_daily_claim: today // Already claimed today
-        },
-        error: null
-      });
-
-      const { message, signature } = await signAction('claim');
-
-      const response = await request(app)
-        .post('/player/claim')
-        .send({ address: testAddress, signature, message });
-
-      expect(response.status).toBe(409);
-      expect(response.body.error).toContain('Already claimed');
-    });
-  });
-
   describe('Rate Limiting', () => {
     it.skip('should enforce rate limits on endpoints', async () => {
       const { message, signature } = await signAction('get balance');

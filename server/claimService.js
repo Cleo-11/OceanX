@@ -45,7 +45,7 @@ if (!BACKEND_PRIVATE_KEY) {
   backendSigner = new ethers.Wallet(BACKEND_PRIVATE_KEY, provider);
 
   console.log("✅ Backend signer initialized:", backendSigner.address);
-  console.log("🔐 Private key loaded securely from environment (last 8 chars: ****" + BACKEND_PRIVATE_KEY.slice(-8) + ")");
+  console.log("⛓️  Connected to chain:", process.env.CHAIN_ID || 'unknown');
   // Ensure the token contract address is provided
   const tokenAddress = process.env.TOKEN_CONTRACT_ADDRESS;
   if (!tokenAddress) {

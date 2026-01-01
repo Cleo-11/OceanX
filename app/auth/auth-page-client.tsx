@@ -2,30 +2,29 @@
 
 import { useState, useEffect, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { Anchor, ArrowLeft, Loader2, Mail, Lock, Eye, EyeOff, AlertCircle } from "lucide-react"
+import { Anchor, ArrowLeft, Loader2, AlertCircle, Wallet, ExternalLink, Smartphone } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { signInWithGoogle, signInWithEmail, signUpWithEmail } from "@/lib/supabase"
-import { signInWithEthereum, signInWithSolana, signInWithCoinbase, isEthereumAvailable, isSolanaAvailable, isCoinbaseAvailable } from "@/lib/web3auth"
+import { 
+  signInWithEthereum, 
+  signInWithSolana, 
+  signInWithCoinbase, 
+  signInWithWalletConnect,
+  isEthereumAvailable, 
+  isSolanaAvailable, 
+  isCoinbaseAvailable,
+  isWalletConnectAvailable 
+} from "@/lib/web3auth"
 
 function AuthPageContent() {
   const [isLoading, setIsLoading] = useState(false)
+  const [loadingWallet, setLoadingWallet] = useState<string | null>(null)
   const [error, setError] = useState<string>("")
-  const [success, setSuccess] = useState<string>("")
-  const [email, setEmail] = useState("")
-  const [username, setUsername] = useState("")
-  const [password, setPassword] = useState("")
-  const [confirmPassword, setConfirmPassword] = useState("")
-  const [showPassword, setShowPassword] = useState(false)
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [mounted, setMounted] = useState(false)
+
 
   const router = useRouter()
   const searchParams = useSearchParams()
-  const mode = searchParams.get("mode") || "login"
-  const isSignUp = mode === "signup"
   const authError = searchParams.get("error")
 
   useEffect(() => {
@@ -58,28 +57,10 @@ function AuthPageContent() {
     )
   }
 
-  const handleGoogleAuth = async () => {
-    setIsLoading(true)
-    setError("")
-    setSuccess("")
-
-    try {
-      const { error } = await signInWithGoogle()
-      if (error) {
-        throw error
-      }
-      // OAuth flow will redirect externally
-    } catch (error) {
-      console.error("Google authentication error:", error)
-      setError(error instanceof Error ? error.message : "Google authentication failed")
-      setIsLoading(false)
-    }
-  }
-
   const handleEthereumAuth = async () => {
     setIsLoading(true)
+    setLoadingWallet("ethereum")
     setError("")
-    setSuccess("")
 
     try {
       const { data, error, address } = await signInWithEthereum()
@@ -97,13 +78,14 @@ function AuthPageContent() {
       setError(error instanceof Error ? error.message : "Ethereum wallet authentication failed")
     } finally {
       setIsLoading(false)
+      setLoadingWallet(null)
     }
   }
 
   const handleSolanaAuth = async () => {
     setIsLoading(true)
+    setLoadingWallet("solana")
     setError("")
-    setSuccess("")
 
     try {
       const { data, error, address } = await signInWithSolana()
@@ -121,13 +103,14 @@ function AuthPageContent() {
       setError(error instanceof Error ? error.message : "Solana wallet authentication failed")
     } finally {
       setIsLoading(false)
+      setLoadingWallet(null)
     }
   }
 
   const handleCoinbaseAuth = async () => {
     setIsLoading(true)
+    setLoadingWallet("coinbase")
     setError("")
-    setSuccess("")
 
     try {
       const { data, error, address } = await signInWithCoinbase()
@@ -145,73 +128,37 @@ function AuthPageContent() {
       setError(error instanceof Error ? error.message : "Coinbase Wallet authentication failed")
     } finally {
       setIsLoading(false)
+      setLoadingWallet(null)
     }
   }
 
-  const handleEmailAuth = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const handleWalletConnectAuth = async () => {
     setIsLoading(true)
+    setLoadingWallet("walletconnect")
     setError("")
-    setSuccess("")
 
     try {
-      let result
-      if (isSignUp) {
-        // Validate username
-        if (!username || username.trim().length < 3) {
-          setError("Username must be at least 3 characters long")
-          setIsLoading(false)
-          return
-        }
-
-        // Validate password match
-        if (password !== confirmPassword) {
-          setError("Passwords do not match")
-          setIsLoading(false)
-          return
-        }
-
-        // Validate password strength
-        if (password.length < 8) {
-          setError("Password must be at least 8 characters long")
-          setIsLoading(false)
-          return
-        }
-
-        result = await signUpWithEmail(email, password, username)
-        if (!result.error && !result.data.session) {
-          setSuccess("Please check your email to confirm your account before signing in.")
-          setIsLoading(false)
-          return
-        }
-      } else {
-        result = await signInWithEmail(email, password)
+      const { data, error, address } = await signInWithWalletConnect()
+      
+      if (error) {
+        throw error
       }
 
-      if (result.error) {
-        throw result.error
-      }
-
-      if (result.data.session) {
+      if (data?.session) {
+        console.log("✅ WalletConnect authenticated:", address)
         router.push("/connect-wallet")
       }
     } catch (error) {
-      console.error("Email authentication error:", error)
-      setError(error instanceof Error ? error.message : "Authentication failed")
+      console.error("WalletConnect authentication error:", error)
+      setError(error instanceof Error ? error.message : "WalletConnect authentication failed")
     } finally {
       setIsLoading(false)
+      setLoadingWallet(null)
     }
   }
 
-  const toggleMode = () => {
-    setError("")
-    setSuccess("")
-    setEmail("")
-    setUsername("")
-    setPassword("")
-    setConfirmPassword("")
-    router.push(`/auth?mode=${isSignUp ? "login" : "signup"}`)
-  }
+  const hasAnyWallet = isEthereumAvailable() || isSolanaAvailable() || isCoinbaseAvailable()
+  const walletConnectEnabled = isWalletConnectAvailable()
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-depth-950 via-depth-900 to-depth-950 flex items-center justify-center px-4">
@@ -233,9 +180,9 @@ function AuthPageContent() {
             </h1>
           </div>
 
-          <h2 className="text-2xl font-bold text-white mb-2">{isSignUp ? "Create Account" : "Welcome Back"}</h2>
+          <h2 className="text-2xl font-bold text-white mb-2">Connect Your Wallet</h2>
           <p className="text-depth-400">
-            {isSignUp ? "Join the deep sea mining adventure" : "Sign in to continue your journey"}
+            Sign in with your Web3 wallet to start mining
           </p>
         </div>
 
@@ -247,214 +194,151 @@ function AuthPageContent() {
             </Alert>
           )}
 
-          {success && (
-            <Alert className="mb-4 border-green-500/30 bg-green-900/50">
-              <AlertDescription className="text-green-200">{success}</AlertDescription>
-            </Alert>
-          )}
-
-          <Button
-            onClick={handleGoogleAuth}
-            disabled={isLoading}
-            className="w-full flex items-center justify-center px-4 py-3 bg-white text-gray-900 rounded-lg font-medium hover:bg-gray-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed mb-4"
-          >
-            {isLoading ? (
-              <Loader2 className="w-5 h-5 animate-spin mr-2" />
-            ) : (
-              <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24">
-                <path
-                  fill="#4285F4"
-                  d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                />
-                <path
-                  fill="#34A853"
-                  d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                />
-                <path
-                  fill="#FBBC05"
-                  d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
-                />
-                <path
-                  fill="#EA4335"
-                  d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
-                />
-              </svg>
-            )}
-            Continue with Google
-          </Button>
-
-          {/* Web3 Wallet Sign-In Options */}
-          {isEthereumAvailable() && (
-            <Button
-              onClick={handleEthereumAuth}
-              disabled={isLoading}
-              className="w-full flex items-center justify-center px-4 py-3 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-lg font-medium hover:from-purple-700 hover:to-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed mb-4"
-            >
-              {isLoading ? (
-                <Loader2 className="w-5 h-5 animate-spin mr-2" />
-              ) : (
-                <span className="text-xl mr-2">🦊</span>
-              )}
-              Sign in with Ethereum
-            </Button>
-          )}
-
-          {isSolanaAvailable() && (
-            <Button
-              onClick={handleSolanaAuth}
-              disabled={isLoading}
-              className="w-full flex items-center justify-center px-4 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg font-medium hover:from-purple-600 hover:to-pink-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed mb-4"
-            >
-              {isLoading ? (
-                <Loader2 className="w-5 h-5 animate-spin mr-2" />
-              ) : (
-                <span className="text-xl mr-2">◎</span>
-              )}
-              Sign in with Solana
-            </Button>
-          )}
-
-          {isCoinbaseAvailable() && (
-            <Button
-              onClick={handleCoinbaseAuth}
-              disabled={isLoading}
-              className="w-full flex items-center justify-center px-4 py-3 bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-lg font-medium hover:from-blue-700 hover:to-cyan-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed mb-4"
-            >
-              {isLoading ? (
-                <Loader2 className="w-5 h-5 animate-spin mr-2" />
-              ) : (
-                <span className="text-xl mr-2">🔷</span>
-              )}
-              Sign in with Coinbase Wallet
-            </Button>
-          )}
-
-          <div className="relative mb-4">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-depth-600"></div>
-            </div>
-            <div className="relative flex justify-center text-sm">
-              <span className="px-2 bg-depth-800 text-depth-400">or</span>
-            </div>
+          {/* Web3 Wallet Authentication Header */}
+          <div className="flex items-center justify-center mb-6">
+            <Wallet className="w-5 h-5 text-ocean-400 mr-2" />
+            <span className="text-sm text-depth-300 font-medium">Web3 Authentication</span>
           </div>
 
-          <form onSubmit={handleEmailAuth} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="email" className="text-depth-300">
-                Email
-              </Label>
-              <div className="relative">
-                <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-depth-400 w-4 h-4" />
-                <Input
-                  id="email"
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                  className="pl-10 bg-depth-700 border-depth-600 text-white placeholder-depth-400 focus:border-ocean-500 focus:ring-ocean-500"
-                  placeholder="Enter your email"
-                />
-              </div>
+          {/* Ethereum Wallet */}
+          <Button
+            onClick={handleEthereumAuth}
+            disabled={isLoading || !isEthereumAvailable()}
+            className="w-full flex items-center justify-center px-4 py-4 bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-lg font-medium hover:from-orange-600 hover:to-orange-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed mb-3 h-14"
+          >
+            {loadingWallet === "ethereum" ? (
+              <Loader2 className="w-5 h-5 animate-spin mr-2" />
+            ) : (
+              <span className="text-2xl mr-3">🦊</span>
+            )}
+            <div className="flex flex-col items-start">
+              <span className="font-semibold">MetaMask / Ethereum</span>
+              {!isEthereumAvailable() && (
+                <span className="text-xs opacity-75">Not detected</span>
+              )}
             </div>
+          </Button>
 
-            {isSignUp && (
-              <div className="space-y-2">
-                <Label htmlFor="username" className="text-depth-300">
-                  Username
-                </Label>
-                <div className="relative">
-                  <Input
-                    id="username"
-                    type="text"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    required
-                    minLength={3}
-                    maxLength={30}
-                    className="bg-depth-700 border-depth-600 text-white placeholder-depth-400 focus:border-ocean-500 focus:ring-ocean-500"
-                    placeholder="Choose a username (3-30 characters)"
-                  />
+          {/* Solana Wallet */}
+          <Button
+            onClick={handleSolanaAuth}
+            disabled={isLoading || !isSolanaAvailable()}
+            className="w-full flex items-center justify-center px-4 py-4 bg-gradient-to-r from-purple-500 to-violet-600 text-white rounded-lg font-medium hover:from-purple-600 hover:to-violet-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed mb-3 h-14"
+          >
+            {loadingWallet === "solana" ? (
+              <Loader2 className="w-5 h-5 animate-spin mr-2" />
+            ) : (
+              <span className="text-2xl mr-3">👻</span>
+            )}
+            <div className="flex flex-col items-start">
+              <span className="font-semibold">Phantom / Solana</span>
+              {!isSolanaAvailable() && (
+                <span className="text-xs opacity-75">Not detected</span>
+              )}
+            </div>
+          </Button>
+
+          {/* Coinbase Wallet */}
+          <Button
+            onClick={handleCoinbaseAuth}
+            disabled={isLoading || !isCoinbaseAvailable()}
+            className="w-full flex items-center justify-center px-4 py-4 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg font-medium hover:from-blue-600 hover:to-blue-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed mb-3 h-14"
+          >
+            {loadingWallet === "coinbase" ? (
+              <Loader2 className="w-5 h-5 animate-spin mr-2" />
+            ) : (
+              <span className="text-2xl mr-3">🔵</span>
+            )}
+            <div className="flex flex-col items-start">
+              <span className="font-semibold">Coinbase Wallet</span>
+              {!isCoinbaseAvailable() && (
+                <span className="text-xs opacity-75">Not detected</span>
+              )}
+            </div>
+          </Button>
+
+          {/* WalletConnect - Mobile Wallet Support */}
+          {walletConnectEnabled && (
+            <>
+              <div className="relative my-4">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-depth-600"></div>
+                </div>
+                <div className="relative flex justify-center text-xs">
+                  <span className="px-2 bg-depth-800 text-depth-500 flex items-center">
+                    <Smartphone className="w-3 h-3 mr-1" />
+                    Mobile Wallet
+                  </span>
                 </div>
               </div>
-            )}
+              
+              <Button
+                onClick={handleWalletConnectAuth}
+                disabled={isLoading}
+                className="w-full flex items-center justify-center px-4 py-4 bg-gradient-to-r from-sky-500 to-cyan-600 text-white rounded-lg font-medium hover:from-sky-600 hover:to-cyan-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed mb-4 h-14"
+              >
+                {loadingWallet === "walletconnect" ? (
+                  <Loader2 className="w-5 h-5 animate-spin mr-2" />
+                ) : (
+                  <span className="text-2xl mr-3">🔗</span>
+                )}
+                <div className="flex flex-col items-start">
+                  <span className="font-semibold">WalletConnect</span>
+                  <span className="text-xs opacity-75">Scan QR with mobile wallet</span>
+                </div>
+              </Button>
+            </>
+          )}
 
-            <div className="space-y-2">
-              <Label htmlFor="password" className="text-depth-300">
-                Password
-              </Label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-depth-400 w-4 h-4" />
-                <Input
-                  id="password"
-                  type={showPassword ? "text" : "password"}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  minLength={8}
-                  className="pl-10 pr-10 bg-depth-700 border-depth-600 text-white placeholder-depth-400 focus:border-ocean-500 focus:ring-ocean-500"
-                  placeholder={isSignUp ? "Create a password (min 8 characters)" : "Enter your password"}
-                />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                  onClick={() => setShowPassword(!showPassword)}
+          {/* No wallet detected message */}
+          {!hasAnyWallet && !walletConnectEnabled && (
+            <div className="mt-4 p-4 rounded-lg bg-depth-700/50 border border-depth-600">
+              <p className="text-sm text-depth-300 mb-3">
+                No wallet detected. Install one of these to continue:
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <a
+                  href="https://metamask.io/download/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center px-3 py-1.5 rounded-md bg-orange-500/20 text-orange-400 text-xs font-medium hover:bg-orange-500/30 transition-colors"
                 >
-                  {showPassword ? <EyeOff className="h-4 w-4 text-depth-400" /> : <Eye className="h-4 w-4 text-depth-400" />}
-                </Button>
+                  MetaMask <ExternalLink className="w-3 h-3 ml-1" />
+                </a>
+                <a
+                  href="https://phantom.app/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center px-3 py-1.5 rounded-md bg-purple-500/20 text-purple-400 text-xs font-medium hover:bg-purple-500/30 transition-colors"
+                >
+                  Phantom <ExternalLink className="w-3 h-3 ml-1" />
+                </a>
+                <a
+                  href="https://www.coinbase.com/wallet"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center px-3 py-1.5 rounded-md bg-blue-500/20 text-blue-400 text-xs font-medium hover:bg-blue-500/30 transition-colors"
+                >
+                  Coinbase <ExternalLink className="w-3 h-3 ml-1" />
+                </a>
               </div>
             </div>
+          )}
 
-            {isSignUp && (
-              <div className="space-y-2">
-                <Label htmlFor="confirmPassword" className="text-depth-300">
-                  Confirm Password
-                </Label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-depth-400 w-4 h-4" />
-                  <Input
-                    id="confirmPassword"
-                    type={showConfirmPassword ? "text" : "password"}
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    required
-                    minLength={8}
-                    className="pl-10 pr-10 bg-depth-700 border-depth-600 text-white placeholder-depth-400 focus:border-ocean-500 focus:ring-ocean-500"
-                    placeholder="Confirm your password"
-                  />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                  >
-                    {showConfirmPassword ? <EyeOff className="h-4 w-4 text-depth-400" /> : <Eye className="h-4 w-4 text-depth-400" />}
-                  </Button>
-                </div>
-              </div>
-            )}
-
-            <Button
-              type="submit"
-              disabled={isLoading}
-              className="w-full bg-gradient-to-r from-ocean-500 to-abyss-600 hover:from-ocean-600 hover:to-abyss-700 text-white font-medium"
-            >
-              {isLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-              {isSignUp ? "Create Account" : "Sign In"}
-            </Button>
-          </form>
-
-          <div className="mt-6 text-center">
-            <Button variant="link" onClick={toggleMode} className="text-ocean-400 hover:text-ocean-300 text-sm p-0">
-              {isSignUp ? "Already have an account? Sign in" : "Don't have an account? Sign up"}
-            </Button>
+          {/* Security info */}
+          <div className="mt-6 pt-4 border-t border-depth-700">
+            <div className="flex items-start space-x-2 text-xs text-depth-400">
+              <span className="text-ocean-400">🔐</span>
+              <p>
+                We use <span className="text-ocean-400 font-medium">Sign-In with Ethereum (SIWE)</span> for secure, 
+                passwordless authentication. Your wallet signature proves ownership without sharing your private keys.
+              </p>
+            </div>
           </div>
         </div>
 
         <p className="text-xs text-depth-500 text-center mt-6">
-          By continuing, you agree to our Terms of Service and Privacy Policy
+          By connecting your wallet, you agree to our Terms of Service and Privacy Policy
         </p>
       </div>
     </div>

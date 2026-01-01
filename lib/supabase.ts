@@ -16,46 +16,40 @@ const getSiteUrl = () => {
   return getValidatedSiteUrl()
 }
 
+/**
+ * @deprecated Google OAuth has been removed in favor of Web3 wallet authentication.
+ * Use signInWithEthereum, signInWithSolana, or signInWithCoinbase from lib/web3auth.ts instead.
+ */
 export const signInWithGoogle = async () => {
-  const { data, error } = await supabase.auth.signInWithOAuth({
-    provider: "google",
-    options: {
-      redirectTo: `${getSiteUrl()}/auth/callback`,
-      queryParams: {
-        access_type: 'offline',
-        prompt: 'consent',
-      },
-    },
-  })
-  
-  console.log("[supabase] Google OAuth initiated", {
-    redirectTo: `${getSiteUrl()}/auth/callback`,
-    error: error?.message,
-  })
-  
-  return { data, error }
+  console.warn("[supabase] signInWithGoogle is deprecated. Use Web3 wallet authentication instead.")
+  return { 
+    data: null, 
+    error: new Error("Google sign-in has been disabled. Please use a Web3 wallet to authenticate.") 
+  }
 }
 
-export const signInWithEmail = async (email: string, password: string) => {
-  const { data, error } = await supabase.auth.signInWithPassword({
-    email,
-    password,
-  })
-  return { data, error }
+/**
+ * @deprecated Email/password authentication has been removed in favor of Web3 wallet authentication.
+ * Use signInWithEthereum, signInWithSolana, or signInWithCoinbase from lib/web3auth.ts instead.
+ */
+export const signInWithEmail = async (_email: string, _password: string) => {
+  console.warn("[supabase] signInWithEmail is deprecated. Use Web3 wallet authentication instead.")
+  return { 
+    data: null, 
+    error: new Error("Email sign-in has been disabled. Please use a Web3 wallet to authenticate.") 
+  }
 }
 
-export const signUpWithEmail = async (email: string, password: string, username?: string) => {
-  const { data, error } = await supabase.auth.signUp({
-    email,
-    password,
-    options: {
-      emailRedirectTo: `${getSiteUrl()}/auth/callback`,
-      data: {
-        username: username || email.split('@')[0], // Store username in user metadata
-      },
-    },
-  })
-  return { data, error }
+/**
+ * @deprecated Email/password authentication has been removed in favor of Web3 wallet authentication.
+ * Use signInWithEthereum, signInWithSolana, or signInWithCoinbase from lib/web3auth.ts instead.
+ */
+export const signUpWithEmail = async (_email: string, _password: string, _username?: string) => {
+  console.warn("[supabase] signUpWithEmail is deprecated. Use Web3 wallet authentication instead.")
+  return { 
+    data: null, 
+    error: new Error("Email sign-up has been disabled. Please use a Web3 wallet to authenticate.") 
+  }
 }
 
 export const signOut = async () => {

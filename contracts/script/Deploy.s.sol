@@ -4,7 +4,8 @@ pragma solidity ^0.8.20;
 import {Script, console} from "forge-std/Script.sol";
 import {OCXToken} from "../src/OCXToken.sol";
 import {OceanGameController} from "../src/OceanGameController.sol";
-import {OceanResource} from "../src/OceanResource.sol";
+// NOTE: OceanResource.sol is archived - mining happens off-chain in Supabase
+// See contracts/src/_archive/README.md for details
 
 contract Deploy is Script {
     function run() external {
@@ -29,12 +30,9 @@ contract Deploy is Script {
         OceanGameController gameController = new OceanGameController(backendSignerAddress);
         console.log(unicode"✅ OceanGameController deployed to:", address(gameController));
 
-        console.log("Deploying OceanResource...");
-        OceanResource oceanResource = new OceanResource(address(gameController));
-        console.log(unicode"✅ OceanResource deployed to:", address(oceanResource));
-
         vm.stopBroadcast();
         
         console.log(unicode"\nDeployment complete! 🎉");
+        console.log("NOTE: Resource tracking is off-chain (Supabase)");
     }
 }

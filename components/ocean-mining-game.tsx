@@ -1630,8 +1630,6 @@ export function OceanMiningGame({
 
   // Submarine purchase handled via dedicated /submarine-store page now
 
-  // Daily reward claiming removed from canvas (UI button removed). Handler kept out to avoid unused imports.
-
   const createSignaturePayload = async (address: string, action: string) => {
     const message = `Sign this message to ${action} with your account ${address}`
     const signature = await walletManager.signMessage(message)
@@ -1737,9 +1735,6 @@ export function OceanMiningGame({
               <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6" />
             </svg>
           </button>
-
-          {/* Daily reward UI removed from canvas */}
-
 
   {/* Compass removed */}
 

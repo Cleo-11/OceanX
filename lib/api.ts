@@ -227,18 +227,6 @@ class ApiClient {
     })
   }
 
-  // Rewards
-  async claimDailyReward(
-    walletAddress: string,
-    signature: string,
-    message: string,
-  ): Promise<ApiResponse<{ reward: string; message: string }>> {
-    return this.request("/rewards/claim", {
-      method: "POST",
-      body: JSON.stringify({ address: walletAddress, signature, message }),
-    })
-  }
-
   // Leaderboard
   async getLeaderboard(): Promise<ApiResponse<{ leaderboard: LeaderboardEntry[] }>> {
     return this.request("/leaderboard")

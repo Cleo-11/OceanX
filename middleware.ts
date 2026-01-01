@@ -6,8 +6,21 @@ import type { NextRequest } from 'next/server'
  * TESTING MODE: Controlled by environment variables.
  * Only allow bypass when not in production AND explicit allow flag is set.
  * Environment variable to set on dev machines: `ALLOW_AUTH_BYPASS=true`
+ * 
+ * 🚨 SECURITY: Hard fail if auth bypass is attempted in production
  */
-const TESTING_MODE_BYPASS_AUTH = (process.env.NODE_ENV !== 'production' && process.env.ALLOW_AUTH_BYPASS === 'true')
+const NODE_ENV = process.env.NODE_ENV || 'production'; // Default to production for safety
+const ALLOW_AUTH_BYPASS_RAW = process.env.ALLOW_AUTH_BYPASS === 'true';
+
+// 🚨 CRITICAL SECURITY CHECK: Prevent auth bypass in production
+if (NODE_ENV === 'production' && ALLOW_AUTH_BYPASS_RAW) {
+  throw new Error(
+    '🚨 SECURITY VIOLATION: ALLOW_AUTH_BYPASS cannot be enabled in production! ' +
+    'Remove this environment variable immediately.'
+  );
+}
+
+const TESTING_MODE_BYPASS_AUTH = (NODE_ENV !== 'production' && ALLOW_AUTH_BYPASS_RAW)
 
 export async function middleware(req: NextRequest) {
   const startTime = Date.now()

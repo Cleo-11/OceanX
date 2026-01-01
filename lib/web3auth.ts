@@ -1,32 +1,44 @@
 /**
  * Web3 Authentication with Supabase
- * Supports Sign-In with Ethereum (SIWE) and Sign-In with Solana (SIWS)
+ * Supports Sign-In with Ethereum (SIWE), Sign-In with Solana (SIWS), and WalletConnect
+ * 
+ * Web3-first authentication - no email/password or social logins
  */
 
 import { supabase } from './supabase'
 import { ethers } from 'ethers'
 
 export interface Web3AuthProvider {
-  type: 'ethereum' | 'solana'
+  type: 'ethereum' | 'solana' | 'walletconnect'
   name: string
   icon: string
+  description?: string
 }
 
 export const web3Providers: Web3AuthProvider[] = [
   {
     type: 'ethereum',
-    name: 'Ethereum Wallet',
-    icon: '🦊', // MetaMask/Ethereum
+    name: 'MetaMask',
+    icon: '🦊',
+    description: 'Browser extension wallet',
   },
   {
     type: 'solana',
-    name: 'Solana Wallet',
-    icon: '◎', // Solana
+    name: 'Phantom',
+    icon: '👻',
+    description: 'Solana wallet',
   },
   {
     type: 'ethereum',
     name: 'Coinbase Wallet',
-    icon: '🔷', // Coinbase
+    icon: '🔵',
+    description: 'Coinbase smart wallet',
+  },
+  {
+    type: 'walletconnect',
+    name: 'WalletConnect',
+    icon: '🔗',
+    description: 'Connect mobile wallet via QR',
   },
 ]
 
@@ -411,4 +423,132 @@ export function isCoinbaseAvailable(): boolean {
   // Check for Coinbase Wallet extension
   return !!(window as any).coinbaseWalletExtension || 
          (!!window.ethereum && (window.ethereum as any).isCoinbaseWallet)
+}
+
+/**
+ * WalletConnect is always available as it uses QR codes
+ * Requires NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID to be set
+ */
+export function isWalletConnectAvailable(): boolean {
+  return typeof window !== 'undefined' && !!process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID
+}
+
+/**
+ * Sign in with WalletConnect (for mobile wallets)
+ * Requires @walletconnect/ethereum-provider package
+ * 
+ * To enable WalletConnect:
+ * 1. Install: pnpm add @walletconnect/ethereum-provider @walletconnect/modal
+ * 2. Get Project ID from https://cloud.walletconnect.com/
+ * 3. Set NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID in .env
+ */
+export async function signInWithWalletConnect() {
+  try {
+    // Dynamic import to avoid build errors if package not installed
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    let EthereumProvider: typeof import('@walletconnect/ethereum-provider').EthereumProvider
+    
+    try {
+      const module = await import('@walletconnect/ethereum-provider')
+      EthereumProvider = module.EthereumProvider
+    } catch {
+      throw new Error(
+        'WalletConnect not configured. Install @walletconnect/ethereum-provider and set NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID'
+      )
+    }
+
+    const projectId = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID
+    if (!projectId) {
+      throw new Error('WalletConnect Project ID not configured. Set NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID in your environment.')
+    }
+
+    // Initialize WalletConnect provider
+    const wcProvider = await EthereumProvider.init({
+      projectId,
+      chains: [1], // Ethereum Mainnet
+      showQrModal: true,
+      optionalChains: [137, 8453, 42161], // Polygon, Base, Arbitrum
+    })
+
+    // Connect wallet
+    await wcProvider.connect()
+    
+    // Type assertion needed as ethers expects standard provider interface
+    const provider = new ethers.BrowserProvider(wcProvider as unknown as ethers.Eip1193Provider)
+    const signer = await provider.getSigner()
+    const address = await signer.getAddress()
+
+    // Create SIWE message
+    const domain = window.location.host
+    const origin = window.location.origin
+    const nonce = generateNonce()
+    const issuedAt = new Date().toISOString()
+
+    const message = createSIWEMessage({
+      domain,
+      address,
+      statement: 'Sign in to AbyssX with your wallet via WalletConnect',
+      uri: origin,
+      version: '1',
+      chainId: await provider.getNetwork().then(n => Number(n.chainId)),
+      nonce,
+      issuedAt,
+    })
+
+    // Sign the message
+    const signature = await signer.signMessage(message)
+
+    // Call server-side SIWE endpoint for proper authentication
+    const response = await fetch('/api/auth/siwe', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message, signature, address }),
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json()
+      throw new Error(errorData.error || 'WalletConnect authentication failed')
+    }
+
+    const { session, user, isNewUser } = await response.json()
+
+    // Set the session in Supabase client
+    const { error: sessionError } = await supabase.auth.setSession({
+      access_token: session.access_token,
+      refresh_token: session.refresh_token,
+    })
+
+    if (sessionError) {
+      throw sessionError
+    }
+
+    console.log('✅ WalletConnect auth successful:', address)
+    return { 
+      data: { session, user }, 
+      error: null, 
+      address,
+      isNewUser,
+      walletType: 'walletconnect' as const
+    }
+  } catch (error) {
+    console.error('WalletConnect auth error:', error)
+    return {
+      data: null,
+      error: error instanceof Error ? error : new Error('Failed to sign in with WalletConnect'),
+      address: null,
+    }
+  }
+}
+
+/**
+ * Disconnect WalletConnect session
+ */
+export async function disconnectWalletConnect() {
+  try {
+    // This is a no-op if WalletConnect isn't installed
+    // The actual disconnect happens through the wallet UI
+    console.log('WalletConnect session disconnect requested')
+  } catch (error) {
+    console.error('Error disconnecting WalletConnect:', error)
+  }
 }

@@ -5,14 +5,16 @@
  * Flow:
  * 1. Verify signature is valid
  * 2. Check if wallet already has an account
- * 3. Return existing session OR create new account
+ * 3. Create user if needed, then generate session via admin API
  * 
- * Prevents duplicate account creation bug
+ * 🔒 SECURITY FIX: Uses stable password derived from wallet address instead of
+ * changing signatures. This prevents race conditions in parallel logins.
  */
 
 import { NextRequest, NextResponse } from 'next/server'
 import { ethers } from 'ethers'
 import { createClient } from '@supabase/supabase-js'
+import crypto from 'crypto'
 
 // Initialize Supabase client lazily to avoid build-time errors
 function getSupabaseAdmin() {
@@ -32,6 +34,18 @@ interface SIWERequest {
   message: string
   signature: string
   address: string
+}
+
+/**
+ * Generate a stable password from wallet address
+ * This ensures the password never changes, preventing race conditions
+ * 🔒 Uses HMAC with server secret so it can't be guessed
+ */
+function generateStablePassword(walletAddress: string): string {
+  const secret = process.env.SUPABASE_SERVICE_ROLE_KEY || 'fallback-secret'
+  const hmac = crypto.createHmac('sha256', secret)
+  hmac.update(`siwe-auth:${walletAddress.toLowerCase()}`)
+  return hmac.digest('hex')
 }
 
 /**
@@ -116,37 +130,42 @@ export async function POST(request: NextRequest) {
       .eq('wallet_address', address.toLowerCase())
       .single()
 
+    // 🔒 SECURITY FIX: Use stable password derived from wallet address
+    // This prevents race conditions when user logs in from multiple tabs
+    const stablePassword = generateStablePassword(address)
+    const email = `${address.toLowerCase()}@ethereum.wallet`
+
     if (existingPlayer) {
       // Wallet exists - sign in existing user
       console.log('✅ Returning user:', address)
       
-      // Sign in with the pseudo-email (wallet address format)
-      // We'll use the original signature as a one-time password
+      // Sign in with stable password (never changes)
       const { data: signInData, error: signInError } = await supabaseAdmin.auth.signInWithPassword({
-        email: `${address.toLowerCase()}@ethereum.wallet`,
-        password: signature,
+        email,
+        password: stablePassword,
       })
 
-      // If password doesn't work, update it to current signature and retry
       if (signInError) {
-        // Update user password to current signature
+        // Password might be old signature-based password, update it
+        console.log('🔄 Migrating user to stable password auth:', address)
+        
         const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(
           existingPlayer.user_id,
-          { password: signature }
+          { password: stablePassword }
         )
 
         if (updateError) {
           console.error('Failed to update password:', updateError)
           return NextResponse.json(
-            { error: 'Authentication failed' },
+            { error: 'Authentication failed - password migration error' },
             { status: 401 }
           )
         }
 
-        // Retry sign in with new password
+        // Retry sign in with stable password
         const { data: retryData, error: retryError } = await supabaseAdmin.auth.signInWithPassword({
-          email: `${address.toLowerCase()}@ethereum.wallet`,
-          password: signature,
+          email,
+          password: stablePassword,
         })
 
         if (retryError || !retryData.session) {
@@ -177,15 +196,15 @@ export async function POST(request: NextRequest) {
       // New wallet - create new account
       console.log('🆕 New user:', address)
       
+      // 🔒 Use stable password for new users too
       const { data: authData, error: signUpError } = await supabaseAdmin.auth.admin.createUser({
-        email: `${address.toLowerCase()}@ethereum.wallet`,
-        password: signature,
+        email,
+        password: stablePassword,
         email_confirm: true, // Auto-confirm since wallet signature is proof
         user_metadata: {
           wallet_address: address.toLowerCase(),
           wallet_type: 'ethereum',
           auth_method: 'siwe',
-          siwe_message: message,
         },
       })
 
@@ -221,10 +240,10 @@ export async function POST(request: NextRequest) {
         )
       }
 
-      // Sign in the newly created user
+      // Sign in the newly created user with stable password
       const { data: signInData, error: signInError } = await supabaseAdmin.auth.signInWithPassword({
-        email: `${address.toLowerCase()}@ethereum.wallet`,
-        password: signature,
+        email,
+        password: stablePassword,
       })
 
       if (signInError || !signInData.session) {

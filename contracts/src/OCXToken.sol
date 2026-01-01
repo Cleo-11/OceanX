@@ -6,14 +6,20 @@ import {ERC20Burnable} from "@openzeppelin/contracts/token/ERC20/extensions/ERC2
 import {EIP712} from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
-contract OCXToken is ERC20, ERC20Burnable, EIP712, Ownable {
+contract OCXToken is ERC20, ERC20Burnable, EIP712, Ownable, ReentrancyGuard {
     using ECDSA for bytes32;
 
     // --- Constants ---
     uint256 public constant TOTAL_SUPPLY = 1_000_000_000 * 1e18;
 
-    // Wallets for initial distribution
+    // Wallets for initial distribution (immutable after deployment)
+    // ⚠️ DEPLOYMENT NOTE: These addresses MUST be updated before mainnet deployment!
+    //    - DEVELOPMENT_WALLET: Team multisig for development funds (20%)
+    //    - LP_WALLET: DEX liquidity provision wallet (30%)
+    //    - MARKETING_WALLET: Marketing & partnerships fund (10%)
+    //    - Remaining 40% stays in contract for player claims
     address public constant DEVELOPMENT_WALLET = 0x24B7369cF816bD7Ba656e3CeF4832c208beb8C65; // 20%
     address public constant LP_WALLET          = 0x0e900854Dd860a3c0254C6D90A26972946479Db1; // 30%
     address public constant MARKETING_WALLET   = 0x7eC81a27c3aa3cC1F043A7227327b4E3ae9faB09; // 10%
@@ -78,8 +84,9 @@ contract OCXToken is ERC20, ERC20Burnable, EIP712, Ownable {
     /**
      * @notice Users call this to mint tokens to themselves using a signature from your backend.
      * @dev User pays gas. This is the ONLY way for users to receive tokens after deployment.
+     * @dev nonReentrant modifier prevents reentrancy attacks during token transfer.
      */
-    function claim(uint256 amount, uint256 nonce, uint256 deadline, uint8 v, bytes32 r, bytes32 s) external {
+    function claim(uint256 amount, uint256 nonce, uint256 deadline, uint8 v, bytes32 r, bytes32 s) external nonReentrant {
         require(block.timestamp <= deadline, "Signature expired");
         require(amount > 0, "Amount zero");
 
