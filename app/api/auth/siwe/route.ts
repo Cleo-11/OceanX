@@ -115,9 +115,6 @@ function parseSIWEMessage(message: string): { domain: string; address: string; n
 }
 
 export async function POST(request: NextRequest) {
-  // Create a response object early to enable cookie handling
-  let response: NextResponse
-  
   try {
     const body: SIWERequest = await request.json()
     const { message, signature, address } = body
@@ -218,6 +215,7 @@ export async function POST(request: NextRequest) {
         }
 
         // Sign in with the new auth user using cookie-enabled client
+        let response = NextResponse.json({ success: false })
         const supabaseWithCookies = getSupabaseWithCookies(request, response)
         const { data: signInData, error: signInError } = await supabaseWithCookies.auth.signInWithPassword({
           email,
@@ -226,21 +224,19 @@ export async function POST(request: NextRequest) {
 
         if (signInError || !signInData.session) {
           console.error('Sign in after recreation failed:', signInError)
-          response = NextResponse.json(
+          return NextResponse.json(
             { error: 'Authentication failed' },
             { status: 401 }
           )
-          return response
         }
 
-        response = NextResponse.json({
+        return NextResponse.json({
           success: true,
           isNewUser: false,
           session: signInData.session,
           user: signInData.user,
           address: address.toLowerCase()
         })
-        return response
       }
       
       // Auth user exists - verify email matches
@@ -260,6 +256,7 @@ export async function POST(request: NextRequest) {
       }
       
       // Try to sign in with stable password using cookie-enabled client
+      let response = NextResponse.json({ success: false })
       const supabaseWithCookies = getSupabaseWithCookies(request, response)
       const { data: signInData, error: signInError } = await supabaseWithCookies.auth.signInWithPassword({
         email,
@@ -291,31 +288,28 @@ export async function POST(request: NextRequest) {
 
         if (retryError || !retryData.session) {
           console.error('Sign in retry failed:', retryError)
-          response = NextResponse.json(
+          return NextResponse.json(
             { error: 'Authentication failed' },
             { status: 401 }
           )
-          return response
         }
 
-        response = NextResponse.json({
+        return NextResponse.json({
           success: true,
           isNewUser: false,
           session: retryData.session,
           user: retryData.user,
           address: address.toLowerCase()
         })
-        return response
       }
 
-      response = NextResponse.json({
+      return NextResponse.json({
         success: true,
         isNewUser: false,
         session: signInData.session,
         user: signInData.user,
         address: address.toLowerCase()
       })
-      return response
     } else {
       // New wallet - create new account
       console.log('🆕 New user:', address)
@@ -365,6 +359,7 @@ export async function POST(request: NextRequest) {
       }
 
       // Sign in the newly created user with stable password using cookie-enabled client
+      let response = NextResponse.json({ success: false })
       const supabaseWithCookies = getSupabaseWithCookies(request, response)
       const { data: signInData, error: signInError } = await supabaseWithCookies.auth.signInWithPassword({
         email,
@@ -373,21 +368,19 @@ export async function POST(request: NextRequest) {
 
       if (signInError || !signInData.session) {
         console.error('Sign in error after creation:', signInError)
-        response = NextResponse.json(
+        return NextResponse.json(
           { error: 'Failed to create session' },
           { status: 500 }
         )
-        return response
       }
 
-      response = NextResponse.json({
+      return NextResponse.json({
         success: true,
         isNewUser: true,
         session: signInData.session,
         user: signInData.user,
         address: address.toLowerCase()
       })
-      return response
     }
   } catch (error) {
     console.error('SIWE authentication error:', error)
