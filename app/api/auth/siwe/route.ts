@@ -14,9 +14,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { ethers } from 'ethers'
 import { createClient } from '@supabase/supabase-js'
+import { createServerClient } from '@supabase/ssr'
 import crypto from 'crypto'
 
-// Initialize Supabase client lazily to avoid build-time errors
+// Initialize Supabase admin client (for user management)
 function getSupabaseAdmin() {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -26,6 +27,27 @@ function getSupabaseAdmin() {
         autoRefreshToken: false,
         persistSession: false
       }
+    }
+  )
+}
+
+// Initialize Supabase client with cookies (for session management)
+function getSupabaseWithCookies(request: NextRequest, response: NextResponse) {
+  return createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        get(name: string) {
+          return request.cookies.get(name)?.value
+        },
+        set(name: string, value: string, options: any) {
+          response.cookies.set({ name, value, ...options })
+        },
+        remove(name: string, options: any) {
+          response.cookies.set({ name, value: '', ...options })
+        },
+      },
     }
   )
 }
@@ -54,7 +76,16 @@ function generateStablePassword(walletAddress: string): string {
 function verifySignature(message: string, signature: string, address: string): boolean {
   try {
     const recoveredAddress = ethers.verifyMessage(message, signature)
-    return recoveredAddress.toLowerCase() === address.toLowerCase()
+    const isValid = recoveredAddress.toLowerCase() === address.toLowerCase()
+    
+    if (!isValid) {
+      console.error('Signature verification mismatch:', {
+        expected: address.toLowerCase(),
+        recovered: recoveredAddress.toLowerCase(),
+      })
+    }
+    
+    return isValid
   } catch (error) {
     console.error('Signature verification failed:', error)
     return false
@@ -84,12 +115,18 @@ function parseSIWEMessage(message: string): { domain: string; address: string; n
 }
 
 export async function POST(request: NextRequest) {
+  // Create a response object early to enable cookie handling
+  let response: NextResponse
+  
   try {
     const body: SIWERequest = await request.json()
     const { message, signature, address } = body
 
+    console.log('🔐 SIWE auth request received for:', address)
+
     // Validate input
     if (!message || !signature || !address) {
+      console.error('Missing required fields:', { message: !!message, signature: !!signature, address: !!address })
       return NextResponse.json(
         { error: 'Missing required fields: message, signature, address' },
         { status: 400 }
@@ -97,13 +134,16 @@ export async function POST(request: NextRequest) {
     }
 
     // Verify signature
+    console.log('🔍 Verifying signature...')
     const isValidSignature = verifySignature(message, signature, address)
     if (!isValidSignature) {
+      console.error('❌ Signature verification failed for:', address)
       return NextResponse.json(
         { error: 'Invalid signature' },
         { status: 401 }
       )
     }
+    console.log('✅ Signature verified for:', address)
 
     // Parse and validate SIWE message
     const parsed = parseSIWEMessage(message)
@@ -136,11 +176,92 @@ export async function POST(request: NextRequest) {
     const email = `${address.toLowerCase()}@ethereum.wallet`
 
     if (existingPlayer) {
-      // Wallet exists - sign in existing user
+      // Wallet exists in players table - verify auth user still exists
       console.log('✅ Returning user:', address)
       
-      // Sign in with stable password (never changes)
-      const { data: signInData, error: signInError } = await supabaseAdmin.auth.signInWithPassword({
+      // First, check if the auth user actually exists
+      const { data: authUser, error: getUserError } = await supabaseAdmin.auth.admin.getUserById(
+        existingPlayer.user_id
+      )
+
+      if (getUserError || !authUser.user) {
+        // Auth user was deleted but player record remains - recreate auth user
+        console.log('🔄 Auth user missing, recreating for:', address)
+        
+        const { data: newAuthUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
+          email,
+          password: stablePassword,
+          email_confirm: true,
+          user_metadata: {
+            wallet_address: address.toLowerCase(),
+            wallet_type: 'ethereum',
+            auth_method: 'siwe',
+          },
+        })
+
+        if (createError || !newAuthUser.user) {
+          console.error('Failed to recreate auth user:', createError)
+          return NextResponse.json(
+            { error: 'Failed to recreate authentication' },
+            { status: 500 }
+          )
+        }
+
+        // Update the players table with new user_id
+        const { error: updatePlayerError } = await supabaseAdmin
+          .from('players')
+          .update({ user_id: newAuthUser.user.id })
+          .eq('wallet_address', address.toLowerCase())
+
+        if (updatePlayerError) {
+          console.error('Failed to update player user_id:', updatePlayerError)
+        }
+
+        // Sign in with the new auth user using cookie-enabled client
+        const supabaseWithCookies = getSupabaseWithCookies(request, response)
+        const { data: signInData, error: signInError } = await supabaseWithCookies.auth.signInWithPassword({
+          email,
+          password: stablePassword,
+        })
+
+        if (signInError || !signInData.session) {
+          console.error('Sign in after recreation failed:', signInError)
+          response = NextResponse.json(
+            { error: 'Authentication failed' },
+            { status: 401 }
+          )
+          return response
+        }
+
+        response = NextResponse.json({
+          success: true,
+          isNewUser: false,
+          session: signInData.session,
+          user: signInData.user,
+          address: address.toLowerCase()
+        })
+        return response
+      }
+      
+      // Auth user exists - verify email matches
+      console.log('📧 Expected email:', email)
+      console.log('📧 Auth user email:', authUser.user.email)
+      
+      // If email doesn't match, update it
+      if (authUser.user.email !== email) {
+        console.log('⚠️ Email mismatch, updating auth user email')
+        const { error: updateEmailError } = await supabaseAdmin.auth.admin.updateUserById(
+          existingPlayer.user_id,
+          { email }
+        )
+        if (updateEmailError) {
+          console.error('Failed to update email:', updateEmailError)
+        }
+      }
+      
+      // Try to sign in with stable password using cookie-enabled client
+      const supabaseWithCookies = getSupabaseWithCookies(request, response)
+      const { data: signInData, error: signInError } = await supabaseWithCookies.auth.signInWithPassword({
         email,
         password: stablePassword,
       })
@@ -162,36 +283,39 @@ export async function POST(request: NextRequest) {
           )
         }
 
-        // Retry sign in with stable password
-        const { data: retryData, error: retryError } = await supabaseAdmin.auth.signInWithPassword({
+        // Retry sign in with stable password using cookie-enabled client
+        const { data: retryData, error: retryError } = await supabaseWithCookies.auth.signInWithPassword({
           email,
           password: stablePassword,
         })
 
         if (retryError || !retryData.session) {
           console.error('Sign in retry failed:', retryError)
-          return NextResponse.json(
+          response = NextResponse.json(
             { error: 'Authentication failed' },
             { status: 401 }
           )
+          return response
         }
 
-        return NextResponse.json({
+        response = NextResponse.json({
           success: true,
           isNewUser: false,
           session: retryData.session,
           user: retryData.user,
           address: address.toLowerCase()
         })
+        return response
       }
 
-      return NextResponse.json({
+      response = NextResponse.json({
         success: true,
         isNewUser: false,
         session: signInData.session,
         user: signInData.user,
         address: address.toLowerCase()
       })
+      return response
     } else {
       // New wallet - create new account
       console.log('🆕 New user:', address)
@@ -240,27 +364,30 @@ export async function POST(request: NextRequest) {
         )
       }
 
-      // Sign in the newly created user with stable password
-      const { data: signInData, error: signInError } = await supabaseAdmin.auth.signInWithPassword({
+      // Sign in the newly created user with stable password using cookie-enabled client
+      const supabaseWithCookies = getSupabaseWithCookies(request, response)
+      const { data: signInData, error: signInError } = await supabaseWithCookies.auth.signInWithPassword({
         email,
         password: stablePassword,
       })
 
       if (signInError || !signInData.session) {
         console.error('Sign in error after creation:', signInError)
-        return NextResponse.json(
+        response = NextResponse.json(
           { error: 'Failed to create session' },
           { status: 500 }
         )
+        return response
       }
 
-      return NextResponse.json({
+      response = NextResponse.json({
         success: true,
         isNewUser: true,
         session: signInData.session,
         user: signInData.user,
         address: address.toLowerCase()
       })
+      return response
     }
   } catch (error) {
     console.error('SIWE authentication error:', error)
