@@ -44,10 +44,10 @@ function getSupabaseWithCookies(request: NextRequest) {
           get(name: string) {
             return request.cookies.get(name)?.value || cookieStore[name]
           },
-          set(name: string, value: string, options: any) {
+          set(name: string, value: string) {
             cookieStore[name] = value
           },
-          remove(name: string, options: any) {
+          remove(name: string) {
             delete cookieStore[name]
           },
         },
