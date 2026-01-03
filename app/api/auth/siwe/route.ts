@@ -32,24 +32,29 @@ function getSupabaseAdmin() {
 }
 
 // Initialize Supabase client with cookies (for session management)
-function getSupabaseWithCookies(request: NextRequest, response: NextResponse) {
-  return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        get(name: string) {
-          return request.cookies.get(name)?.value
+function getSupabaseWithCookies(request: NextRequest) {
+  const cookieStore: { [key: string]: string } = {}
+  
+  return {
+    client: createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          get(name: string) {
+            return request.cookies.get(name)?.value || cookieStore[name]
+          },
+          set(name: string, value: string, options: any) {
+            cookieStore[name] = value
+          },
+          remove(name: string, options: any) {
+            delete cookieStore[name]
+          },
         },
-        set(name: string, value: string, options: any) {
-          response.cookies.set({ name, value, ...options })
-        },
-        remove(name: string, options: any) {
-          response.cookies.set({ name, value: '', ...options })
-        },
-      },
-    }
-  )
+      }
+    ),
+    getCookies: () => cookieStore
+  }
 }
 
 interface SIWERequest {
@@ -215,9 +220,8 @@ export async function POST(request: NextRequest) {
         }
 
         // Sign in with the new auth user using cookie-enabled client
-        let response = NextResponse.json({ success: false })
-        const supabaseWithCookies = getSupabaseWithCookies(request, response)
-        const { data: signInData, error: signInError } = await supabaseWithCookies.auth.signInWithPassword({
+        const { client: supabaseRecreate, getCookies: getRecreatedCookies } = getSupabaseWithCookies(request)
+        const { data: signInData, error: signInError } = await supabaseRecreate.auth.signInWithPassword({
           email,
           password: stablePassword,
         })
@@ -230,13 +234,20 @@ export async function POST(request: NextRequest) {
           )
         }
 
-        return NextResponse.json({
+        const response = NextResponse.json({
           success: true,
           isNewUser: false,
           session: signInData.session,
           user: signInData.user,
           address: address.toLowerCase()
         })
+        
+        // Apply cookies from Supabase auth
+        const cookies = getRecreatedCookies()
+        Object.entries(cookies).forEach(([name, value]) => {
+          response.cookies.set(name, value, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', path: '/' })
+        })
+        return response
       }
       
       // Auth user exists - verify email matches
@@ -256,8 +267,7 @@ export async function POST(request: NextRequest) {
       }
       
       // Try to sign in with stable password using cookie-enabled client
-      let response = NextResponse.json({ success: false })
-      const supabaseWithCookies = getSupabaseWithCookies(request, response)
+      const { client: supabaseWithCookies, getCookies } = getSupabaseWithCookies(request)
       const { data: signInData, error: signInError } = await supabaseWithCookies.auth.signInWithPassword({
         email,
         password: stablePassword,
@@ -294,22 +304,36 @@ export async function POST(request: NextRequest) {
           )
         }
 
-        return NextResponse.json({
+        const response = NextResponse.json({
           success: true,
           isNewUser: false,
           session: retryData.session,
           user: retryData.user,
           address: address.toLowerCase()
         })
+        
+        // Apply cookies from Supabase auth
+        const cookies = getCookies()
+        Object.entries(cookies).forEach(([name, value]) => {
+          response.cookies.set(name, value, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', path: '/' })
+        })
+        return response
       }
 
-      return NextResponse.json({
+      const response = NextResponse.json({
         success: true,
         isNewUser: false,
         session: signInData.session,
         user: signInData.user,
         address: address.toLowerCase()
       })
+      
+      // Apply cookies from Supabase auth
+      const cookies = getCookies()
+      Object.entries(cookies).forEach(([name, value]) => {
+        response.cookies.set(name, value, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', path: '/' })
+      })
+      return response
     } else {
       // New wallet - create new account
       console.log('🆕 New user:', address)
@@ -359,9 +383,8 @@ export async function POST(request: NextRequest) {
       }
 
       // Sign in the newly created user with stable password using cookie-enabled client
-      let response = NextResponse.json({ success: false })
-      const supabaseWithCookies = getSupabaseWithCookies(request, response)
-      const { data: signInData, error: signInError } = await supabaseWithCookies.auth.signInWithPassword({
+      const { client: supabaseNewUser, getCookies: getNewUserCookies } = getSupabaseWithCookies(request)
+      const { data: signInData, error: signInError } = await supabaseNewUser.auth.signInWithPassword({
         email,
         password: stablePassword,
       })
@@ -374,13 +397,20 @@ export async function POST(request: NextRequest) {
         )
       }
 
-      return NextResponse.json({
+      const response = NextResponse.json({
         success: true,
         isNewUser: true,
         session: signInData.session,
         user: signInData.user,
         address: address.toLowerCase()
       })
+      
+      // Apply cookies from Supabase auth
+      const cookies = getNewUserCookies()
+      Object.entries(cookies).forEach(([name, value]) => {
+        response.cookies.set(name, value, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', path: '/' })
+      })
+      return response
     }
   } catch (error) {
     console.error('SIWE authentication error:', error)
