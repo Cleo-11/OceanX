@@ -23,22 +23,16 @@ export const web3Providers: Web3AuthProvider[] = [
     description: 'Browser extension wallet',
   },
   {
-    type: 'solana',
-    name: 'Phantom',
-    icon: '👻',
-    description: 'Solana wallet',
-  },
-  {
     type: 'ethereum',
     name: 'Coinbase Wallet',
     icon: '🔵',
-    description: 'Coinbase smart wallet',
+    description: 'Coinbase smart wallet (Base native)',
   },
   {
     type: 'walletconnect',
     name: 'WalletConnect',
     icon: '🔗',
-    description: 'Connect mobile wallet via QR',
+    description: 'Mobile wallet via QR (Base)',
   },
 ]
 
@@ -426,55 +420,140 @@ export function isCoinbaseAvailable(): boolean {
 }
 
 /**
- * WalletConnect is always available as it uses QR codes
- * Requires NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID to be set
+ * Supported Chain Configuration
+ * Base Mainnet: 8453
+ * Base Sepolia (Testnet): 84532
+ * Ethereum Sepolia (Testnet): 11155111
+ */
+export const CHAIN_CONFIG = {
+  base: {
+    mainnet: {
+      chainId: 8453,
+      name: 'Base',
+      rpcUrl: 'https://mainnet.base.org',
+      blockExplorer: 'https://basescan.org',
+    },
+    sepolia: {
+      chainId: 84532,
+      name: 'Base Sepolia',
+      rpcUrl: 'https://sepolia.base.org',
+      blockExplorer: 'https://sepolia.basescan.org',
+    },
+  },
+  ethereum: {
+    sepolia: {
+      chainId: 11155111,
+      name: 'Sepolia',
+      rpcUrl: 'https://rpc.sepolia.org',
+      blockExplorer: 'https://sepolia.etherscan.io',
+    },
+  },
+} as const
+
+// Legacy export for backward compatibility
+export const BASE_CHAIN_CONFIG = CHAIN_CONFIG.base
+
+// All supported chains for WalletConnect
+export const SUPPORTED_CHAIN_IDS = [8453, 84532, 11155111] as const
+export const SUPPORTED_CHAINS = [
+  CHAIN_CONFIG.base.mainnet,
+  CHAIN_CONFIG.base.sepolia,
+  CHAIN_CONFIG.ethereum.sepolia,
+]
+
+// Determine active chain based on environment
+export const ACTIVE_BASE_CHAIN = process.env.NEXT_PUBLIC_USE_BASE_MAINNET === 'true'
+  ? CHAIN_CONFIG.base.mainnet
+  : CHAIN_CONFIG.base.sepolia
+
+/**
+ * Check if WalletConnect is available
+ * Returns true if WalletConnect Project ID is configured
  */
 export function isWalletConnectAvailable(): boolean {
   return typeof window !== 'undefined' && !!process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID
 }
 
 /**
- * Sign in with WalletConnect (for mobile wallets)
- * Requires @walletconnect/ethereum-provider package
+ * Sign in with WalletConnect (Mobile Wallet Support)
+ * Configured for BASE blockchain only.
  * 
- * To enable WalletConnect:
+ * To enable:
  * 1. Install: pnpm add @walletconnect/ethereum-provider @walletconnect/modal
  * 2. Get Project ID from https://cloud.walletconnect.com/
  * 3. Set NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID in .env
  */
-export async function signInWithWalletConnect() {
+export async function signInWithWalletConnect(): Promise<{
+  data: { session: any; user: any } | null
+  error: Error | null
+  address: string | null
+  isNewUser?: boolean
+  walletType?: 'walletconnect'
+}> {
   try {
     // Dynamic import to avoid build errors if package not installed
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    let EthereumProvider: typeof import('@walletconnect/ethereum-provider').EthereumProvider
-    
-    try {
-      const module = await import('@walletconnect/ethereum-provider')
-      EthereumProvider = module.EthereumProvider
-    } catch {
-      throw new Error(
-        'WalletConnect not configured. Install @walletconnect/ethereum-provider and set NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID'
-      )
-    }
+    const { EthereumProvider } = await import('@walletconnect/ethereum-provider')
 
     const projectId = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID
     if (!projectId) {
       throw new Error('WalletConnect Project ID not configured. Set NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID in your environment.')
     }
 
-    // Initialize WalletConnect provider
+    // Initialize WalletConnect provider - Base + Sepolia testnets
     const wcProvider = await EthereumProvider.init({
       projectId,
-      chains: [1], // Ethereum Mainnet
+      chains: [ACTIVE_BASE_CHAIN.chainId], // Primary chain (Base Sepolia or Base Mainnet)
       showQrModal: true,
-      optionalChains: [137, 8453, 42161], // Polygon, Base, Arbitrum
+      metadata: {
+        name: 'AbyssX',
+        description: 'Web3 Ocean Mining Game on Base',
+        url: typeof window !== 'undefined' ? window.location.origin : 'https://abyssx.io',
+        icons: ['https://abyssx.io/icon.png'],
+      },
+      // Allow Base + Ethereum Sepolia testnets
+      optionalChains: [...SUPPORTED_CHAIN_IDS],
+      rpcMap: {
+        8453: 'https://mainnet.base.org',
+        84532: 'https://sepolia.base.org',
+        11155111: 'https://rpc.sepolia.org',
+      },
     })
 
     // Connect wallet
     await wcProvider.connect()
     
+    // Check if connected to a supported chain
+    const connectedChainId = wcProvider.chainId
+    const isSupportedChain = SUPPORTED_CHAIN_IDS.includes(connectedChainId as typeof SUPPORTED_CHAIN_IDS[number])
+    
+    if (!isSupportedChain) {
+      // Request chain switch to the active Base chain
+      try {
+        await wcProvider.request({
+          method: 'wallet_switchEthereumChain',
+          params: [{ chainId: `0x${ACTIVE_BASE_CHAIN.chainId.toString(16)}` }],
+        })
+      } catch (switchError: any) {
+        // If chain doesn't exist, add it
+        if (switchError.code === 4902) {
+          await wcProvider.request({
+            method: 'wallet_addEthereumChain',
+            params: [{
+              chainId: `0x${ACTIVE_BASE_CHAIN.chainId.toString(16)}`,
+              chainName: ACTIVE_BASE_CHAIN.name,
+              nativeCurrency: { name: 'ETH', symbol: 'ETH', decimals: 18 },
+              rpcUrls: [ACTIVE_BASE_CHAIN.rpcUrl],
+              blockExplorerUrls: [ACTIVE_BASE_CHAIN.blockExplorer],
+            }],
+          })
+        } else {
+          throw new Error(`Please switch to a supported network: Base, Base Sepolia, or Sepolia`)
+        }
+      }
+    }
+    
     // Type assertion needed as ethers expects standard provider interface
-    const provider = new ethers.BrowserProvider(wcProvider as unknown as ethers.Eip1193Provider)
+    const provider = new ethers.BrowserProvider(wcProvider as any)
     const signer = await provider.getSigner()
     const address = await signer.getAddress()
 
@@ -490,7 +569,7 @@ export async function signInWithWalletConnect() {
       statement: 'Sign in to AbyssX with your wallet via WalletConnect',
       uri: origin,
       version: '1',
-      chainId: await provider.getNetwork().then(n => Number(n.chainId)),
+      chainId: ACTIVE_BASE_CHAIN.chainId,
       nonce,
       issuedAt,
     })
@@ -522,15 +601,23 @@ export async function signInWithWalletConnect() {
       throw sessionError
     }
 
-    console.log('✅ WalletConnect auth successful:', address)
+    console.log(`✅ WalletConnect auth successful on ${ACTIVE_BASE_CHAIN.name}:`, address)
     return { 
       data: { session, user }, 
       error: null, 
       address,
       isNewUser,
-      walletType: 'walletconnect' as const
+      walletType: 'walletconnect'
     }
-  } catch (error) {
+  } catch (error: any) {
+    // Handle case where package isn't installed
+    if (error.code === 'MODULE_NOT_FOUND' || error.message?.includes('Cannot find module')) {
+      return {
+        data: null,
+        error: new Error('WalletConnect not installed. Run: pnpm add @walletconnect/ethereum-provider @walletconnect/modal'),
+        address: null,
+      }
+    }
     console.error('WalletConnect auth error:', error)
     return {
       data: null,

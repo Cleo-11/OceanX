@@ -1,6 +1,6 @@
 import { createClient } from "@supabase/supabase-js"
 import { Database } from './types'
-import { env, getSiteUrl as getValidatedSiteUrl } from './env'
+import { env } from './env'
 
 // --- Initialize and Export the Supabase Client ---
 // Using validated environment variables for better security
@@ -10,11 +10,6 @@ export const supabase = createClient<Database>(
 )
 
 // --- Auth Helper Functions ---
-
-// Get the site URL from validated environment variables
-const getSiteUrl = () => {
-  return getValidatedSiteUrl()
-}
 
 /**
  * @deprecated Google OAuth has been removed in favor of Web3 wallet authentication.

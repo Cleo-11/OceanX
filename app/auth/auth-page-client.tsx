@@ -7,13 +7,12 @@ import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { 
   signInWithEthereum, 
-  signInWithSolana, 
   signInWithCoinbase, 
   signInWithWalletConnect,
   isEthereumAvailable, 
-  isSolanaAvailable, 
   isCoinbaseAvailable,
-  isWalletConnectAvailable 
+  isWalletConnectAvailable,
+  ACTIVE_BASE_CHAIN
 } from "@/lib/web3auth"
 
 function AuthPageContent() {
@@ -82,31 +81,6 @@ function AuthPageContent() {
     }
   }
 
-  const handleSolanaAuth = async () => {
-    setIsLoading(true)
-    setLoadingWallet("solana")
-    setError("")
-
-    try {
-      const { data, error, address } = await signInWithSolana()
-      
-      if (error) {
-        throw error
-      }
-
-      if (data?.session) {
-        console.log("✅ Solana wallet authenticated:", address)
-        router.push("/connect-wallet")
-      }
-    } catch (error) {
-      console.error("Solana authentication error:", error)
-      setError(error instanceof Error ? error.message : "Solana wallet authentication failed")
-    } finally {
-      setIsLoading(false)
-      setLoadingWallet(null)
-    }
-  }
-
   const handleCoinbaseAuth = async () => {
     setIsLoading(true)
     setLoadingWallet("coinbase")
@@ -157,7 +131,7 @@ function AuthPageContent() {
     }
   }
 
-  const hasAnyWallet = isEthereumAvailable() || isSolanaAvailable() || isCoinbaseAvailable()
+  const hasAnyWallet = isEthereumAvailable() || isCoinbaseAvailable()
   const walletConnectEnabled = isWalletConnectAvailable()
 
   return (
@@ -195,9 +169,19 @@ function AuthPageContent() {
           )}
 
           {/* Web3 Wallet Authentication Header */}
-          <div className="flex items-center justify-center mb-6">
+          <div className="flex items-center justify-center mb-4">
             <Wallet className="w-5 h-5 text-ocean-400 mr-2" />
             <span className="text-sm text-depth-300 font-medium">Web3 Authentication</span>
+          </div>
+          
+          {/* BASE Network Badge */}
+          <div className="flex items-center justify-center mb-6">
+            <div className="inline-flex items-center px-3 py-1.5 rounded-full bg-blue-500/20 border border-blue-500/30">
+              <div className="w-2 h-2 rounded-full bg-blue-400 mr-2 animate-pulse"></div>
+              <span className="text-xs text-blue-400 font-medium">
+                Powered by {ACTIVE_BASE_CHAIN.name}
+              </span>
+            </div>
           </div>
 
           {/* Ethereum Wallet */}
@@ -212,33 +196,14 @@ function AuthPageContent() {
               <span className="text-2xl mr-3">🦊</span>
             )}
             <div className="flex flex-col items-start">
-              <span className="font-semibold">MetaMask / Ethereum</span>
+              <span className="font-semibold">MetaMask</span>
               {!isEthereumAvailable() && (
                 <span className="text-xs opacity-75">Not detected</span>
               )}
             </div>
           </Button>
 
-          {/* Solana Wallet */}
-          <Button
-            onClick={handleSolanaAuth}
-            disabled={isLoading || !isSolanaAvailable()}
-            className="w-full flex items-center justify-center px-4 py-4 bg-gradient-to-r from-purple-500 to-violet-600 text-white rounded-lg font-medium hover:from-purple-600 hover:to-violet-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed mb-3 h-14"
-          >
-            {loadingWallet === "solana" ? (
-              <Loader2 className="w-5 h-5 animate-spin mr-2" />
-            ) : (
-              <span className="text-2xl mr-3">👻</span>
-            )}
-            <div className="flex flex-col items-start">
-              <span className="font-semibold">Phantom / Solana</span>
-              {!isSolanaAvailable() && (
-                <span className="text-xs opacity-75">Not detected</span>
-              )}
-            </div>
-          </Button>
-
-          {/* Coinbase Wallet */}
+          {/* Coinbase Wallet - Base Native */}
           <Button
             onClick={handleCoinbaseAuth}
             disabled={isLoading || !isCoinbaseAvailable()}
@@ -251,9 +216,9 @@ function AuthPageContent() {
             )}
             <div className="flex flex-col items-start">
               <span className="font-semibold">Coinbase Wallet</span>
-              {!isCoinbaseAvailable() && (
-                <span className="text-xs opacity-75">Not detected</span>
-              )}
+              <span className="text-xs opacity-75">
+                {!isCoinbaseAvailable() ? "Not detected" : "Base native ✨"}
+              </span>
             </div>
           </Button>
 
@@ -284,7 +249,7 @@ function AuthPageContent() {
                 )}
                 <div className="flex flex-col items-start">
                   <span className="font-semibold">WalletConnect</span>
-                  <span className="text-xs opacity-75">Scan QR with mobile wallet</span>
+                  <span className="text-xs opacity-75">Mobile wallet on {ACTIVE_BASE_CHAIN.name}</span>
                 </div>
               </Button>
             </>
@@ -304,14 +269,6 @@ function AuthPageContent() {
                   className="inline-flex items-center px-3 py-1.5 rounded-md bg-orange-500/20 text-orange-400 text-xs font-medium hover:bg-orange-500/30 transition-colors"
                 >
                   MetaMask <ExternalLink className="w-3 h-3 ml-1" />
-                </a>
-                <a
-                  href="https://phantom.app/"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center px-3 py-1.5 rounded-md bg-purple-500/20 text-purple-400 text-xs font-medium hover:bg-purple-500/30 transition-colors"
-                >
-                  Phantom <ExternalLink className="w-3 h-3 ml-1" />
                 </a>
                 <a
                   href="https://www.coinbase.com/wallet"
