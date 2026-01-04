@@ -1,11 +1,23 @@
 import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
-import { createServerComponentClient } from "@supabase/auth-helpers-nextjs"
+import { createServerClient } from "@supabase/ssr"
 import HomePageClient from "./home-page-client"
 import type { Database } from "@/lib/types"
 
 export default async function HomePage() {
-  const supabase = createServerComponentClient<Database>({ cookies })
+  const cookieStore = cookies()
+  
+  const supabase = createServerClient<Database>(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        get(name: string) {
+          return cookieStore.get(name)?.value
+        },
+      },
+    }
+  )
 
   const {
     data: { session },
@@ -37,31 +49,27 @@ export default async function HomePage() {
     walletAddress: playerRecord?.wallet_address?.slice(0, 10) + "...",
   })
 
-  if (!playerRecord || !playerRecord.wallet_address) {
-    console.warn("[home/page] No wallet address, redirecting to /connect-wallet", {
-      userId: session.user.id,
-      hasPlayerRecord: !!playerRecord,
-    })
-    // Redirect to connect-wallet page instead of rendering in-place
-    // to avoid redirect loops
-    redirect("/connect-wallet")
-  }
+  // If no player record or wallet, show the home page anyway
+  // The wallet will be available from the user metadata
+  const walletAddress = playerRecord?.wallet_address || 
+    session.user.user_metadata?.wallet_address || 
+    null
 
   return (
     <HomePageClient
       playerData={{
-        id: playerRecord.id,
-        user_id: playerRecord.user_id,
-        wallet_address: playerRecord.wallet_address,
+        id: playerRecord?.id ?? session.user.id,
+        user_id: playerRecord?.user_id ?? session.user.id,
+        wallet_address: walletAddress,
         username:
-          playerRecord.username ??
+          playerRecord?.username ??
           session.user.user_metadata?.full_name ??
           session.user.email ??
           "Captain",
-        submarine_tier: playerRecord.submarine_tier ?? 1,
-        total_resources_mined: playerRecord.total_resources_mined ?? 0,
-        total_ocx_earned: playerRecord.total_ocx_earned ?? 0,
-        last_login: playerRecord.last_login ?? new Date().toISOString(),
+        submarine_tier: playerRecord?.submarine_tier ?? 1,
+        total_resources_mined: playerRecord?.total_resources_mined ?? 0,
+        total_ocx_earned: playerRecord?.total_ocx_earned ?? 0,
+        last_login: playerRecord?.last_login ?? new Date().toISOString(),
       }}
     />
   )

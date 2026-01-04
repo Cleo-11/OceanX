@@ -1,12 +1,23 @@
 import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
-import { createServerComponentClient } from "@supabase/auth-helpers-nextjs"
+import { createServerClient } from "@supabase/ssr"
 import AuthPageClient from "./auth-page-client"
 import type { Database } from "@/lib/types"
 
 export default async function AuthPage() {
   const cookieStore = cookies()
-  const supabase = createServerComponentClient<Database>({ cookies: () => cookieStore })
+  
+  const supabase = createServerClient<Database>(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        get(name: string) {
+          return cookieStore.get(name)?.value
+        },
+      },
+    }
+  )
 
   console.log("[auth/page] Checking session")
 
@@ -20,8 +31,8 @@ export default async function AuthPage() {
   })
 
   if (session) {
-    console.log("[auth/page] Session found, redirecting to /connect-wallet")
-    redirect("/connect-wallet")
+    console.log("[auth/page] Session found, redirecting to /home")
+    redirect("/home")
   }
 
   console.log("[auth/page] No session, rendering auth page")
