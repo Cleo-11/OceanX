@@ -86,11 +86,11 @@ export default function SubmarineHangarClient({
       }
 
       // If we already have a connected wallet address, proceed to do the on-chain tx now and
-      // confirm it server-side. Otherwise redirect to connect-wallet and resume flow after linking.
+      // confirm it server-side. Otherwise redirect to home to connect wallet.
       const id = pendingId as string
       if (!walletAddress) {
         const returnTo = `/submarine-hangar?pending=${encodeURIComponent(id)}`
-        router.push(`/connect-wallet?returnTo=${encodeURIComponent(returnTo)}`)
+        router.push(`/home?returnTo=${encodeURIComponent(returnTo)}`)
         return
       }
       

@@ -92,7 +92,7 @@ export function ProfileClient({ profileData, walletAddress }: ProfileClientProps
       walletManager.disconnect()
 
       // Redirect to connect wallet page
-      router.push("/connect-wallet")
+      router.push("/home")
     } catch (error) {
       console.error("❌ [Profile] Disconnect failed:", error)
       alert("Failed to disconnect. Please try again.")

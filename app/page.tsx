@@ -22,9 +22,9 @@ export default async function HomePage() {
     .eq("user_id", session.user.id)
     .maybeSingle()
 
-  // In development (or when explicitly forced), always go through connect-wallet flow
+  // In development (or when explicitly forced), always go through home
   if (isForceWalletFlow()) {
-    redirect("/connect-wallet")
+    redirect("/home")
   }
 
   // In normal mode, send users with linked wallets to /home
@@ -32,5 +32,5 @@ export default async function HomePage() {
     redirect("/home")
   }
 
-  redirect("/connect-wallet")
+  redirect("/home")
 }

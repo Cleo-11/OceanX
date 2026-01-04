@@ -74,7 +74,7 @@ function AuthPageContent() {
         router.refresh()
         // Small delay to ensure cookies are set before navigation
         setTimeout(() => {
-          window.location.href = "/connect-wallet"
+          window.location.href = "/home"
         }, 100)
       }
     } catch (error) {
@@ -103,7 +103,7 @@ function AuthPageContent() {
         // Force refresh to pick up the new session cookies
         router.refresh()
         setTimeout(() => {
-          window.location.href = "/connect-wallet"
+          window.location.href = "/home"
         }, 100)
       }
     } catch (error) {
@@ -132,7 +132,7 @@ function AuthPageContent() {
         // Force refresh to pick up the new session cookies
         router.refresh()
         setTimeout(() => {
-          window.location.href = "/connect-wallet"
+          window.location.href = "/home"
         }, 100)
       }
     } catch (error) {

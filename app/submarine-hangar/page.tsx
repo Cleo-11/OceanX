@@ -36,7 +36,7 @@ export default async function SubmarineHangarPage() {
     .maybeSingle()
 
   if (!playerRecord || !playerRecord.wallet_address) {
-    redirect("/connect-wallet")
+    redirect("/home")
   }
 
   // Pass player data to client component

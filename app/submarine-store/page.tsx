@@ -22,7 +22,7 @@ export default async function SubmarineStorePage() {
     .maybeSingle()
 
   if (!playerRecord || !playerRecord.wallet_address) {
-    redirect("/connect-wallet")
+    redirect("/home")
   }
 
   return (
