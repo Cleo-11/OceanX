@@ -80,11 +80,15 @@ export async function middleware(req: NextRequest) {
   // Redirect to auth if trying to access protected route without session
   if (isProtectedRoute && !session) {
     console.log("[middleware] No session, redirecting to /auth")
-    return NextResponse.redirect(new URL('/auth', req.url))
+    const redirectUrl = new URL('/auth', req.url)
+    // Add a flag to prevent redirect loops
+    redirectUrl.searchParams.set('from', pathname)
+    return NextResponse.redirect(redirectUrl)
   }
 
   // Redirect to connect-wallet if authenticated but trying to access auth
-  if (pathname.startsWith('/auth') && !pathname.startsWith('/auth/callback') && session) {
+  // But NOT if we just came from a redirect (prevents loops)
+  if (pathname === '/auth' && session) {
     console.log("[middleware] Has session on /auth, redirecting to /connect-wallet")
     return NextResponse.redirect(new URL('/connect-wallet', req.url))
   }
