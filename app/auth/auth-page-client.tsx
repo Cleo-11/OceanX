@@ -70,7 +70,12 @@ function AuthPageContent() {
 
       if (data?.session) {
         console.log("✅ Ethereum wallet authenticated:", address)
-        router.push("/connect-wallet")
+        // Force refresh to pick up the new session cookies
+        router.refresh()
+        // Small delay to ensure cookies are set before navigation
+        setTimeout(() => {
+          window.location.href = "/connect-wallet"
+        }, 100)
       }
     } catch (error) {
       console.error("Ethereum authentication error:", error)
@@ -95,7 +100,11 @@ function AuthPageContent() {
 
       if (data?.session) {
         console.log("✅ Coinbase Wallet authenticated:", address)
-        router.push("/connect-wallet")
+        // Force refresh to pick up the new session cookies
+        router.refresh()
+        setTimeout(() => {
+          window.location.href = "/connect-wallet"
+        }, 100)
       }
     } catch (error) {
       console.error("Coinbase Wallet authentication error:", error)
@@ -120,7 +129,11 @@ function AuthPageContent() {
 
       if (data?.session) {
         console.log("✅ WalletConnect authenticated:", address)
-        router.push("/connect-wallet")
+        // Force refresh to pick up the new session cookies
+        router.refresh()
+        setTimeout(() => {
+          window.location.href = "/connect-wallet"
+        }, 100)
       }
     } catch (error) {
       console.error("WalletConnect authentication error:", error)

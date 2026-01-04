@@ -1,4 +1,4 @@
-import { createMiddlewareClient } from '@supabase/auth-helpers-nextjs'
+import { createServerClient } from '@supabase/ssr'
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
@@ -24,8 +24,7 @@ const TESTING_MODE_BYPASS_AUTH = (NODE_ENV !== 'production' && ALLOW_AUTH_BYPASS
 
 export async function middleware(req: NextRequest) {
   const startTime = Date.now()
-  const res = NextResponse.next()
-  const supabase = createMiddlewareClient({ req, res })
+  let res = NextResponse.next()
 
   const pathname = req.nextUrl.pathname
   
@@ -42,6 +41,25 @@ export async function middleware(req: NextRequest) {
     console.log("[middleware] TESTING MODE - Bypassing all auth checks")
     return res
   }
+
+  // Create Supabase client with cookie handling
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        get(name: string) {
+          return req.cookies.get(name)?.value
+        },
+        set(name: string, value: string, options: any) {
+          res.cookies.set({ name, value, ...options })
+        },
+        remove(name: string, options: any) {
+          res.cookies.set({ name, value: '', ...options })
+        },
+      },
+    }
+  )
 
   const {
     data: { session },
