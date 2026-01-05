@@ -335,37 +335,57 @@ export async function POST(request: NextRequest) {
       })
       return response
     } else {
-      // New wallet - create new account
-      console.log('🆕 New user:', address)
-      
-      // 🔒 Use stable password for new users too
-      const { data: authData, error: signUpError } = await supabaseAdmin.auth.admin.createUser({
+      // New wallet - create new account (or recover if auth user already exists)
+      console.log('🆕 New user (or missing player) for:', address)
+
+      // First try to sign in in case the auth user already exists (e.g., player row deleted)
+      const { client: supabaseMaybeExisting, getCookies: getMaybeExistingCookies } = getSupabaseWithCookies(request)
+      const { data: maybeExistingSignin, error: maybeExistingError } = await supabaseMaybeExisting.auth.signInWithPassword({
         email,
         password: stablePassword,
-        email_confirm: true, // Auto-confirm since wallet signature is proof
-        user_metadata: {
-          wallet_address: address.toLowerCase(),
-          wallet_type: 'ethereum',
-          auth_method: 'siwe',
-        },
       })
 
-      if (signUpError || !authData.user) {
-        console.error('User creation error:', signUpError)
-        return NextResponse.json(
-          { error: 'Failed to create user account' },
-          { status: 500 }
-        )
+      let authUserId: string | null = null
+      let isRecoveredUser = false
+
+      if (!maybeExistingError && maybeExistingSignin?.user) {
+        authUserId = maybeExistingSignin.user.id
+        isRecoveredUser = true
+        console.log('♻️ Existing auth user found, recreating player record:', authUserId)
       }
 
-      // Create player record
+      // If sign-in failed, create the auth user
+      if (!authUserId) {
+        const { data: authData, error: signUpError } = await supabaseAdmin.auth.admin.createUser({
+          email,
+          password: stablePassword,
+          email_confirm: true,
+          user_metadata: {
+            wallet_address: address.toLowerCase(),
+            wallet_type: 'ethereum',
+            auth_method: 'siwe',
+          },
+        })
+
+        if (signUpError || !authData.user) {
+          console.error('User creation error:', signUpError)
+          return NextResponse.json(
+            { error: 'Failed to create user account' },
+            { status: 500 }
+          )
+        }
+
+        authUserId = authData.user.id
+      }
+
+      // Create player record if missing
       const { error: playerError } = await supabaseAdmin
         .from('players')
         .insert({
-          user_id: authData.user.id,
+          user_id: authUserId,
           wallet_address: address.toLowerCase(),
           username: `Captain-${address.slice(2, 8)}`,
-          submarine_tier: 1, // Start with tier 1
+          submarine_tier: 1,
           resources: 0,
           max_storage: 100,
           energy: 100,
@@ -374,39 +394,50 @@ export async function POST(request: NextRequest) {
 
       if (playerError) {
         console.error('Player creation error:', playerError)
-        // Rollback: delete the auth user
-        await supabaseAdmin.auth.admin.deleteUser(authData.user.id)
+        // Only delete auth user if it was newly created in this flow
+        if (!isRecoveredUser && authUserId) {
+          await supabaseAdmin.auth.admin.deleteUser(authUserId)
+        }
         return NextResponse.json(
           { error: 'Failed to create player record' },
           { status: 500 }
         )
       }
 
-      // Sign in the newly created user with stable password using cookie-enabled client
-      const { client: supabaseNewUser, getCookies: getNewUserCookies } = getSupabaseWithCookies(request)
-      const { data: signInData, error: signInError } = await supabaseNewUser.auth.signInWithPassword({
-        email,
-        password: stablePassword,
-      })
+      // Sign in (if we already signed in earlier reuse that session, else sign in now)
+      let sessionData = maybeExistingSignin?.session
+      let userData = maybeExistingSignin?.user
+      let cookies = getMaybeExistingCookies()
 
-      if (signInError || !signInData.session) {
-        console.error('Sign in error after creation:', signInError)
-        return NextResponse.json(
-          { error: 'Failed to create session' },
-          { status: 500 }
-        )
+      if (!sessionData || !userData) {
+        const { client: supabaseNewUser, getCookies: getNewUserCookies } = getSupabaseWithCookies(request)
+        const { data: signInData, error: signInError } = await supabaseNewUser.auth.signInWithPassword({
+          email,
+          password: stablePassword,
+        })
+
+        if (signInError || !signInData.session) {
+          console.error('Sign in error after creation:', signInError)
+          return NextResponse.json(
+            { error: 'Failed to create session' },
+            { status: 500 }
+          )
+        }
+
+        sessionData = signInData.session
+        userData = signInData.user
+        cookies = getNewUserCookies()
       }
 
       const response = NextResponse.json({
         success: true,
-        isNewUser: true,
-        session: signInData.session,
-        user: signInData.user,
+        isNewUser: !isRecoveredUser,
+        session: sessionData,
+        user: userData,
         address: address.toLowerCase()
       })
       
       // Apply cookies from Supabase auth
-      const cookies = getNewUserCookies()
       Object.entries(cookies).forEach(([name, value]) => {
         response.cookies.set(name, value, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', path: '/' })
       })
