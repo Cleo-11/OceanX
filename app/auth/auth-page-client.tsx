@@ -62,19 +62,20 @@ function AuthPageContent() {
     setError("")
 
     try {
-      const { data, error, address } = await signInWithEthereum()
+      const { data, error, address, isNewUser } = await signInWithEthereum()
       
       if (error) {
         throw error
       }
 
       if (data?.session) {
-        console.log("✅ Ethereum wallet authenticated:", address)
+        console.log("✅ Ethereum wallet authenticated:", address, "isNewUser:", isNewUser)
         // Force refresh to pick up the new session cookies
         router.refresh()
         // Small delay to ensure cookies are set before navigation
         setTimeout(() => {
-          window.location.href = "/home"
+          // Redirect new users to onboarding, returning users to home
+          window.location.href = isNewUser ? "/onboarding" : "/home"
         }, 100)
       }
     } catch (error) {
@@ -92,18 +93,18 @@ function AuthPageContent() {
     setError("")
 
     try {
-      const { data, error, address } = await signInWithCoinbase()
+      const { data, error, address, isNewUser } = await signInWithCoinbase()
       
       if (error) {
         throw error
       }
 
       if (data?.session) {
-        console.log("✅ Coinbase Wallet authenticated:", address)
+        console.log("✅ Coinbase Wallet authenticated:", address, "isNewUser:", isNewUser)
         // Force refresh to pick up the new session cookies
         router.refresh()
         setTimeout(() => {
-          window.location.href = "/home"
+          window.location.href = isNewUser ? "/onboarding" : "/home"
         }, 100)
       }
     } catch (error) {
@@ -121,18 +122,18 @@ function AuthPageContent() {
     setError("")
 
     try {
-      const { data, error, address } = await signInWithWalletConnect()
+      const { data, error, address, isNewUser } = await signInWithWalletConnect()
       
       if (error) {
         throw error
       }
 
       if (data?.session) {
-        console.log("✅ WalletConnect authenticated:", address)
+        console.log("✅ WalletConnect authenticated:", address, "isNewUser:", isNewUser)
         // Force refresh to pick up the new session cookies
         router.refresh()
         setTimeout(() => {
-          window.location.href = "/home"
+          window.location.href = isNewUser ? "/onboarding" : "/home"
         }, 100)
       }
     } catch (error) {
