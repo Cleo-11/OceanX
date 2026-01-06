@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 
 export async function POST(request: NextRequest) {
-  // Prepare response so we can mutate cookies on it
   const response = NextResponse.json({ success: true })
 
   const supabase = createServerClient(
@@ -17,7 +16,15 @@ export async function POST(request: NextRequest) {
           response.cookies.set({ name, value, ...options })
         },
         remove(name: string, options: any) {
-          response.cookies.set({ name, value: '', ...options })
+          response.cookies.set({
+            name,
+            value: '',
+            ...options,
+            maxAge: 0,
+            path: '/',
+            sameSite: 'lax',
+            secure: process.env.NODE_ENV === 'production',
+          })
         },
       },
     }
@@ -26,8 +33,27 @@ export async function POST(request: NextRequest) {
   const { error } = await supabase.auth.signOut()
 
   if (error) {
+    console.error('[api/auth/signout] signOut error:', error)
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
+
+  // Ensure auth cookie is cleared even if supabase didn't set remove
+  response.cookies.set({
+    name: 'sb-access-token',
+    value: '',
+    maxAge: 0,
+    path: '/',
+    sameSite: 'lax',
+    secure: process.env.NODE_ENV === 'production',
+  })
+  response.cookies.set({
+    name: 'sb-refresh-token',
+    value: '',
+    maxAge: 0,
+    path: '/',
+    sameSite: 'lax',
+    secure: process.env.NODE_ENV === 'production',
+  })
 
   return response
 }

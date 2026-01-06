@@ -6,7 +6,6 @@ import { Play, Store, User, Waves, ChevronDown, Wifi, ShoppingBag, TrendingUp } 
 import SubmarineIcon from "./SubmarineIcon"
 import { getSubmarineByTier } from "@/lib/submarine-tiers"
 import { apiClient, createSignaturePayload } from "@/lib/api"
-import { supabase } from "@/lib/supabase"
 import { WalletManager } from "@/lib/wallet"
 import { Button } from "./ui/button"
 import { Card, CardContent } from "./ui/card"
@@ -132,9 +131,8 @@ export function UserHome({ playerData, onPlayClick, onSubmarineStoreClick }: Use
           setOcxBalance(null)
           setCurrentNetwork("Disconnected")
           walletManager.disconnect()
-          // Also clear Supabase session so middleware won't bounce back to /home
+          // Clear Supabase session cookies via server route so middleware won't bounce back to /home
           try {
-            await supabase.auth.signOut()
             await fetch('/api/auth/signout', { method: 'POST' })
           } catch (e) {
             // ignore
