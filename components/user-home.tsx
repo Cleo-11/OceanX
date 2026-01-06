@@ -135,6 +135,7 @@ export function UserHome({ playerData, onPlayClick, onSubmarineStoreClick }: Use
           // Also clear Supabase session so middleware won't bounce back to /home
           try {
             await supabase.auth.signOut()
+            await fetch('/api/auth/signout', { method: 'POST' })
           } catch (e) {
             // ignore
           }
