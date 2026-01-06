@@ -96,6 +96,13 @@ export function UserHome({ playerData, onPlayClick, onSubmarineStoreClick }: Use
     fetchBalanceAndNetwork()
   }, [playerData.wallet_address, isWalletConnected])
 
+  // Redirect to auth if wallet is disconnected
+  useEffect(() => {
+    if (!isWalletConnected) {
+      router.push("/auth")
+    }
+  }, [isWalletConnected, router])
+
   // Detect wallet disconnects (MetaMask accountsChanged)
   useEffect(() => {
     async function syncAccounts(accounts?: string[]) {
