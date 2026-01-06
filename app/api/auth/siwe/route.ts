@@ -395,30 +395,64 @@ export async function POST(request: NextRequest) {
         console.log('✅ Created new auth user:', authUserId)
       }
 
-      // Create player record if missing
-      const { error: playerError } = await supabaseAdmin
+      // Check if player record already exists for this wallet
+      console.log('📝 Checking if player record exists for wallet:', address.toLowerCase())
+      const { data: existingPlayer, error: playerCheckError } = await supabaseAdmin
         .from('players')
-        .insert({
-          user_id: authUserId,
-          wallet_address: address.toLowerCase(),
-          username: `Captain-${address.slice(2, 8)}`,
-          submarine_tier: 1,
-          resources: 0,
-          max_storage: 100,
-          energy: 100,
-          max_energy: 100,
-        })
+        .select('id, user_id')
+        .eq('wallet_address', address.toLowerCase())
+        .single()
 
-      if (playerError) {
-        console.error('Player creation error:', playerError)
-        // Only delete auth user if it was newly created in this flow
-        if (!isRecoveredUser && authUserId) {
-          await supabaseAdmin.auth.admin.deleteUser(authUserId)
+      if (playerCheckError && playerCheckError.code !== 'PGRST116') {
+        // PGRST116 = "No rows found" which is expected for new users
+        console.error('Player check error:', playerCheckError)
+      }
+
+      if (existingPlayer) {
+        // Player exists - update user_id if needed (for recovered auth users)
+        console.log('📋 Existing player found, updating user_id if needed:', existingPlayer.id)
+        if (existingPlayer.user_id !== authUserId) {
+          const { error: updateError } = await supabaseAdmin
+            .from('players')
+            .update({ user_id: authUserId })
+            .eq('id', existingPlayer.id)
+          
+          if (updateError) {
+            console.error('Player update error:', updateError)
+          } else {
+            console.log('✅ Player user_id updated')
+          }
+        } else {
+          console.log('✅ Player already linked to correct auth user')
         }
-        return NextResponse.json(
-          { error: 'Failed to create player record' },
-          { status: 500 }
-        )
+      } else {
+        // New player - insert record
+        console.log('🆕 Creating new player record for user:', authUserId)
+        const { error: playerError } = await supabaseAdmin
+          .from('players')
+          .insert({
+            user_id: authUserId,
+            wallet_address: address.toLowerCase(),
+            username: `Captain-${address.slice(2, 8)}`,
+            submarine_tier: 1,
+            resources: 0,
+            max_storage: 100,
+            energy: 100,
+            max_energy: 100,
+          })
+
+        if (playerError) {
+          console.error('Player creation error:', playerError)
+          // Only delete auth user if it was newly created in this flow
+          if (!isRecoveredUser && authUserId) {
+            await supabaseAdmin.auth.admin.deleteUser(authUserId)
+          }
+          return NextResponse.json(
+            { error: 'Failed to create player record' },
+            { status: 500 }
+          )
+        }
+        console.log('✅ New player record created')
       }
 
       // Sign in to create session
