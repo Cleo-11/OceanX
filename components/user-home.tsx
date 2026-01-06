@@ -101,14 +101,12 @@ export function UserHome({ playerData, onPlayClick, onSubmarineStoreClick }: Use
   useEffect(() => {
     if (walletChecked && !isWalletConnected) {
       console.log("[UserHome] Wallet disconnected, redirecting to /auth")
-      // Use router.replace to avoid back navigation showing protected page
-      router.replace("/auth")
-      // Hard redirect as a fallback to handle any router/hydration edge cases
+      // Use window.location for a clean redirect that won't interfere with other navigation
       if (typeof window !== "undefined") {
         window.location.href = "/auth"
       }
     }
-  }, [isWalletConnected, walletChecked, router])
+  }, [isWalletConnected, walletChecked])
 
   // Detect wallet disconnects (MetaMask accountsChanged)
   useEffect(() => {
