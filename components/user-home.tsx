@@ -32,8 +32,10 @@ export function UserHome({ playerData, onPlayClick, onSubmarineStoreClick }: Use
   const [ocxBalance, setOcxBalance] = useState<string | null>(null)
   const [ocxSymbol, setOcxSymbol] = useState<string>("OCX")
   const [balanceLoading, setBalanceLoading] = useState(false)
-  const [currentNetwork, setCurrentNetwork] = useState<string>("Base")
+  const [currentNetwork, setCurrentNetwork] = useState<string>("Disconnected")
   const [showNetworkDropdown, setShowNetworkDropdown] = useState(false)
+  const [isWalletConnected, setIsWalletConnected] = useState<boolean>(!!playerData.wallet_address)
+  const [displayWallet, setDisplayWallet] = useState<string | null>(playerData.wallet_address || null)
   
   // Captain's log messages rotation
   const captainLogMessages = [
@@ -67,7 +69,10 @@ export function UserHome({ playerData, onPlayClick, onSubmarineStoreClick }: Use
       try {
         const walletManager = WalletManager.getInstance()
         const connection = walletManager.getConnection()
-        if (!connection) return
+        if (!connection || !isWalletConnected) {
+          setCurrentNetwork("Disconnected")
+          return
+        }
         
         // Detect current network
         const network = await connection.provider.getNetwork()
@@ -83,13 +88,56 @@ export function UserHome({ playerData, onPlayClick, onSubmarineStoreClick }: Use
         }
       } catch (e) {
         setOcxBalance(null)
-        setCurrentNetwork("Unknown")
+        setCurrentNetwork("Disconnected")
       } finally {
         setBalanceLoading(false)
       }
     }
     fetchBalanceAndNetwork()
-  }, [playerData.wallet_address])
+  }, [playerData.wallet_address, isWalletConnected])
+
+  // Detect wallet disconnects (MetaMask accountsChanged)
+  useEffect(() => {
+    async function syncAccounts(accounts?: string[]) {
+      try {
+        const walletManager = WalletManager.getInstance()
+        let nextAccounts = accounts
+
+        if (!nextAccounts && typeof window !== "undefined" && window.ethereum?.request) {
+          nextAccounts = await window.ethereum.request({ method: "eth_accounts" }) as string[]
+        }
+
+        if (nextAccounts && nextAccounts.length > 0) {
+          const addr = nextAccounts[0]
+          setIsWalletConnected(true)
+          setDisplayWallet(addr)
+        } else {
+          setIsWalletConnected(false)
+          setDisplayWallet(null)
+          setOcxBalance(null)
+          setCurrentNetwork("Disconnected")
+          walletManager.disconnect()
+        }
+      } catch (err) {
+        // Silent fail to avoid noisy console in UI
+      }
+    }
+
+    syncAccounts()
+
+    if (typeof window !== "undefined" && window.ethereum) {
+      const handler = (accs: string[]) => syncAccounts(accs)
+      window.ethereum.on("accountsChanged", handler)
+      return () => {
+        try {
+          window.ethereum?.removeListener("accountsChanged", handler)
+        } catch (err) {
+          /* ignore */
+        }
+      }
+    }
+    return undefined
+  }, [])
 
   // Handle dropdown close on outside click
   useEffect(() => {
@@ -188,11 +236,11 @@ export function UserHome({ playerData, onPlayClick, onSubmarineStoreClick }: Use
           
           {/* Enhanced Wallet Display */}
           <div className="inline-flex items-center gap-3 bg-slate-800/50 backdrop-blur-md rounded-full px-6 py-3 border border-cyan-900/50 shadow-lg">
-            <Waves className="w-5 h-5 text-cyan-400 animate-pulse" />
+            <Waves className={`w-5 h-5 ${isWalletConnected ? "text-cyan-400 animate-pulse" : "text-slate-500"}`} />
             <span className="text-slate-300 font-mono text-sm">
-              {playerData.wallet_address.slice(0, 8)}...{playerData.wallet_address.slice(-6)}
+              {displayWallet ? `${displayWallet.slice(0, 8)}...${displayWallet.slice(-6)}` : "Wallet not connected"}
             </span>
-            <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+            <div className={`w-2 h-2 rounded-full ${isWalletConnected ? "bg-green-400 animate-pulse" : "bg-red-400"}`}></div>
             
             {/* Network Indicator */}
             <div className="relative">
