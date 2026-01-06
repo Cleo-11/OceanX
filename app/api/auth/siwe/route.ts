@@ -395,54 +395,91 @@ export async function POST(request: NextRequest) {
         console.log('✅ Created new auth user:', authUserId)
       }
 
-      // Check if player record already exists for this wallet
-      console.log('📝 Checking if player record exists for wallet:', address.toLowerCase())
-      const { data: existingPlayer, error: playerCheckError } = await supabaseAdmin
-        .from('players')
-        .select('id, user_id')
-        .eq('wallet_address', address.toLowerCase())
-        .single()
+      // Create player record if missing, reconcile duplicates if constraints hit
+      const lowerWallet = address.toLowerCase()
+      console.log('📝 Ensuring player record for wallet:', lowerWallet)
 
-      if (playerCheckError && playerCheckError.code !== 'PGRST116') {
-        // PGRST116 = "No rows found" which is expected for new users
-        console.error('Player check error:', playerCheckError)
+      // First attempt a straight insert (fast path for new users)
+      const basePlayerPayload = {
+        user_id: authUserId,
+        wallet_address: lowerWallet,
+        username: `Captain-${address.slice(2, 8)}`,
+        submarine_tier: 1,
+        resources: 0,
+        max_storage: 100,
+        energy: 100,
+        max_energy: 100,
       }
 
-      if (existingPlayer) {
-        // Player exists - update user_id if needed (for recovered auth users)
-        console.log('📋 Existing player found, updating user_id if needed:', existingPlayer.id)
-        if (existingPlayer.user_id !== authUserId) {
-          const { error: updateError } = await supabaseAdmin
+      const { error: playerInsertError } = await supabaseAdmin
+        .from('players')
+        .insert(basePlayerPayload)
+
+      if (playerInsertError) {
+        console.error('Player insert error:', playerInsertError)
+
+        // 23505 = unique_violation (wallet_address or user_id). Try to reconcile instead of failing.
+        if (playerInsertError.code === '23505') {
+          console.log('♻️ Player already exists, reconciling links...')
+
+          // Check by wallet
+          const { data: playerByWallet, error: walletCheckError } = await supabaseAdmin
             .from('players')
-            .update({ user_id: authUserId })
-            .eq('id', existingPlayer.id)
-          
-          if (updateError) {
-            console.error('Player update error:', updateError)
+            .select('id, user_id')
+            .eq('wallet_address', lowerWallet)
+            .single()
+
+          if (!walletCheckError && playerByWallet) {
+            console.log('📋 Found player by wallet:', playerByWallet.id)
+            if (playerByWallet.user_id !== authUserId) {
+              const { error: updateUserIdError } = await supabaseAdmin
+                .from('players')
+                .update({ user_id: authUserId })
+                .eq('id', playerByWallet.id)
+
+              if (updateUserIdError) {
+                console.error('Player update error (wallet match):', updateUserIdError)
+              } else {
+                console.log('✅ Player user_id updated (wallet match)')
+              }
+            } else {
+              console.log('✅ Player already linked to auth user (wallet match)')
+            }
           } else {
-            console.log('✅ Player user_id updated')
+            // If no wallet match, try by user_id (maybe wallet changed case or was updated)
+            const { data: playerByUser, error: userCheckError } = await supabaseAdmin
+              .from('players')
+              .select('id, wallet_address')
+              .eq('user_id', authUserId)
+              .single()
+
+            if (!userCheckError && playerByUser) {
+              console.log('📋 Found player by user_id:', playerByUser.id)
+              if (playerByUser.wallet_address !== lowerWallet) {
+                const { error: updateWalletError } = await supabaseAdmin
+                  .from('players')
+                  .update({ wallet_address: lowerWallet })
+                  .eq('id', playerByUser.id)
+
+                if (updateWalletError) {
+                  console.error('Player update error (user match):', updateWalletError)
+                } else {
+                  console.log('✅ Player wallet updated (user match)')
+                }
+              } else {
+                console.log('✅ Player already linked to auth user (user match)')
+              }
+            } else {
+              console.log('⚠️ Could not reconcile player; check constraints and RLS policies')
+              // If we can't reconcile, fail out
+              return NextResponse.json(
+                { error: 'Failed to create player record' },
+                { status: 500 }
+              )
+            }
           }
         } else {
-          console.log('✅ Player already linked to correct auth user')
-        }
-      } else {
-        // New player - insert record
-        console.log('🆕 Creating new player record for user:', authUserId)
-        const { error: playerError } = await supabaseAdmin
-          .from('players')
-          .insert({
-            user_id: authUserId,
-            wallet_address: address.toLowerCase(),
-            username: `Captain-${address.slice(2, 8)}`,
-            submarine_tier: 1,
-            resources: 0,
-            max_storage: 100,
-            energy: 100,
-            max_energy: 100,
-          })
-
-        if (playerError) {
-          console.error('Player creation error:', playerError)
+          // Not a unique violation -> bail
           // Only delete auth user if it was newly created in this flow
           if (!isRecoveredUser && authUserId) {
             await supabaseAdmin.auth.admin.deleteUser(authUserId)
@@ -452,6 +489,7 @@ export async function POST(request: NextRequest) {
             { status: 500 }
           )
         }
+      } else {
         console.log('✅ New player record created')
       }
 
