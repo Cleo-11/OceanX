@@ -337,12 +337,18 @@ export async function POST(request: NextRequest) {
     } else {
       // New wallet - create new account (or recover if auth user already exists)
       console.log('🆕 New user (or missing player) for:', address)
+      console.log('📧 Using email:', email)
 
       // First try to sign in in case the auth user already exists (e.g., player row deleted)
       const { client: supabaseMaybeExisting, getCookies: getMaybeExistingCookies } = getSupabaseWithCookies(request)
       const { data: maybeExistingSignin, error: maybeExistingError } = await supabaseMaybeExisting.auth.signInWithPassword({
         email,
         password: stablePassword,
+      })
+
+      console.log('🔍 Existing user check:', { 
+        hasUser: !!maybeExistingSignin?.user, 
+        error: maybeExistingError?.message || null 
       })
 
       let authUserId: string | null = null
@@ -356,6 +362,7 @@ export async function POST(request: NextRequest) {
 
       // If sign-in failed, create the auth user
       if (!authUserId) {
+        console.log('🆕 Creating new auth user...')
         const { data: authData, error: signUpError } = await supabaseAdmin.auth.admin.createUser({
           email,
           password: stablePassword,
@@ -368,14 +375,37 @@ export async function POST(request: NextRequest) {
         })
 
         if (signUpError || !authData.user) {
-          console.error('User creation error:', signUpError)
-          return NextResponse.json(
-            { error: 'Failed to create user account' },
-            { status: 500 }
-          )
+          console.error('❌ User creation error:', signUpError?.message, signUpError?.status, signUpError)
+          
+          // If user already exists with this email, try to get their ID
+          if (signUpError?.message?.includes('already been registered') || signUpError?.message?.includes('duplicate')) {
+            console.log('🔄 User exists, attempting to find by email...')
+            const { data: { users }, error: listError } = await supabaseAdmin.auth.admin.listUsers()
+            if (!listError && users) {
+              const existingUser = users.find(u => u.email === email)
+              if (existingUser) {
+                authUserId = existingUser.id
+                isRecoveredUser = true
+                console.log('✅ Found existing user by email:', authUserId)
+                
+                // Update password to stable password
+                await supabaseAdmin.auth.admin.updateUserById(authUserId, {
+                  password: stablePassword
+                })
+              }
+            }
+          }
+          
+          if (!authUserId) {
+            return NextResponse.json(
+              { error: 'Failed to create user account' },
+              { status: 500 }
+            )
+          }
+        } else {
+          authUserId = authData.user.id
+          console.log('✅ Created new auth user:', authUserId)
         }
-
-        authUserId = authData.user.id
       }
 
       // Create player record if missing
