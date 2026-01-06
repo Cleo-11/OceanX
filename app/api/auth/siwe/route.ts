@@ -339,28 +339,37 @@ export async function POST(request: NextRequest) {
       console.log('🆕 New user (or missing player) for:', address)
       console.log('📧 Using email:', email)
 
-      // First try to sign in in case the auth user already exists (e.g., player row deleted)
-      const { client: supabaseMaybeExisting, getCookies: getMaybeExistingCookies } = getSupabaseWithCookies(request)
-      const { data: maybeExistingSignin, error: maybeExistingError } = await supabaseMaybeExisting.auth.signInWithPassword({
-        email,
-        password: stablePassword,
-      })
-
-      console.log('🔍 Existing user check:', { 
-        hasUser: !!maybeExistingSignin?.user, 
-        error: maybeExistingError?.message || null 
-      })
-
       let authUserId: string | null = null
       let isRecoveredUser = false
 
-      if (!maybeExistingError && maybeExistingSignin?.user) {
-        authUserId = maybeExistingSignin.user.id
-        isRecoveredUser = true
-        console.log('♻️ Existing auth user found, recreating player record:', authUserId)
+      // FIRST: Check if auth user already exists using admin API (most reliable)
+      console.log('🔍 Checking if auth user exists via admin API...')
+      const { data: { users: existingUsers }, error: listError } = await supabaseAdmin.auth.admin.listUsers({
+        page: 1,
+        perPage: 1000 // Should be enough for most cases
+      })
+
+      if (!listError && existingUsers) {
+        const existingUser = existingUsers.find(u => u.email === email)
+        if (existingUser) {
+          authUserId = existingUser.id
+          isRecoveredUser = true
+          console.log('✅ Found existing auth user:', authUserId)
+          
+          // Update password to stable password (in case it was different before)
+          console.log('🔄 Updating password to stable password...')
+          const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(authUserId, {
+            password: stablePassword
+          })
+          if (updateError) {
+            console.error('⚠️ Password update failed:', updateError.message)
+          } else {
+            console.log('✅ Password updated successfully')
+          }
+        }
       }
 
-      // If sign-in failed, create the auth user
+      // If no existing user found, create new auth user
       if (!authUserId) {
         console.log('🆕 Creating new auth user...')
         const { data: authData, error: signUpError } = await supabaseAdmin.auth.admin.createUser({
@@ -376,36 +385,14 @@ export async function POST(request: NextRequest) {
 
         if (signUpError || !authData.user) {
           console.error('❌ User creation error:', signUpError?.message, signUpError?.status, signUpError)
-          
-          // If user already exists with this email, try to get their ID
-          if (signUpError?.message?.includes('already been registered') || signUpError?.message?.includes('duplicate')) {
-            console.log('🔄 User exists, attempting to find by email...')
-            const { data: { users }, error: listError } = await supabaseAdmin.auth.admin.listUsers()
-            if (!listError && users) {
-              const existingUser = users.find(u => u.email === email)
-              if (existingUser) {
-                authUserId = existingUser.id
-                isRecoveredUser = true
-                console.log('✅ Found existing user by email:', authUserId)
-                
-                // Update password to stable password
-                await supabaseAdmin.auth.admin.updateUserById(authUserId, {
-                  password: stablePassword
-                })
-              }
-            }
-          }
-          
-          if (!authUserId) {
-            return NextResponse.json(
-              { error: 'Failed to create user account' },
-              { status: 500 }
-            )
-          }
-        } else {
-          authUserId = authData.user.id
-          console.log('✅ Created new auth user:', authUserId)
+          return NextResponse.json(
+            { error: 'Failed to create user account' },
+            { status: 500 }
+          )
         }
+        
+        authUserId = authData.user.id
+        console.log('✅ Created new auth user:', authUserId)
       }
 
       // Create player record if missing
@@ -434,40 +421,34 @@ export async function POST(request: NextRequest) {
         )
       }
 
-      // Sign in (if we already signed in earlier reuse that session, else sign in now)
-      let sessionData = maybeExistingSignin?.session
-      let userData = maybeExistingSignin?.user
-      let cookies = getMaybeExistingCookies()
+      // Sign in to create session
+      console.log('🔐 Creating session via sign-in...')
+      const { client: supabaseNewUser, getCookies: getNewUserCookies } = getSupabaseWithCookies(request)
+      const { data: signInData, error: signInError } = await supabaseNewUser.auth.signInWithPassword({
+        email,
+        password: stablePassword,
+      })
 
-      if (!sessionData || !userData) {
-        const { client: supabaseNewUser, getCookies: getNewUserCookies } = getSupabaseWithCookies(request)
-        const { data: signInData, error: signInError } = await supabaseNewUser.auth.signInWithPassword({
-          email,
-          password: stablePassword,
-        })
-
-        if (signInError || !signInData.session) {
-          console.error('Sign in error after creation:', signInError)
-          return NextResponse.json(
-            { error: 'Failed to create session' },
-            { status: 500 }
-          )
-        }
-
-        sessionData = signInData.session
-        userData = signInData.user
-        cookies = getNewUserCookies()
+      if (signInError || !signInData.session) {
+        console.error('Sign in error after creation:', signInError)
+        return NextResponse.json(
+          { error: 'Failed to create session' },
+          { status: 500 }
+        )
       }
+
+      console.log('✅ Session created successfully')
 
       const response = NextResponse.json({
         success: true,
         isNewUser: !isRecoveredUser,
-        session: sessionData,
-        user: userData,
+        session: signInData.session,
+        user: signInData.user,
         address: address.toLowerCase()
       })
       
       // Apply cookies from Supabase auth
+      const cookies = getNewUserCookies()
       Object.entries(cookies).forEach(([name, value]) => {
         response.cookies.set(name, value, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', path: '/' })
       })
