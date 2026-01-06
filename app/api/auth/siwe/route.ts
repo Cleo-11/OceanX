@@ -405,10 +405,10 @@ export async function POST(request: NextRequest) {
         wallet_address: lowerWallet,
         username: `Captain-${address.slice(2, 8)}`,
         submarine_tier: 1,
-        resources: 0,
-        max_storage: 100,
-        energy: 100,
-        max_energy: 100,
+        total_resources_mined: 0,
+        total_ocx_earned: 0,
+        is_active: true,
+        last_login: new Date().toISOString(),
       }
 
       const { error: playerInsertError } = await supabaseAdmin
