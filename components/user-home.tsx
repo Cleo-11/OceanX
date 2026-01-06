@@ -36,6 +36,7 @@ export function UserHome({ playerData, onPlayClick, onSubmarineStoreClick }: Use
   const [showNetworkDropdown, setShowNetworkDropdown] = useState(false)
   const [isWalletConnected, setIsWalletConnected] = useState<boolean>(!!playerData.wallet_address)
   const [displayWallet, setDisplayWallet] = useState<string | null>(playerData.wallet_address || null)
+  const [walletChecked, setWalletChecked] = useState(false) // Track if we've checked actual wallet state
   
   // Captain's log messages rotation
   const captainLogMessages = [
@@ -96,12 +97,13 @@ export function UserHome({ playerData, onPlayClick, onSubmarineStoreClick }: Use
     fetchBalanceAndNetwork()
   }, [playerData.wallet_address, isWalletConnected])
 
-  // Redirect to auth if wallet is disconnected
+  // Redirect to auth if wallet is disconnected (only after we've checked actual state)
   useEffect(() => {
-    if (!isWalletConnected) {
+    if (walletChecked && !isWalletConnected) {
+      console.log("[UserHome] Wallet disconnected, redirecting to /auth")
       router.push("/auth")
     }
-  }, [isWalletConnected, router])
+  }, [isWalletConnected, walletChecked, router])
 
   // Detect wallet disconnects (MetaMask accountsChanged)
   useEffect(() => {
@@ -125,7 +127,9 @@ export function UserHome({ playerData, onPlayClick, onSubmarineStoreClick }: Use
           setCurrentNetwork("Disconnected")
           walletManager.disconnect()
         }
+        setWalletChecked(true) // Mark that we've checked the wallet state
       } catch (err) {
+        setWalletChecked(true) // Still mark as checked even if error
         // Silent fail to avoid noisy console in UI
       }
     }
