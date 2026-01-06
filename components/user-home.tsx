@@ -101,7 +101,12 @@ export function UserHome({ playerData, onPlayClick, onSubmarineStoreClick }: Use
   useEffect(() => {
     if (walletChecked && !isWalletConnected) {
       console.log("[UserHome] Wallet disconnected, redirecting to /auth")
-      router.push("/auth")
+      // Use router.replace to avoid back navigation showing protected page
+      router.replace("/auth")
+      // Hard redirect as a fallback to handle any router/hydration edge cases
+      if (typeof window !== "undefined") {
+        window.location.href = "/auth"
+      }
     }
   }, [isWalletConnected, walletChecked, router])
 
