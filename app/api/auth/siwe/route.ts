@@ -6,15 +6,66 @@
  * 1. Verify signature is valid
  * 2. Check if wallet already has an account
  * 3. Create auth user if needed
- * 4. Generate magic link token and exchange for session
+ * 4. Generate custom JWT tokens for session
  * 
- * 🔐 Uses admin.generateLink() for wallet-only authentication
+ * 🔐 Uses custom JWT generation for wallet-only authentication
  * ✅ Email provider can remain DISABLED in Supabase Dashboard
+ * ✅ No password-based authentication required
  */
 
 import { NextRequest, NextResponse } from 'next/server'
 import { ethers } from 'ethers'
 import { createClient } from '@supabase/supabase-js'
+import jwt from 'jsonwebtoken'
+import { v4 as uuidv4 } from 'uuid'
+
+/**
+ * Generate Supabase-compatible JWT access and refresh tokens
+ */
+function generateSupabaseTokens(userId: string, email: string) {
+  const jwtSecret = process.env.SUPABASE_JWT_SECRET
+  if (!jwtSecret) {
+    throw new Error('SUPABASE_JWT_SECRET not configured')
+  }
+
+  const now = Math.floor(Date.now() / 1000)
+  const expiresIn = 3600 // 1 hour
+  
+  // Generate access token (JWT)
+  const accessToken = jwt.sign(
+    {
+      aud: 'authenticated',
+      exp: now + expiresIn,
+      iat: now,
+      iss: process.env.NEXT_PUBLIC_SUPABASE_URL,
+      sub: userId,
+      email: email,
+      phone: '',
+      app_metadata: {
+        provider: 'email',
+        providers: ['email']
+      },
+      user_metadata: {},
+      role: 'authenticated',
+      aal: 'aal1',
+      amr: [{ method: 'password', timestamp: now }],
+      session_id: uuidv4()
+    },
+    jwtSecret,
+    { algorithm: 'HS256' }
+  )
+
+  // Generate refresh token (UUID)
+  const refreshToken = uuidv4()
+
+  return {
+    access_token: accessToken,
+    refresh_token: refreshToken,
+    expires_in: expiresIn,
+    expires_at: now + expiresIn,
+    token_type: 'bearer'
+  }
+}
 
 // Initialize Supabase admin client (for user management)
 function getSupabaseAdmin() {
@@ -177,73 +228,51 @@ export async function POST(request: NextRequest) {
           console.error('Failed to update player user_id:', updatePlayerError)
         }
 
-        // Generate magic link token and exchange for session
-        console.log('🔐 Generating auth token for recreated user')
-        const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
-          type: 'magiclink',
-          email: email,
-        })
-
-        if (linkError || !linkData) {
-          console.error('Failed to generate auth link:', linkError)
-          return NextResponse.json(
-            { error: 'Authentication failed' },
-            { status: 500 }
-          )
-        }
-
-        // Extract token from the action link
-        const url = new URL(linkData.properties.action_link)
-        const token = url.searchParams.get('token')
-        const type = url.searchParams.get('type')
-
-        if (!token || type !== 'magiclink') {
-          console.error('Invalid magic link format')
-          return NextResponse.json(
-            { error: 'Authentication failed' },
-            { status: 500 }
-          )
-        }
-
-        // Exchange token for session
-        const { data: sessionData, error: sessionError } = await supabaseAdmin.auth.verifyOtp({
-          token_hash: token,
-          type: 'magiclink'
-        })
-
-        if (sessionError || !sessionData.session) {
-          console.error('Failed to verify token:', sessionError)
-          return NextResponse.json(
-            { error: 'Authentication failed' },
-            { status: 500 }
-          )
-        }
-
-        const response = NextResponse.json({
-          success: true,
-          isNewUser: false,
-          session: sessionData.session,
-          user: sessionData.user,
-          address: address.toLowerCase()
-        })
+        // Generate custom JWT session tokens
+        console.log('🔐 Generating JWT session for recreated user')
         
-        // Set session cookies
-        response.cookies.set('sb-access-token', sessionData.session.access_token, {
-          httpOnly: true,
-          secure: process.env.NODE_ENV === 'production',
-          sameSite: 'lax',
-          path: '/',
-          maxAge: sessionData.session.expires_in
-        })
-        response.cookies.set('sb-refresh-token', sessionData.session.refresh_token, {
-          httpOnly: true,
-          secure: process.env.NODE_ENV === 'production',
-          sameSite: 'lax',
-          path: '/',
-          maxAge: 60 * 60 * 24 * 7 // 7 days
-        })
-        
-        return response
+        try {
+          const tokens = generateSupabaseTokens(newAuthUser.user.id, email)
+          
+          const response = NextResponse.json({
+            success: true,
+            isNewUser: false,
+            session: {
+              access_token: tokens.access_token,
+              refresh_token: tokens.refresh_token,
+              expires_in: tokens.expires_in,
+              expires_at: tokens.expires_at,
+              token_type: tokens.token_type,
+              user: newAuthUser.user
+            },
+            user: newAuthUser.user,
+            address: address.toLowerCase()
+          })
+          
+          // Set session cookies
+          response.cookies.set('sb-access-token', tokens.access_token, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'lax',
+            path: '/',
+            maxAge: tokens.expires_in
+          })
+          response.cookies.set('sb-refresh-token', tokens.refresh_token, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'lax',
+            path: '/',
+            maxAge: 60 * 60 * 24 * 7 // 7 days
+          })
+          
+          return response
+        } catch (error) {
+          console.error('Failed to generate JWT tokens:', error)
+          return NextResponse.json(
+            { error: 'Authentication failed' },
+            { status: 500 }
+          )
+        }
       }
       
       // Auth user exists - verify email matches
@@ -262,76 +291,54 @@ export async function POST(request: NextRequest) {
         }
       }
       
-      // Generate magic link token and exchange for session
-      console.log('🔐 Generating auth token for returning user')
-      const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
-        type: 'magiclink',
-        email: email,
-        options: {
-          redirectTo: `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/auth/callback`
-        }
-      })
-
-      if (linkError || !linkData) {
-        console.error('Failed to generate auth link:', linkError)
-        return NextResponse.json(
-          { error: 'Authentication failed' },
-          { status: 401 }
-        )
-      }
-
-      // Extract tokens from the hash
-      const url = new URL(linkData.properties.action_link)
-      const token = url.searchParams.get('token')
-      const type = url.searchParams.get('type')
-
-      if (!token || type !== 'magiclink') {
-        console.error('Invalid magic link format')
+      // Generate custom JWT session tokens
+      console.log('🔐 Generating JWT session for returning user')
+      
+      try {
+        const tokens = generateSupabaseTokens(existingPlayer.user_id, email)
+        
+        // Get user details for response
+        const { data: authUser } = await supabaseAdmin.auth.admin.getUserById(existingPlayer.user_id)
+        
+        const response = NextResponse.json({
+          success: true,
+          isNewUser: false,
+          session: {
+            access_token: tokens.access_token,
+            refresh_token: tokens.refresh_token,
+            expires_in: tokens.expires_in,
+            expires_at: tokens.expires_at,
+            token_type: tokens.token_type,
+            user: authUser?.user
+          },
+          user: authUser?.user,
+          address: address.toLowerCase()
+        })
+        
+        // Set session cookies
+        response.cookies.set('sb-access-token', tokens.access_token, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: 'lax',
+          path: '/',
+          maxAge: tokens.expires_in
+        })
+        response.cookies.set('sb-refresh-token', tokens.refresh_token, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: 'lax',
+          path: '/',
+          maxAge: 60 * 60 * 24 * 7 // 7 days
+        })
+        
+        return response
+      } catch (error) {
+        console.error('Failed to generate JWT tokens:', error)
         return NextResponse.json(
           { error: 'Authentication failed' },
           { status: 500 }
         )
       }
-
-      // Exchange token for session
-      const { data: sessionData, error: sessionError } = await supabaseAdmin.auth.verifyOtp({
-        token_hash: token,
-        type: 'magiclink'
-      })
-
-      if (sessionError || !sessionData.session) {
-        console.error('Failed to verify token:', sessionError)
-        return NextResponse.json(
-          { error: 'Authentication failed' },
-          { status: 500 }
-        )
-      }
-
-      const response = NextResponse.json({
-        success: true,
-        isNewUser: false,
-        session: sessionData.session,
-        user: sessionData.user,
-        address: address.toLowerCase()
-      })
-      
-      // Set session cookies
-      response.cookies.set('sb-access-token', sessionData.session.access_token, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
-        path: '/',
-        maxAge: sessionData.session.expires_in
-      })
-      response.cookies.set('sb-refresh-token', sessionData.session.refresh_token, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
-        path: '/',
-        maxAge: 60 * 60 * 24 * 7 // 7 days
-      })
-      
-      return response
     } else {
       // New wallet - create new account (or recover if auth user already exists)
       console.log('🆕 New user (or missing player) for:', address)
@@ -479,49 +486,51 @@ export async function POST(request: NextRequest) {
         console.log('✅ New player record created')
       }
 
-      // Generate magic link token and exchange for session
-      console.log('🔐 Generating auth token for new user')
-      const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
-        type: 'magiclink',
-        email: email,
-      })
+      // Generate custom JWT session tokens
+      console.log('🔐 Generating JWT session for new user')
+      
+      try {
+        const tokens = generateSupabaseTokens(authUserId, email)
+        
+        // Get user details for response
+        const { data: authUser } = await supabaseAdmin.auth.admin.getUserById(authUserId)
+        
+        console.log('✅ Session created successfully')
 
-      if (linkError || !linkData) {
-        console.error('Failed to generate auth link:', linkError)
-        // Clean up auth user if link generation fails
-        if (!isRecoveredUser) {
-          await supabaseAdmin.auth.admin.deleteUser(authUserId)
-        }
-        return NextResponse.json(
-          { error: 'Failed to create session' },
-          { status: 500 }
-        )
-      }
-
-      // Extract token from the action link
-      const url = new URL(linkData.properties.action_link)
-      const token = url.searchParams.get('token')
-      const type = url.searchParams.get('type')
-
-      if (!token || type !== 'magiclink') {
-        console.error('Invalid magic link format')
-        if (!isRecoveredUser) {
-          await supabaseAdmin.auth.admin.deleteUser(authUserId)
-        }
-        return NextResponse.json(
-          { error: 'Authentication failed' },
-          { status: 500 }
-        )
-      }
-
-      // Exchange token for session
-      const { data: sessionData, error: sessionError } = await supabaseAdmin.auth.verifyOtp({
-        token_hash: token,
-        type: 'magiclink'
-      })
-
-      if (sessionError || !sessionData.session) {
-        console.error('Failed to verify token:', sessionError)
+        const response = NextResponse.json({
+          success: true,
+          isNewUser: !isRecoveredUser,
+          session: {
+            access_token: tokens.access_token,
+            refresh_token: tokens.refresh_token,
+            expires_in: tokens.expires_in,
+            expires_at: tokens.expires_at,
+            token_type: tokens.token_type,
+            user: authUser?.user
+          },
+          user: authUser?.user,
+          address: address.toLowerCase()
+        })
+        
+        // Set session cookies
+        response.cookies.set('sb-access-token', tokens.access_token, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: 'lax',
+          path: '/',
+          maxAge: tokens.expires_in
+        })
+        response.cookies.set('sb-refresh-token', tokens.refresh_token, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: 'lax',
+          path: '/',
+          maxAge: 60 * 60 * 24 * 7 // 7 days
+        })
+        
+        return response
+      } catch (error) {
+        console.error('Failed to generate JWT tokens:', error)
         // Clean up auth user if session creation fails
         if (!isRecoveredUser) {
           await supabaseAdmin.auth.admin.deleteUser(authUserId)
@@ -531,34 +540,6 @@ export async function POST(request: NextRequest) {
           { status: 500 }
         )
       }
-
-      console.log('✅ Session created successfully')
-
-      const response = NextResponse.json({
-        success: true,
-        isNewUser: !isRecoveredUser,
-        session: sessionData.session,
-        user: sessionData.user,
-        address: address.toLowerCase()
-      })
-      
-      // Set session cookies
-      response.cookies.set('sb-access-token', sessionData.session.access_token, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
-        path: '/',
-        maxAge: sessionData.session.expires_in
-      })
-      response.cookies.set('sb-refresh-token', sessionData.session.refresh_token, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
-        path: '/',
-        maxAge: 60 * 60 * 24 * 7 // 7 days
-      })
-      
-      return response
     }
   } catch (error) {
     console.error('SIWE authentication error:', error)
