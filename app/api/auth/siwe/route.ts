@@ -5,17 +5,16 @@
  * Flow:
  * 1. Verify signature is valid
  * 2. Check if wallet already has an account
- * 3. Create user if needed, then generate session via admin API
+ * 3. Create auth user if needed
+ * 4. Generate magic link token and exchange for session
  * 
- * 🔒 SECURITY FIX: Uses stable password derived from wallet address instead of
- * changing signatures. This prevents race conditions in parallel logins.
+ * 🔐 Uses admin.generateLink() for wallet-only authentication
+ * ✅ Email provider can remain DISABLED in Supabase Dashboard
  */
 
 import { NextRequest, NextResponse } from 'next/server'
 import { ethers } from 'ethers'
 import { createClient } from '@supabase/supabase-js'
-import { createServerClient } from '@supabase/ssr'
-import crypto from 'crypto'
 
 // Initialize Supabase admin client (for user management)
 function getSupabaseAdmin() {
@@ -31,48 +30,10 @@ function getSupabaseAdmin() {
   )
 }
 
-// Initialize Supabase client with cookies (for session management)
-function getSupabaseWithCookies(request: NextRequest) {
-  const cookieStore: { [key: string]: string } = {}
-  
-  return {
-    client: createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          get(name: string) {
-            return request.cookies.get(name)?.value || cookieStore[name]
-          },
-          set(name: string, value: string) {
-            cookieStore[name] = value
-          },
-          remove(name: string) {
-            delete cookieStore[name]
-          },
-        },
-      }
-    ),
-    getCookies: () => cookieStore
-  }
-}
-
 interface SIWERequest {
   message: string
   signature: string
   address: string
-}
-
-/**
- * Generate a stable password from wallet address
- * This ensures the password never changes, preventing race conditions
- * 🔒 Uses HMAC with server secret so it can't be guessed
- */
-function generateStablePassword(walletAddress: string): string {
-  const secret = process.env.SUPABASE_SERVICE_ROLE_KEY || 'fallback-secret'
-  const hmac = crypto.createHmac('sha256', secret)
-  hmac.update(`siwe-auth:${walletAddress.toLowerCase()}`)
-  return hmac.digest('hex')
 }
 
 /**
@@ -172,9 +133,7 @@ export async function POST(request: NextRequest) {
       .eq('wallet_address', address.toLowerCase())
       .single()
 
-    // 🔒 SECURITY FIX: Use stable password derived from wallet address
-    // This prevents race conditions when user logs in from multiple tabs
-    const stablePassword = generateStablePassword(address)
+    // Synthetic email for Supabase auth (required by schema)
     const email = `${address.toLowerCase()}@ethereum.wallet`
 
     if (existingPlayer) {
@@ -192,7 +151,6 @@ export async function POST(request: NextRequest) {
         
         const { data: newAuthUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
           email,
-          password: stablePassword,
           email_confirm: true,
           user_metadata: {
             wallet_address: address.toLowerCase(),
@@ -219,34 +177,72 @@ export async function POST(request: NextRequest) {
           console.error('Failed to update player user_id:', updatePlayerError)
         }
 
-        // Sign in with the new auth user using cookie-enabled client
-        const { client: supabaseRecreate, getCookies: getRecreatedCookies } = getSupabaseWithCookies(request)
-        const { data: signInData, error: signInError } = await supabaseRecreate.auth.signInWithPassword({
-          email,
-          password: stablePassword,
+        // Generate magic link token and exchange for session
+        console.log('🔐 Generating auth token for recreated user')
+        const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
+          type: 'magiclink',
+          email: email,
         })
 
-        if (signInError || !signInData.session) {
-          console.error('Sign in after recreation failed:', signInError)
+        if (linkError || !linkData) {
+          console.error('Failed to generate auth link:', linkError)
           return NextResponse.json(
             { error: 'Authentication failed' },
-            { status: 401 }
+            { status: 500 }
+          )
+        }
+
+        // Extract token from the action link
+        const url = new URL(linkData.properties.action_link)
+        const token = url.searchParams.get('token')
+        const type = url.searchParams.get('type')
+
+        if (!token || type !== 'magiclink') {
+          console.error('Invalid magic link format')
+          return NextResponse.json(
+            { error: 'Authentication failed' },
+            { status: 500 }
+          )
+        }
+
+        // Exchange token for session
+        const { data: sessionData, error: sessionError } = await supabaseAdmin.auth.verifyOtp({
+          token_hash: token,
+          type: 'magiclink'
+        })
+
+        if (sessionError || !sessionData.session) {
+          console.error('Failed to verify token:', sessionError)
+          return NextResponse.json(
+            { error: 'Authentication failed' },
+            { status: 500 }
           )
         }
 
         const response = NextResponse.json({
           success: true,
           isNewUser: false,
-          session: signInData.session,
-          user: signInData.user,
+          session: sessionData.session,
+          user: sessionData.user,
           address: address.toLowerCase()
         })
         
-        // Apply cookies from Supabase auth
-        const cookies = getRecreatedCookies()
-        Object.entries(cookies).forEach(([name, value]) => {
-          response.cookies.set(name, value, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', path: '/' })
+        // Set session cookies
+        response.cookies.set('sb-access-token', sessionData.session.access_token, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: 'lax',
+          path: '/',
+          maxAge: sessionData.session.expires_in
         })
+        response.cookies.set('sb-refresh-token', sessionData.session.refresh_token, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: 'lax',
+          path: '/',
+          maxAge: 60 * 60 * 24 * 7 // 7 days
+        })
+        
         return response
       }
       
@@ -266,73 +262,75 @@ export async function POST(request: NextRequest) {
         }
       }
       
-      // Try to sign in with stable password using cookie-enabled client
-      const { client: supabaseWithCookies, getCookies } = getSupabaseWithCookies(request)
-      const { data: signInData, error: signInError } = await supabaseWithCookies.auth.signInWithPassword({
-        email,
-        password: stablePassword,
+      // Generate magic link token and exchange for session
+      console.log('🔐 Generating auth token for returning user')
+      const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
+        type: 'magiclink',
+        email: email,
+        options: {
+          redirectTo: `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/auth/callback`
+        }
       })
 
-      if (signInError) {
-        // Password might be old signature-based password, update it
-        console.log('🔄 Migrating user to stable password auth:', address)
-        
-        const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(
-          existingPlayer.user_id,
-          { password: stablePassword }
+      if (linkError || !linkData) {
+        console.error('Failed to generate auth link:', linkError)
+        return NextResponse.json(
+          { error: 'Authentication failed' },
+          { status: 401 }
         )
+      }
 
-        if (updateError) {
-          console.error('Failed to update password:', updateError)
-          return NextResponse.json(
-            { error: 'Authentication failed - password migration error' },
-            { status: 401 }
-          )
-        }
+      // Extract tokens from the hash
+      const url = new URL(linkData.properties.action_link)
+      const token = url.searchParams.get('token')
+      const type = url.searchParams.get('type')
 
-        // Retry sign in with stable password using cookie-enabled client
-        const { data: retryData, error: retryError } = await supabaseWithCookies.auth.signInWithPassword({
-          email,
-          password: stablePassword,
-        })
+      if (!token || type !== 'magiclink') {
+        console.error('Invalid magic link format')
+        return NextResponse.json(
+          { error: 'Authentication failed' },
+          { status: 500 }
+        )
+      }
 
-        if (retryError || !retryData.session) {
-          console.error('Sign in retry failed:', retryError)
-          return NextResponse.json(
-            { error: 'Authentication failed' },
-            { status: 401 }
-          )
-        }
+      // Exchange token for session
+      const { data: sessionData, error: sessionError } = await supabaseAdmin.auth.verifyOtp({
+        token_hash: token,
+        type: 'magiclink'
+      })
 
-        const response = NextResponse.json({
-          success: true,
-          isNewUser: false,
-          session: retryData.session,
-          user: retryData.user,
-          address: address.toLowerCase()
-        })
-        
-        // Apply cookies from Supabase auth
-        const cookies = getCookies()
-        Object.entries(cookies).forEach(([name, value]) => {
-          response.cookies.set(name, value, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', path: '/' })
-        })
-        return response
+      if (sessionError || !sessionData.session) {
+        console.error('Failed to verify token:', sessionError)
+        return NextResponse.json(
+          { error: 'Authentication failed' },
+          { status: 500 }
+        )
       }
 
       const response = NextResponse.json({
         success: true,
         isNewUser: false,
-        session: signInData.session,
-        user: signInData.user,
+        session: sessionData.session,
+        user: sessionData.user,
         address: address.toLowerCase()
       })
       
-      // Apply cookies from Supabase auth
-      const cookies = getCookies()
-      Object.entries(cookies).forEach(([name, value]) => {
-        response.cookies.set(name, value, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', path: '/' })
+      // Set session cookies
+      response.cookies.set('sb-access-token', sessionData.session.access_token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        path: '/',
+        maxAge: sessionData.session.expires_in
       })
+      response.cookies.set('sb-refresh-token', sessionData.session.refresh_token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        path: '/',
+        maxAge: 60 * 60 * 24 * 7 // 7 days
+      })
+      
       return response
     } else {
       // New wallet - create new account (or recover if auth user already exists)
@@ -355,17 +353,6 @@ export async function POST(request: NextRequest) {
           authUserId = existingUser.id
           isRecoveredUser = true
           console.log('✅ Found existing auth user:', authUserId)
-          
-          // Update password to stable password (in case it was different before)
-          console.log('🔄 Updating password to stable password...')
-          const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(authUserId, {
-            password: stablePassword
-          })
-          if (updateError) {
-            console.error('⚠️ Password update failed:', updateError.message)
-          } else {
-            console.log('✅ Password updated successfully')
-          }
         }
       }
 
@@ -374,7 +361,6 @@ export async function POST(request: NextRequest) {
         console.log('🆕 Creating new auth user...')
         const { data: authData, error: signUpError } = await supabaseAdmin.auth.admin.createUser({
           email,
-          password: stablePassword,
           email_confirm: true,
           user_metadata: {
             wallet_address: address.toLowerCase(),
@@ -493,16 +479,53 @@ export async function POST(request: NextRequest) {
         console.log('✅ New player record created')
       }
 
-      // Sign in to create session
-      console.log('🔐 Creating session via sign-in...')
-      const { client: supabaseNewUser, getCookies: getNewUserCookies } = getSupabaseWithCookies(request)
-      const { data: signInData, error: signInError } = await supabaseNewUser.auth.signInWithPassword({
-        email,
-        password: stablePassword,
+      // Generate magic link token and exchange for session
+      console.log('🔐 Generating auth token for new user')
+      const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
+        type: 'magiclink',
+        email: email,
       })
 
-      if (signInError || !signInData.session) {
-        console.error('Sign in error after creation:', signInError)
+      if (linkError || !linkData) {
+        console.error('Failed to generate auth link:', linkError)
+        // Clean up auth user if link generation fails
+        if (!isRecoveredUser) {
+          await supabaseAdmin.auth.admin.deleteUser(authUserId)
+        }
+        return NextResponse.json(
+          { error: 'Failed to create session' },
+          { status: 500 }
+        )
+      }
+
+      // Extract token from the action link
+      const url = new URL(linkData.properties.action_link)
+      const token = url.searchParams.get('token')
+      const type = url.searchParams.get('type')
+
+      if (!token || type !== 'magiclink') {
+        console.error('Invalid magic link format')
+        if (!isRecoveredUser) {
+          await supabaseAdmin.auth.admin.deleteUser(authUserId)
+        }
+        return NextResponse.json(
+          { error: 'Authentication failed' },
+          { status: 500 }
+        )
+      }
+
+      // Exchange token for session
+      const { data: sessionData, error: sessionError } = await supabaseAdmin.auth.verifyOtp({
+        token_hash: token,
+        type: 'magiclink'
+      })
+
+      if (sessionError || !sessionData.session) {
+        console.error('Failed to verify token:', sessionError)
+        // Clean up auth user if session creation fails
+        if (!isRecoveredUser) {
+          await supabaseAdmin.auth.admin.deleteUser(authUserId)
+        }
         return NextResponse.json(
           { error: 'Failed to create session' },
           { status: 500 }
@@ -514,16 +537,27 @@ export async function POST(request: NextRequest) {
       const response = NextResponse.json({
         success: true,
         isNewUser: !isRecoveredUser,
-        session: signInData.session,
-        user: signInData.user,
+        session: sessionData.session,
+        user: sessionData.user,
         address: address.toLowerCase()
       })
       
-      // Apply cookies from Supabase auth
-      const cookies = getNewUserCookies()
-      Object.entries(cookies).forEach(([name, value]) => {
-        response.cookies.set(name, value, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', path: '/' })
+      // Set session cookies
+      response.cookies.set('sb-access-token', sessionData.session.access_token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        path: '/',
+        maxAge: sessionData.session.expires_in
       })
+      response.cookies.set('sb-refresh-token', sessionData.session.refresh_token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        path: '/',
+        maxAge: 60 * 60 * 24 * 7 // 7 days
+      })
+      
       return response
     }
   } catch (error) {
