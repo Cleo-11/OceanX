@@ -49,6 +49,11 @@ export default async function HomePage() {
     walletAddress: playerRecord?.wallet_address?.slice(0, 10) + "...",
   })
 
+  // Force onboarding if username is missing or still auto-generated
+  if (!playerRecord?.username || playerRecord.username.startsWith("Captain-")) {
+    redirect("/onboarding")
+  }
+
   // If no player record or wallet, show the home page anyway
   // The wallet will be available from the user metadata
   const walletAddress = playerRecord?.wallet_address || 
