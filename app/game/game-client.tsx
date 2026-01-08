@@ -130,6 +130,12 @@ export default function GameClient({ userId, playerData }: GameClientProps) {
             sidebarOpen={sidebarOpen}
             setSidebarOpen={setSidebarOpen}
             onFullDisconnect={handleFullDisconnect}
+            initialResources={{
+              nickel: playerData?.nickel ?? 0,
+              cobalt: playerData?.cobalt ?? 0,
+              copper: playerData?.copper ?? 0,
+              manganese: playerData?.manganese ?? 0,
+            }}
             onResourcesChange={(res) => {
               latestResourcesRef.current = res
 

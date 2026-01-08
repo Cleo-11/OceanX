@@ -1,20 +1,29 @@
 "use client"
 
 import { createContext, useContext, useEffect, useState } from 'react'
-import { User, Session } from '@supabase/supabase-js'
-import { supabase, getCurrentUser, getSession } from '@/lib/supabase'
+import { decodeJWT, ACCESS_TOKEN_COOKIE } from '@/lib/jwt-auth'
+
+/**
+ * User interface for JWT-based auth
+ * Wallet address is the primary identifier
+ */
+interface User {
+  id: string
+  wallet_address: string
+  email?: string
+}
 
 interface AuthContextType {
   user: User | null
-  session: Session | null
   loading: boolean
+  isAuthenticated: boolean
   signOut: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
-  session: null,
   loading: true,
+  isAuthenticated: false,
   signOut: async () => {},
 })
 
@@ -26,50 +35,90 @@ export const useAuth = () => {
   return context
 }
 
+/**
+ * Get access token from cookies (client-side)
+ */
+function getAccessTokenFromCookie(): string | null {
+  if (typeof document === 'undefined') return null
+  
+  const cookies = document.cookie.split(';')
+  for (const cookie of cookies) {
+    const [name, value] = cookie.trim().split('=')
+    if (name === ACCESS_TOKEN_COOKIE) {
+      return decodeURIComponent(value)
+    }
+  }
+  return null
+}
+
+/**
+ * Get user from JWT token (client-side decode only, no verification)
+ */
+function getUserFromToken(): User | null {
+  const token = getAccessTokenFromCookie()
+  if (!token) return null
+  
+  const payload = decodeJWT(token)
+  if (!payload) return null
+  
+  // Check if token is expired
+  const now = Math.floor(Date.now() / 1000)
+  if (payload.exp < now) {
+    console.log('[auth-context] JWT expired')
+    return null
+  }
+  
+  return {
+    id: payload.sub,
+    wallet_address: payload.wallet,
+    email: payload.email,
+  }
+}
+
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null)
-  const [session, setSession] = useState<Session | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    // Get initial session
-    const getInitialSession = async () => {
-      const { session } = await getSession()
-      setSession(session)
-      const { user } = await getCurrentUser()
-      setUser(user)
-      setLoading(false)
-    }
+    // Get initial user from JWT
+    const initialUser = getUserFromToken()
+    setUser(initialUser)
+    setLoading(false)
 
-    getInitialSession()
-
-    // Listen for auth changes
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_, session) => {
-      setSession(session)
-      if (session) {
-        const { user } = await getCurrentUser()
-        setUser(user)
-      } else {
-        setUser(null)
+    // Check for token changes periodically (e.g., after login in another tab)
+    const interval = setInterval(() => {
+      const currentUser = getUserFromToken()
+      const currentId = currentUser?.id
+      const stateId = user?.id
+      
+      // Only update if user changed
+      if (currentId !== stateId) {
+        setUser(currentUser)
       }
-      setLoading(false)
-    })
+    }, 2000) // Check every 2 seconds
 
-    return () => subscription.unsubscribe()
+    return () => clearInterval(interval)
   }, [])
 
   const handleSignOut = async () => {
-    await supabase.auth.signOut()
+    try {
+      const response = await fetch('/api/auth/signout', { method: 'POST' })
+      if (response.ok) {
+        setUser(null)
+        // Redirect to landing page
+        window.location.href = '/'
+      }
+    } catch (error) {
+      console.error('[auth-context] Sign out failed:', error)
+    }
   }
 
   return (
     <AuthContext.Provider
       value={{
         user,
-        session,
         loading,
+        isAuthenticated: !!user,
         signOut: handleSignOut,
       }}
     >

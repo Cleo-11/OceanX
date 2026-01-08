@@ -1,46 +1,30 @@
 import { NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
-import { createServerClient } from "@supabase/ssr"
-import { cookies } from "next/headers"
+import { getAuthFromRequest } from "@/lib/jwt-auth"
 import type { Database } from "@/lib/types"
 
 export async function POST(request: Request) {
   try {
-    // Service role client for bypassing RLS (created at runtime)
+    // Service role client for bypassing RLS
     const supabaseAdmin = createClient<Database>(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     )
 
-    // Get user session from cookies
-    const cookieStore = cookies()
-    const supabase = createServerClient<Database>(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          get(name: string) {
-            return cookieStore.get(name)?.value
-          },
-        },
-      }
-    )
-    const {
-      data: { session },
-    } = await supabase.auth.getSession()
+    // Get auth from JWT cookie
+    const auth = await getAuthFromRequest(request)
 
-    if (!session) {
+    if (!auth) {
       return NextResponse.json({ error: "Not authenticated" }, { status: 401 })
     }
 
-    const userId = session.user.id
     const body = await request.json()
     const { nickel, cobalt, copper, manganese } = body
 
     const total = (nickel || 0) + (cobalt || 0) + (copper || 0) + (manganese || 0)
 
     console.info("[api/player/save-resources] Saving resources:", {
-      userId,
+      wallet: auth.walletAddress,
       resources: { nickel, cobalt, copper, manganese },
       total,
     })
@@ -56,7 +40,7 @@ export async function POST(request: Request) {
         last_login: new Date().toISOString(),
         is_active: true,
       })
-      .eq("user_id", userId)
+      .eq("wallet_address", auth.walletAddress)
       .select("nickel, cobalt, copper, manganese, total_resources_mined")
       .single()
 

@@ -1,68 +1,46 @@
-import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
-import { createServerClient } from "@supabase/ssr"
-import { createClient } from "@supabase/supabase-js"
 import GameClient from "./game-client"
-import type { Database } from "@/lib/types"
-
-// Service role client for bypassing RLS when creating players
-const supabaseAdmin = createClient<Database>(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
+import { getAuthFromCookies, createSupabaseAdmin } from "@/lib/supabase-server"
 
 export default async function GamePage() {
-  const cookieStore = cookies()
-  
-  const supabase = createServerClient<Database>(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        get(name: string) {
-          return cookieStore.get(name)?.value
-        },
-      },
-    }
-  )
+  // Get auth from JWT cookie
+  const auth = await getAuthFromCookies()
 
-  const {
-    data: { session },
-  } = await supabase.auth.getSession()
-
-  if (!session) {
-    console.warn("[game/page] No session, redirecting to /auth")
+  if (!auth) {
+    console.warn("[game/page] No JWT session, redirecting to /auth")
     redirect("/auth")
   }
 
-  console.info("[game/page] Session found for user:", {
-    userId: session.user.id,
-    email: session.user.email,
+  console.info("[game/page] Session found for wallet:", {
+    wallet: auth.walletAddress,
   })
 
-  // Load player data using service role (more reliable)
-  let { data: playerData, error: playerError } = await supabaseAdmin
+  // Use admin client for database operations
+  const supabase = createSupabaseAdmin()
+
+  // Load player data by wallet address
+  let { data: playerData, error: playerError } = await supabase
     .from("players")
     .select("wallet_address, nickel, cobalt, copper, manganese")
-    .eq("user_id", session.user.id)
+    .eq("wallet_address", auth.walletAddress)
     .maybeSingle()
 
   if (playerError) {
     console.error("[game/page] Error loading player data:", playerError)
   }
 
-  // If no player record exists, create one using service role
+  // If no player record exists, create one
   if (!playerData) {
-    console.warn("[game/page] No player record found, creating with service role...")
+    console.warn("[game/page] No player record found, creating...")
     
-    const username = session.user.email?.split("@")[0] || `player_${session.user.id.slice(0, 8)}`
+    const username = `Captain-${auth.walletAddress.slice(2, 8)}`
 
-    const { data: newPlayer, error: createError } = await supabaseAdmin
+    const { data: newPlayer, error: createError } = await supabase
       .from("players")
       .insert({
-        user_id: session.user.id,
+        user_id: auth.userId,
         username,
-        wallet_address: null,
+        wallet_address: auth.walletAddress,
         submarine_tier: 1,
         coins: 0,
         total_resources_mined: 0,
@@ -86,10 +64,9 @@ export default async function GamePage() {
   }
 
   console.info("[game/page] Player data loaded:", {
-    userId: session.user.id,
+    wallet: auth.walletAddress,
     hasPlayerData: !!playerData,
-    hasWallet: !!playerData?.wallet_address,
   })
 
-  return <GameClient userId={session.user.id} playerData={playerData} />
+  return <GameClient userId={auth.userId} playerData={playerData} />
 }

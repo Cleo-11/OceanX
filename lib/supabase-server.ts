@@ -41,6 +41,22 @@ export async function createSupabaseServerClient() {
 }
 
 /**
+ * Create a Supabase Admin client for service-role operations
+ * Use for database operations that bypass RLS
+ */
+export function createSupabaseAdmin() {
+  const { createClient } = require('@supabase/supabase-js')
+  return createClient(
+    env.NEXT_PUBLIC_SUPABASE_URL,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
+}
+
+// Re-export JWT auth functions for convenience
+export { getAuthFromCookies, verifyJWT, type AuthResult, type JWTPayload } from './jwt-auth'
+
+/**
+ * @deprecated Use getAuthFromCookies() from jwt-auth.ts instead
  * Get the current authenticated user from server-side
  * Returns null if not authenticated
  */
@@ -60,6 +76,7 @@ export async function getServerUser() {
 }
 
 /**
+ * @deprecated Use getAuthFromCookies() from jwt-auth.ts instead
  * Get the current session from server-side
  * Returns null if no active session
  */

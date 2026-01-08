@@ -14,6 +14,10 @@ interface PlayerData {
   total_resources_mined: number
   total_ocx_earned: number
   last_login: string
+  nickel?: number
+  cobalt?: number
+  copper?: number
+  manganese?: number
 }
 
 interface HomePageClientProps {

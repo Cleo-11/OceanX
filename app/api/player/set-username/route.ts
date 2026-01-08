@@ -1,35 +1,25 @@
-import { cookies } from "next/headers"
 import { NextRequest, NextResponse } from "next/server"
-import { createServerClient } from "@supabase/ssr"
+import { createClient } from "@supabase/supabase-js"
+import { getAuthFromRequest } from "@/lib/jwt-auth"
 import type { Database } from "@/lib/types"
 
 export async function POST(request: NextRequest) {
   try {
-    const cookieStore = cookies()
-    
-    const supabase = createServerClient<Database>(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          get(name: string) {
-            return cookieStore.get(name)?.value
-          },
-        },
-      }
-    )
+    // Get auth from JWT cookie
+    const auth = await getAuthFromRequest(request)
 
-    // Get session
-    const {
-      data: { session },
-    } = await supabase.auth.getSession()
-
-    if (!session) {
+    if (!auth) {
       return NextResponse.json(
         { error: "Not authenticated" },
         { status: 401 }
       )
     }
+
+    // Use service role client for database operations
+    const supabase = createClient<Database>(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    )
 
     // Get request body
     const { username } = await request.json()
@@ -70,7 +60,7 @@ export async function POST(request: NextRequest) {
       .from("players")
       .select("id")
       .ilike("username", trimmedUsername)
-      .neq("user_id", session.user.id)
+      .neq("wallet_address", auth.walletAddress)
       .maybeSingle()
 
     if (existingUser) {
@@ -84,7 +74,7 @@ export async function POST(request: NextRequest) {
     const { data: updatedPlayer, error: updateError } = await supabase
       .from("players")
       .update({ username: trimmedUsername })
-      .eq("user_id", session.user.id)
+      .eq("wallet_address", auth.walletAddress)
       .select()
       .single()
 
@@ -97,7 +87,7 @@ export async function POST(request: NextRequest) {
     }
 
     console.log("[set-username] Username set successfully:", {
-      userId: session.user.id,
+      wallet: auth.walletAddress,
       username: trimmedUsername,
     })
 

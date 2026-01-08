@@ -4,80 +4,25 @@
  * 
  * Flow:
  * 1. Verify signature is valid
- * 2. Check if wallet already has an account
- * 3. Create auth user if needed
- * 4. Generate custom JWT tokens for session
+ * 2. Check/create player record in database
+ * 3. Generate custom JWT tokens for session
  * 
  * 🔐 Uses custom JWT generation for wallet-only authentication
- * ✅ Email provider can remain DISABLED in Supabase Dashboard
- * ✅ No password-based authentication required
+ * ✅ NO Supabase Auth required - just database for player records
+ * ✅ Wallet address is the primary user identifier
  */
 
 import { NextRequest, NextResponse } from 'next/server'
 import { ethers } from 'ethers'
 import { createClient } from '@supabase/supabase-js'
-import jwt from 'jsonwebtoken'
-import { v4 as uuidv4 } from 'uuid'
+import { generateTokens, ACCESS_TOKEN_COOKIE, REFRESH_TOKEN_COOKIE } from '@/lib/jwt-auth'
+import type { Database } from '@/lib/types'
 
-/**
- * Generate Supabase-compatible JWT access and refresh tokens
- */
-function generateSupabaseTokens(userId: string, email: string) {
-  const jwtSecret = process.env.SUPABASE_JWT_SECRET
-  if (!jwtSecret) {
-    throw new Error('SUPABASE_JWT_SECRET not configured')
-  }
-
-  const now = Math.floor(Date.now() / 1000)
-  const expiresIn = 3600 // 1 hour
-  
-  // Generate access token (JWT)
-  const accessToken = jwt.sign(
-    {
-      aud: 'authenticated',
-      exp: now + expiresIn,
-      iat: now,
-      iss: process.env.NEXT_PUBLIC_SUPABASE_URL,
-      sub: userId,
-      email: email,
-      phone: '',
-      app_metadata: {
-        provider: 'email',
-        providers: ['email']
-      },
-      user_metadata: {},
-      role: 'authenticated',
-      aal: 'aal1',
-      amr: [{ method: 'password', timestamp: now }],
-      session_id: uuidv4()
-    },
-    jwtSecret,
-    { algorithm: 'HS256' }
-  )
-
-  // Generate refresh token (UUID)
-  const refreshToken = uuidv4()
-
-  return {
-    access_token: accessToken,
-    refresh_token: refreshToken,
-    expires_in: expiresIn,
-    expires_at: now + expiresIn,
-    token_type: 'bearer'
-  }
-}
-
-// Initialize Supabase admin client (for user management)
+// Initialize Supabase admin client (for database operations only)
 function getSupabaseAdmin() {
-  return createClient(
+  return createClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false
-      }
-    }
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 }
 
@@ -115,7 +60,7 @@ function verifySignature(message: string, signature: string, address: string): b
 function parseSIWEMessage(message: string): { domain: string; address: string; nonce: string } | null {
   try {
     const lines = message.split('\n')
-    const domain = lines[0] // First line is domain
+    const domain = lines[0]
     const addressLine = lines.find(l => l.startsWith('0x'))
     const nonceLine = lines.find(l => l.startsWith('Nonce: '))
     
@@ -140,7 +85,7 @@ export async function POST(request: NextRequest) {
 
     // Validate input
     if (!message || !signature || !address) {
-      console.error('Missing required fields:', { message: !!message, signature: !!signature, address: !!address })
+      console.error('Missing required fields')
       return NextResponse.json(
         { error: 'Missing required fields: message, signature, address' },
         { status: 400 }
@@ -176,371 +121,91 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Check if wallet already exists in players table
-    const supabaseAdmin = getSupabaseAdmin()
-    const { data: existingPlayer } = await supabaseAdmin
+    const walletAddress = address.toLowerCase()
+    const supabase = getSupabaseAdmin()
+
+    // Check if player already exists
+    const { data: existingPlayer } = await supabase
       .from('players')
-      .select('user_id, wallet_address')
-      .eq('wallet_address', address.toLowerCase())
+      .select('id, user_id, wallet_address, username')
+      .eq('wallet_address', walletAddress)
       .single()
 
-    // Synthetic email for Supabase auth (required by schema)
-    const email = `${address.toLowerCase()}@ethereum.wallet`
+    let isNewUser = false
 
-    if (existingPlayer) {
-      // Wallet exists in players table - verify auth user still exists
-      console.log('✅ Returning user:', address)
-      
-      // First, check if the auth user actually exists
-      const { data: authUser, error: getUserError } = await supabaseAdmin.auth.admin.getUserById(
-        existingPlayer.user_id
-      )
+    if (!existingPlayer) {
+      // Create new player record
+      console.log('🆕 Creating new player for:', walletAddress)
+      isNewUser = true
 
-      if (getUserError || !authUser.user) {
-        // Auth user was deleted but player record remains - recreate auth user
-        console.log('🔄 Auth user missing, recreating for:', address)
-        
-        const { data: newAuthUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
-          email,
-          email_confirm: true,
-          user_metadata: {
-            wallet_address: address.toLowerCase(),
-            wallet_type: 'ethereum',
-            auth_method: 'siwe',
-          },
-        })
-
-        if (createError || !newAuthUser.user) {
-          console.error('Failed to recreate auth user:', createError)
-          return NextResponse.json(
-            { error: 'Failed to recreate authentication' },
-            { status: 500 }
-          )
-        }
-
-        // Update the players table with new user_id
-        const { error: updatePlayerError } = await supabaseAdmin
-          .from('players')
-          .update({ user_id: newAuthUser.user.id })
-          .eq('wallet_address', address.toLowerCase())
-
-        if (updatePlayerError) {
-          console.error('Failed to update player user_id:', updatePlayerError)
-        }
-
-        // Generate custom JWT session tokens
-        console.log('🔐 Generating JWT session for recreated user')
-        
-        try {
-          const tokens = generateSupabaseTokens(newAuthUser.user.id, email)
-          
-          const response = NextResponse.json({
-            success: true,
-            isNewUser: false,
-            session: {
-              access_token: tokens.access_token,
-              refresh_token: tokens.refresh_token,
-              expires_in: tokens.expires_in,
-              expires_at: tokens.expires_at,
-              token_type: tokens.token_type,
-              user: newAuthUser.user
-            },
-            user: newAuthUser.user,
-            address: address.toLowerCase()
-          })
-          
-          // Set session cookies
-          response.cookies.set('sb-access-token', tokens.access_token, {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: 'lax',
-            path: '/',
-            maxAge: tokens.expires_in
-          })
-          response.cookies.set('sb-refresh-token', tokens.refresh_token, {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: 'lax',
-            path: '/',
-            maxAge: 60 * 60 * 24 * 7 // 7 days
-          })
-          
-          return response
-        } catch (error) {
-          console.error('Failed to generate JWT tokens:', error)
-          return NextResponse.json(
-            { error: 'Authentication failed' },
-            { status: 500 }
-          )
-        }
-      }
-      
-      // Auth user exists - verify email matches
-      console.log('📧 Expected email:', email)
-      console.log('📧 Auth user email:', authUser.user.email)
-      
-      // If email doesn't match, update it
-      if (authUser.user.email !== email) {
-        console.log('⚠️ Email mismatch, updating auth user email')
-        const { error: updateEmailError } = await supabaseAdmin.auth.admin.updateUserById(
-          existingPlayer.user_id,
-          { email }
-        )
-        if (updateEmailError) {
-          console.error('Failed to update email:', updateEmailError)
-        }
-      }
-      
-      // Generate custom JWT session tokens
-      console.log('🔐 Generating JWT session for returning user')
-      
-      try {
-        const tokens = generateSupabaseTokens(existingPlayer.user_id, email)
-        
-        // Get user details for response
-        const { data: authUser } = await supabaseAdmin.auth.admin.getUserById(existingPlayer.user_id)
-        
-        const response = NextResponse.json({
-          success: true,
-          isNewUser: false,
-          session: {
-            access_token: tokens.access_token,
-            refresh_token: tokens.refresh_token,
-            expires_in: tokens.expires_in,
-            expires_at: tokens.expires_at,
-            token_type: tokens.token_type,
-            user: authUser?.user
-          },
-          user: authUser?.user,
-          address: address.toLowerCase()
-        })
-        
-        // Set session cookies
-        response.cookies.set('sb-access-token', tokens.access_token, {
-          httpOnly: true,
-          secure: process.env.NODE_ENV === 'production',
-          sameSite: 'lax',
-          path: '/',
-          maxAge: tokens.expires_in
-        })
-        response.cookies.set('sb-refresh-token', tokens.refresh_token, {
-          httpOnly: true,
-          secure: process.env.NODE_ENV === 'production',
-          sameSite: 'lax',
-          path: '/',
-          maxAge: 60 * 60 * 24 * 7 // 7 days
-        })
-        
-        return response
-      } catch (error) {
-        console.error('Failed to generate JWT tokens:', error)
-        return NextResponse.json(
-          { error: 'Authentication failed' },
-          { status: 500 }
-        )
-      }
-    } else {
-      // New wallet - create new account (or recover if auth user already exists)
-      console.log('🆕 New user (or missing player) for:', address)
-      console.log('📧 Using email:', email)
-
-      let authUserId: string | null = null
-      let isRecoveredUser = false
-
-      // FIRST: Check if auth user already exists using admin API (most reliable)
-      console.log('🔍 Checking if auth user exists via admin API...')
-      const { data: { users: existingUsers }, error: listError } = await supabaseAdmin.auth.admin.listUsers({
-        page: 1,
-        perPage: 1000 // Should be enough for most cases
-      })
-
-      if (!listError && existingUsers) {
-        const existingUser = existingUsers.find(u => u.email === email)
-        if (existingUser) {
-          authUserId = existingUser.id
-          isRecoveredUser = true
-          console.log('✅ Found existing auth user:', authUserId)
-        }
-      }
-
-      // If no existing user found, create new auth user
-      if (!authUserId) {
-        console.log('🆕 Creating new auth user...')
-        const { data: authData, error: signUpError } = await supabaseAdmin.auth.admin.createUser({
-          email,
-          email_confirm: true,
-          user_metadata: {
-            wallet_address: address.toLowerCase(),
-            wallet_type: 'ethereum',
-            auth_method: 'siwe',
-          },
-        })
-
-        if (signUpError || !authData.user) {
-          console.error('❌ User creation error:', signUpError?.message, signUpError?.status, signUpError)
-          return NextResponse.json(
-            { error: 'Failed to create user account' },
-            { status: 500 }
-          )
-        }
-        
-        authUserId = authData.user.id
-        console.log('✅ Created new auth user:', authUserId)
-      }
-
-      // Create player record if missing, reconcile duplicates if constraints hit
-      const lowerWallet = address.toLowerCase()
-      console.log('📝 Ensuring player record for wallet:', lowerWallet)
-
-      // First attempt a straight insert (fast path for new users)
-      const basePlayerPayload = {
-        user_id: authUserId,
-        wallet_address: lowerWallet,
-        username: `Captain-${address.slice(2, 8)}`,
-        submarine_tier: 1,
-        total_resources_mined: 0,
-        total_ocx_earned: 0,
-        is_active: true,
-        last_login: new Date().toISOString(),
-      }
-
-      const { error: playerInsertError } = await supabaseAdmin
+      const { error: createError } = await supabase
         .from('players')
-        .insert(basePlayerPayload)
-
-      if (playerInsertError) {
-        console.error('Player insert error:', playerInsertError)
-
-        // 23505 = unique_violation (wallet_address or user_id). Try to reconcile instead of failing.
-        if (playerInsertError.code === '23505') {
-          console.log('♻️ Player already exists, reconciling links...')
-
-          // Check by wallet
-          const { data: playerByWallet, error: walletCheckError } = await supabaseAdmin
-            .from('players')
-            .select('id, user_id')
-            .eq('wallet_address', lowerWallet)
-            .single()
-
-          if (!walletCheckError && playerByWallet) {
-            console.log('📋 Found player by wallet:', playerByWallet.id)
-            if (playerByWallet.user_id !== authUserId) {
-              const { error: updateUserIdError } = await supabaseAdmin
-                .from('players')
-                .update({ user_id: authUserId })
-                .eq('id', playerByWallet.id)
-
-              if (updateUserIdError) {
-                console.error('Player update error (wallet match):', updateUserIdError)
-              } else {
-                console.log('✅ Player user_id updated (wallet match)')
-              }
-            } else {
-              console.log('✅ Player already linked to auth user (wallet match)')
-            }
-          } else {
-            // If no wallet match, try by user_id (maybe wallet changed case or was updated)
-            const { data: playerByUser, error: userCheckError } = await supabaseAdmin
-              .from('players')
-              .select('id, wallet_address')
-              .eq('user_id', authUserId)
-              .single()
-
-            if (!userCheckError && playerByUser) {
-              console.log('📋 Found player by user_id:', playerByUser.id)
-              if (playerByUser.wallet_address !== lowerWallet) {
-                const { error: updateWalletError } = await supabaseAdmin
-                  .from('players')
-                  .update({ wallet_address: lowerWallet })
-                  .eq('id', playerByUser.id)
-
-                if (updateWalletError) {
-                  console.error('Player update error (user match):', updateWalletError)
-                } else {
-                  console.log('✅ Player wallet updated (user match)')
-                }
-              } else {
-                console.log('✅ Player already linked to auth user (user match)')
-              }
-            } else {
-              console.log('⚠️ Could not reconcile player; check constraints and RLS policies')
-              // If we can't reconcile, fail out
-              return NextResponse.json(
-                { error: 'Failed to create player record' },
-                { status: 500 }
-              )
-            }
-          }
-        } else {
-          // Not a unique violation -> bail
-          // Only delete auth user if it was newly created in this flow
-          if (!isRecoveredUser && authUserId) {
-            await supabaseAdmin.auth.admin.deleteUser(authUserId)
-          }
-          return NextResponse.json(
-            { error: 'Failed to create player record' },
-            { status: 500 }
-          )
-        }
-      } else {
-        console.log('✅ New player record created')
-      }
-
-      // Generate custom JWT session tokens
-      console.log('🔐 Generating JWT session for new user')
-      
-      try {
-        const tokens = generateSupabaseTokens(authUserId, email)
-        
-        // Get user details for response
-        const { data: authUser } = await supabaseAdmin.auth.admin.getUserById(authUserId)
-        
-        console.log('✅ Session created successfully')
-
-        const response = NextResponse.json({
-          success: true,
-          isNewUser: !isRecoveredUser,
-          session: {
-            access_token: tokens.access_token,
-            refresh_token: tokens.refresh_token,
-            expires_in: tokens.expires_in,
-            expires_at: tokens.expires_at,
-            token_type: tokens.token_type,
-            user: authUser?.user
-          },
-          user: authUser?.user,
-          address: address.toLowerCase()
+        .insert({
+          user_id: walletAddress, // Use wallet as user_id for simplicity
+          wallet_address: walletAddress,
+          username: `Captain-${address.slice(2, 8)}`,
+          submarine_tier: 1,
+          coins: 0,
+          total_resources_mined: 0,
+          total_ocx_earned: 0,
+          nickel: 0,
+          cobalt: 0,
+          copper: 0,
+          manganese: 0,
+          is_active: true,
+          last_login: new Date().toISOString(),
         })
-        
-        // Set session cookies
-        response.cookies.set('sb-access-token', tokens.access_token, {
-          httpOnly: true,
-          secure: process.env.NODE_ENV === 'production',
-          sameSite: 'lax',
-          path: '/',
-          maxAge: tokens.expires_in
-        })
-        response.cookies.set('sb-refresh-token', tokens.refresh_token, {
-          httpOnly: true,
-          secure: process.env.NODE_ENV === 'production',
-          sameSite: 'lax',
-          path: '/',
-          maxAge: 60 * 60 * 24 * 7 // 7 days
-        })
-        
-        return response
-      } catch (error) {
-        console.error('Failed to generate JWT tokens:', error)
-        // Clean up auth user if session creation fails
-        if (!isRecoveredUser) {
-          await supabaseAdmin.auth.admin.deleteUser(authUserId)
-        }
+
+      if (createError) {
+        console.error('Failed to create player:', createError)
         return NextResponse.json(
-          { error: 'Failed to create session' },
+          { error: 'Failed to create player record' },
           { status: 500 }
         )
       }
+      console.log('✅ Player created successfully')
+    } else {
+      console.log('✅ Returning user:', walletAddress)
+      // Update last login
+      await supabase
+        .from('players')
+        .update({ last_login: new Date().toISOString(), is_active: true })
+        .eq('wallet_address', walletAddress)
     }
+
+    // Generate JWT tokens
+    console.log('🔐 Generating JWT tokens...')
+    const tokens = generateTokens(walletAddress)
+
+    console.log('✅ Authentication successful')
+
+    const response = NextResponse.json({
+      success: true,
+      isNewUser,
+      address: walletAddress,
+      user: {
+        id: walletAddress,
+        wallet_address: walletAddress,
+      }
+    })
+
+    // Set session cookies
+    response.cookies.set(ACCESS_TOKEN_COOKIE, tokens.accessToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+      maxAge: tokens.expiresIn,
+    })
+    response.cookies.set(REFRESH_TOKEN_COOKIE, tokens.refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 60 * 60 * 24 * 7, // 7 days
+    })
+
+    return response
   } catch (error) {
     console.error('SIWE authentication error:', error)
     return NextResponse.json(

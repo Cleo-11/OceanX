@@ -1,59 +1,35 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from '@supabase/ssr'
+import { ACCESS_TOKEN_COOKIE, REFRESH_TOKEN_COOKIE } from '@/lib/jwt-auth'
 
-export async function POST(request: NextRequest) {
+/**
+ * Sign out endpoint - clears JWT cookies
+ * No Supabase auth calls needed since we use custom JWT tokens
+ */
+export async function POST(_request: NextRequest) {
   const response = NextResponse.json({ success: true })
 
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        get(name: string) {
-          return request.cookies.get(name)?.value
-        },
-        set(name: string, value: string, options: any) {
-          response.cookies.set({ name, value, ...options })
-        },
-        remove(name: string, options: any) {
-          response.cookies.set({
-            name,
-            value: '',
-            ...options,
-            maxAge: 0,
-            path: '/',
-            sameSite: 'lax',
-            secure: process.env.NODE_ENV === 'production',
-          })
-        },
-      },
-    }
-  )
-
-  const { error } = await supabase.auth.signOut()
-
-  if (error) {
-    console.error('[api/auth/signout] signOut error:', error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+  // Clear both access and refresh token cookies
+  const cookieOptions = {
+    maxAge: 0,
+    path: '/',
+    sameSite: 'lax' as const,
+    secure: process.env.NODE_ENV === 'production',
+    httpOnly: true,
   }
 
-  // Ensure auth cookie is cleared even if supabase didn't set remove
   response.cookies.set({
-    name: 'sb-access-token',
+    name: ACCESS_TOKEN_COOKIE,
     value: '',
-    maxAge: 0,
-    path: '/',
-    sameSite: 'lax',
-    secure: process.env.NODE_ENV === 'production',
+    ...cookieOptions,
   })
+
   response.cookies.set({
-    name: 'sb-refresh-token',
+    name: REFRESH_TOKEN_COOKIE,
     value: '',
-    maxAge: 0,
-    path: '/',
-    sameSite: 'lax',
-    secure: process.env.NODE_ENV === 'production',
+    ...cookieOptions,
   })
+
+  console.log('[api/auth/signout] Cleared JWT cookies')
 
   return response
 }

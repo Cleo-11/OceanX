@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation"
 import { ProfileClient } from "./profile-client"
-import { createSupabaseServerClient } from "@/lib/supabase-server"
+import { getAuthFromCookies, createSupabaseAdmin } from "@/lib/supabase-server"
 
 // Type definitions for profile data
 export interface ProfileData {
@@ -34,8 +34,8 @@ export interface ProfileData {
 
 /**
  * Profile Page - Secure Server Component
- * Protected by Supabase server-side session authentication
- * Fetches user data from Supabase based on authenticated session
+ * Protected by JWT token authentication
+ * Fetches user data from Supabase based on authenticated wallet
  */
 export default async function ProfilePage({
   searchParams,
@@ -43,69 +43,39 @@ export default async function ProfilePage({
   searchParams: { wallet?: string }
 }) {
   // If a wallet query param is present we allow access by wallet lookup
-  // (used when navigating from the in-app user home). This keeps the
-  // UX simple while still allowing server-side session checks when no
-  // wallet query param is provided.
-  const walletAddress = searchParams.wallet
+  const queryWallet = searchParams.wallet
 
-  // Create server-side Supabase client (reads auth from cookies)
-  // We create it unconditionally because we'll need it later to fetch
-  // player and submarine data regardless of how the page was accessed.
-  const supabase = await createSupabaseServerClient()
+  // Get auth from JWT cookie
+  const auth = await getAuthFromCookies()
 
-  // If no wallet query param, require an authenticated Supabase session
-  let user = null
-  if (!walletAddress) {
-    // Get authenticated user from session
-    const {
-      data: { user: sessionUser },
-      error: authError,
-    } = await supabase.auth.getUser()
-
-    user = sessionUser
-
-    // ⚠️ SECURITY: Require authenticated session
-    if (authError || !user) {
+  // If no wallet query param, require JWT auth
+  let targetWallet: string
+  if (!queryWallet) {
+    if (!auth) {
       console.warn("❌ [Profile] Access denied: Not authenticated")
       redirect("/home")
     }
+    targetWallet = auth.walletAddress
   } else {
-    console.log("✅ [Profile] Access granted for wallet:", walletAddress)
+    console.log("✅ [Profile] Access granted for wallet:", queryWallet)
+    targetWallet = queryWallet
   }
 
-  // Fetch player data from Supabase securely on the server
-  // Use wallet from query param if provided, otherwise fetch by user_id from session
-  let playerData
-  let error
+  // Use admin client for database operations
+  const supabase = createSupabaseAdmin()
 
-  if (walletAddress) {
-    // Fetch by wallet address
-    const result = await supabase
-      .from("players")
-      .select("*")
-      .eq("wallet_address", walletAddress)
-      .single()
-    playerData = result.data
-    error = result.error
-  } else {
-    // Fetch by user_id from authenticated session
-    const result = await supabase
-      .from("players")
-      .select("*")
-      .eq("user_id", user!.id)
-      .single()
-    playerData = result.data
-    error = result.error
-  }
+  // Fetch player data by wallet address
+  const { data: playerData, error } = await supabase
+    .from("players")
+    .select("*")
+    .eq("wallet_address", targetWallet)
+    .single()
 
   // Handle errors or missing data
   if (error || !playerData) {
     console.error("❌ [Profile] Failed to fetch player data:", error)
     redirect("/home")
   }
-
-  // Extract wallet address from player data if not in query param
-  const profileWalletAddress = playerData.wallet_address
 
   // Fetch submarine tier information
   const { data: submarineData } = await supabase
@@ -148,9 +118,9 @@ export default async function ProfilePage({
     achievements: {
       badgesUnlocked: Math.floor((playerData.total_resources_mined || 0) / 1000),
       nextGoalProgress:
-        ((playerData.total_resources_mined || 0) % 1000) / 10, // Progress to next badge (0-100%)
+        ((playerData.total_resources_mined || 0) % 1000) / 10,
     },
   }
 
-  return <ProfileClient profileData={profileData} walletAddress={profileWalletAddress} />
+  return <ProfileClient profileData={profileData} walletAddress={playerData.wallet_address} />
 }

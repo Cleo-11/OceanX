@@ -1,35 +1,23 @@
-import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
-import { createServerClient } from "@supabase/ssr"
 import MarketplaceClient from "./marketplace-client"
-import type { Database } from "@/lib/types"
+import { getAuthFromCookies, createSupabaseAdmin } from "@/lib/supabase-server"
 
 export default async function MarketplacePage() {
-  const cookieStore = cookies()
-  const supabase = createServerClient<Database>(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        get(name: string) {
-          return cookieStore.get(name)?.value
-        },
-      },
-    }
-  )
+  // Get auth from JWT cookie
+  const auth = await getAuthFromCookies()
 
-  const {
-    data: { session },
-  } = await supabase.auth.getSession()
-
-  if (!session) {
+  if (!auth) {
     redirect("/auth")
   }
 
+  // Use admin client for database operations
+  const supabase = createSupabaseAdmin()
+
+  // Fetch player data by wallet address
   const { data: playerRecord } = await supabase
     .from("players")
     .select("*")
-    .eq("user_id", session.user.id)
+    .eq("wallet_address", auth.walletAddress)
     .maybeSingle()
 
   if (!playerRecord || !playerRecord.wallet_address) {
@@ -42,11 +30,7 @@ export default async function MarketplacePage() {
         id: playerRecord.id,
         user_id: playerRecord.user_id,
         wallet_address: playerRecord.wallet_address,
-        username:
-          playerRecord.username ??
-          session.user.user_metadata?.full_name ??
-          session.user.email ??
-          "Captain",
+        username: playerRecord.username ?? "Captain",
         submarine_tier: playerRecord.submarine_tier ?? 1,
         total_resources_mined: playerRecord.total_resources_mined ?? 0,
         total_ocx_earned: playerRecord.total_ocx_earned ?? 0,

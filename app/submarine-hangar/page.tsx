@@ -1,8 +1,6 @@
-import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
-import { createServerClient } from "@supabase/ssr"
-import type { Database } from "@/lib/types"
 import SubmarineHangarClient from "./page-client"
+import { getAuthFromCookies, createSupabaseAdmin } from "@/lib/supabase-server"
 
 /**
  * Submarine Hangar - Server Component
@@ -12,38 +10,26 @@ import SubmarineHangarClient from "./page-client"
  * comes from the same Supabase tables as the submarine store.
  * 
  * Data Flow:
- * 1. Authenticate user session
+ * 1. Authenticate user via JWT cookie
  * 2. Fetch player record (wallet, tier, resources, balance)
  * 3. Pass data to client component for 3D rendering
  */
 export default async function SubmarineHangarPage() {
-  const cookieStore = cookies()
-  const supabase = createServerClient<Database>(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        get(name: string) {
-          return cookieStore.get(name)?.value
-        },
-      },
-    }
-  )
+  // Get auth from JWT cookie
+  const auth = await getAuthFromCookies()
 
-  // Check if user is authenticated
-  const {
-    data: { session },
-  } = await supabase.auth.getSession()
-
-  if (!session) {
+  if (!auth) {
     redirect("/auth")
   }
 
-  // Fetch player data from Supabase
+  // Use admin client for database operations
+  const supabase = createSupabaseAdmin()
+
+  // Fetch player data by wallet address
   const { data: playerRecord } = await supabase
     .from("players")
     .select("*")
-    .eq("user_id", session.user.id)
+    .eq("wallet_address", auth.walletAddress)
     .maybeSingle()
 
   if (!playerRecord || !playerRecord.wallet_address) {
@@ -62,7 +48,7 @@ export default async function SubmarineHangarPage() {
       }}
       balance={playerRecord.balance ?? 0}
       walletAddress={playerRecord.wallet_address}
-      userId={session.user.id}
+      userId={auth.userId}
     />
   )
 }

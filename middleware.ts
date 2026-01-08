@@ -1,36 +1,71 @@
-import { createServerClient } from '@supabase/ssr'
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
 /**
- * TESTING MODE: Controlled by environment variables.
- * Only allow bypass when not in production AND explicit allow flag is set.
- * Environment variable to set on dev machines: `ALLOW_AUTH_BYPASS=true`
+ * Middleware using custom JWT validation
  * 
- * 🚨 SECURITY: Hard fail if auth bypass is attempted in production
+ * Supabase is used for database only, not sessions.
+ * JWT tokens are validated manually for route protection.
  */
-const NODE_ENV = process.env.NODE_ENV || 'production'; // Default to production for safety
-const ALLOW_AUTH_BYPASS_RAW = process.env.ALLOW_AUTH_BYPASS === 'true';
 
-// 🚨 CRITICAL SECURITY CHECK: Prevent auth bypass in production
+// Cookie name for access token
+const ACCESS_TOKEN_COOKIE = 'sb-access-token'
+
+/**
+ * TESTING MODE: Controlled by environment variables.
+ */
+const NODE_ENV = process.env.NODE_ENV || 'production'
+const ALLOW_AUTH_BYPASS_RAW = process.env.ALLOW_AUTH_BYPASS === 'true'
+
 if (NODE_ENV === 'production' && ALLOW_AUTH_BYPASS_RAW) {
   throw new Error(
-    '🚨 SECURITY VIOLATION: ALLOW_AUTH_BYPASS cannot be enabled in production! ' +
-    'Remove this environment variable immediately.'
-  );
+    '🚨 SECURITY VIOLATION: ALLOW_AUTH_BYPASS cannot be enabled in production!'
+  )
 }
 
 const TESTING_MODE_BYPASS_AUTH = (NODE_ENV !== 'production' && ALLOW_AUTH_BYPASS_RAW)
 
+/**
+ * Decode JWT payload without verification (Edge Runtime compatible)
+ * For middleware, we decode and check expiry - full verification happens server-side
+ */
+function decodeJWTPayload(token: string): { sub: string; wallet: string; exp: number } | null {
+  try {
+    // JWT format: header.payload.signature
+    const parts = token.split('.')
+    if (parts.length !== 3) return null
+    
+    // Decode base64url payload
+    const payload = parts[1]
+    const decoded = atob(payload.replace(/-/g, '+').replace(/_/g, '/'))
+    const parsed = JSON.parse(decoded)
+    
+    return {
+      sub: parsed.sub,
+      wallet: parsed.wallet || parsed.sub,
+      exp: parsed.exp
+    }
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Check if token is expired
+ */
+function isTokenExpired(exp: number): boolean {
+  const now = Math.floor(Date.now() / 1000)
+  return exp < now
+}
+
 export async function middleware(req: NextRequest) {
   const startTime = Date.now()
-  let res = NextResponse.next()
-
+  const res = NextResponse.next()
   const pathname = req.nextUrl.pathname
   
-  console.log(`[middleware] START ${pathname} at ${startTime}`)
+  console.log(`[middleware] START ${pathname}`)
 
-  // Skip middleware for auth callback to allow it to complete
+  // Skip middleware for auth callback
   if (pathname.startsWith('/auth/callback')) {
     console.log("[middleware] Skipping middleware for /auth/callback")
     return res
@@ -42,33 +77,28 @@ export async function middleware(req: NextRequest) {
     return res
   }
 
-  // Create Supabase client with cookie handling
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        get(name: string) {
-          return req.cookies.get(name)?.value
-        },
-        set(name: string, value: string, options: any) {
-          res.cookies.set({ name, value, ...options })
-        },
-        remove(name: string, options: any) {
-          res.cookies.set({ name, value: '', ...options })
-        },
-      },
+  // Get JWT from cookie
+  const token = req.cookies.get(ACCESS_TOKEN_COOKIE)?.value
+  
+  // Decode JWT to check validity (lightweight check for middleware)
+  let isAuthenticated = false
+  let userId: string | undefined
+  
+  if (token) {
+    const payload = decodeJWTPayload(token)
+    if (payload && !isTokenExpired(payload.exp)) {
+      isAuthenticated = true
+      userId = payload.sub
+      console.log(`[middleware] Valid JWT found for wallet: ${payload.wallet}`)
+    } else if (payload) {
+      console.log(`[middleware] JWT expired at ${payload.exp}`)
     }
-  )
-
-  const {
-    data: { session },
-  } = await supabase.auth.getSession()
+  }
   
   const duration = Date.now() - startTime
   console.log(`[middleware] Session check took ${duration}ms for ${pathname}`, {
-    hasSession: !!session,
-    userId: session?.user?.id,
+    hasSession: isAuthenticated,
+    userId: userId,
   })
 
   // Protected routes that require authentication
@@ -78,16 +108,15 @@ export async function middleware(req: NextRequest) {
   )
 
   // Redirect to auth if trying to access protected route without session
-  if (isProtectedRoute && !session) {
+  if (isProtectedRoute && !isAuthenticated) {
     console.log("[middleware] No session, redirecting to /auth")
     const redirectUrl = new URL('/auth', req.url)
-    // Add a flag to prevent redirect loops
     redirectUrl.searchParams.set('from', pathname)
     return NextResponse.redirect(redirectUrl)
   }
 
   // Redirect to home if authenticated but trying to access auth
-  if (pathname === '/auth' && session) {
+  if (pathname === '/auth' && isAuthenticated) {
     console.log("[middleware] Has session on /auth, redirecting to /home")
     return NextResponse.redirect(new URL('/home', req.url))
   }
@@ -96,14 +125,12 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  // Explicitly exclude ALL static files - only run on actual page routes
   matcher: [
     /*
      * Match all paths EXCEPT:
      * - _next (Next.js internals)
-     * - api routes (if we add them later)
-     * - static files (images, fonts, etc.)
-     * - files with extensions (css, js, etc.)
+     * - api routes (handled separately)
+     * - static files
      */
     '/((?!_next|api|.*\\.).*)',
   ],

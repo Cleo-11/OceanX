@@ -46,6 +46,8 @@ interface OceanMiningGameProps {
   // onConnectWallet?: () => void // (Deprecated) no longer used; game runs without wallet
   // Optional: notify parent whenever the in-session resource totals change
   onResourcesChange?: (resources: PlayerResources) => void
+  // Optional: initial resources from database
+  initialResources?: PlayerResources
 }
 
 export function OceanMiningGame({
@@ -57,6 +59,7 @@ export function OceanMiningGame({
   onFullDisconnect, // NEW PROP
   // onConnectWallet removed
   onResourcesChange,
+  initialResources,
 }: OceanMiningGameProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const gameLoopRef = useRef<number>(0)
@@ -110,10 +113,10 @@ export function OceanMiningGame({
   })
 
   const [resources, setResources] = useState<PlayerResources>({
-    nickel: 0,
-    cobalt: 0,
-    copper: 0,
-    manganese: 0,
+    nickel: initialResources?.nickel ?? 0,
+    cobalt: initialResources?.cobalt ?? 0,
+    copper: initialResources?.copper ?? 0,
+    manganese: initialResources?.manganese ?? 0,
   })
 
   // Notify parent when resources change (lightweight autosave hook)

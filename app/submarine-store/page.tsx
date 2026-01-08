@@ -1,35 +1,23 @@
-import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
-import { createServerClient } from "@supabase/ssr"
-import type { Database } from "@/lib/types"
 import SubmarineStoreClient from "./page-client"
+import { getAuthFromCookies, createSupabaseAdmin } from "@/lib/supabase-server"
 
 export default async function SubmarineStorePage() {
-  const cookieStore = cookies()
-  const supabase = createServerClient<Database>(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        get(name: string) {
-          return cookieStore.get(name)?.value
-        },
-      },
-    }
-  )
+  // Get auth from JWT cookie
+  const auth = await getAuthFromCookies()
 
-  const {
-    data: { session },
-  } = await supabase.auth.getSession()
-
-  if (!session) {
+  if (!auth) {
     redirect("/auth")
   }
 
+  // Use admin client for database operations
+  const supabase = createSupabaseAdmin()
+
+  // Fetch player data by wallet address
   const { data: playerRecord } = await supabase
     .from("players")
     .select("*")
-    .eq("user_id", session.user.id)
+    .eq("wallet_address", auth.walletAddress)
     .maybeSingle()
 
   if (!playerRecord || !playerRecord.wallet_address) {

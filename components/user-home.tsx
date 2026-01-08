@@ -22,6 +22,10 @@ interface UserHomeProps {
     total_resources_mined: number
     total_ocx_earned: number
     last_login: string
+    nickel?: number
+    cobalt?: number
+    copper?: number
+    manganese?: number
   }
   onPlayClick: () => void
   onSubmarineStoreClick: () => void
@@ -411,14 +415,36 @@ export function UserHome({ playerData, onPlayClick, onSubmarineStoreClick }: Use
                 
                 <CardContent className="p-6">
                   <div className="space-y-4">
-                    <div className="flex justify-between items-center p-3 bg-gradient-to-r from-slate-700/40 to-slate-600/40 rounded-xl border border-slate-500/30 group/stat hover:border-emerald-400/40 transition-all duration-300">
-                      <div className="flex items-center gap-3">
+                    {/* Resource Breakdown */}
+                    <div className="p-3 bg-gradient-to-r from-slate-700/40 to-slate-600/40 rounded-xl border border-slate-500/30">
+                      <div className="flex items-center gap-3 mb-3">
                         <div className="w-3 h-3 bg-gradient-to-r from-blue-400 to-cyan-400 rounded-full animate-pulse"></div>
-                        <span className="text-slate-300 font-semibold">Resources Mined</span>
+                        <span className="text-slate-300 font-semibold">Resource Inventory</span>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-white font-black text-lg">{playerData.total_resources_mined.toLocaleString()}</span>
-                        <div className="w-2 h-2 bg-blue-400 rounded-full animate-ping"></div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="flex items-center justify-between p-2 bg-slate-800/50 rounded-lg">
+                          <span className="text-slate-400 text-sm">Nickel</span>
+                          <span className="text-cyan-300 font-bold text-sm">{(playerData.nickel ?? 0).toLocaleString()}</span>
+                        </div>
+                        <div className="flex items-center justify-between p-2 bg-slate-800/50 rounded-lg">
+                          <span className="text-slate-400 text-sm">Cobalt</span>
+                          <span className="text-blue-300 font-bold text-sm">{(playerData.cobalt ?? 0).toLocaleString()}</span>
+                        </div>
+                        <div className="flex items-center justify-between p-2 bg-slate-800/50 rounded-lg">
+                          <span className="text-slate-400 text-sm">Copper</span>
+                          <span className="text-orange-300 font-bold text-sm">{(playerData.copper ?? 0).toLocaleString()}</span>
+                        </div>
+                        <div className="flex items-center justify-between p-2 bg-slate-800/50 rounded-lg">
+                          <span className="text-slate-400 text-sm">Manganese</span>
+                          <span className="text-purple-300 font-bold text-sm">{(playerData.manganese ?? 0).toLocaleString()}</span>
+                        </div>
+                      </div>
+                      <div className="flex justify-between items-center mt-3 pt-3 border-t border-slate-600/30">
+                        <span className="text-slate-400 text-sm">Total Resources</span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-white font-black text-base">{playerData.total_resources_mined.toLocaleString()}</span>
+                          <div className="w-2 h-2 bg-blue-400 rounded-full animate-ping"></div>
+                        </div>
                       </div>
                     </div>
                     
