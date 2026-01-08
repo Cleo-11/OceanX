@@ -119,6 +119,14 @@ export function OceanMiningGame({
     manganese: initialResources?.manganese ?? 0,
   })
 
+  // State for stored resources from database (refreshed periodically)
+  const [storedResources, setStoredResources] = useState<PlayerResources>({
+    nickel: initialResources?.nickel ?? 0,
+    cobalt: initialResources?.cobalt ?? 0,
+    copper: initialResources?.copper ?? 0,
+    manganese: initialResources?.manganese ?? 0,
+  })
+
   // Notify parent when resources change (lightweight autosave hook)
   useEffect(() => {
     if (onResourcesChange) {
@@ -126,6 +134,34 @@ export function OceanMiningGame({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resources])
+
+  // Fetch stored resources from database periodically
+  useEffect(() => {
+    const fetchStoredResources = async () => {
+      try {
+        const response = await fetch("/api/player/get-resources")
+        if (response.ok) {
+          const result = await response.json()
+          if (result.success && result.data) {
+            setStoredResources(result.data)
+            console.info("[OceanMiningGame] ✅ Refreshed stored resources:", result.data)
+          }
+        } else {
+          console.warn("[OceanMiningGame] Failed to fetch stored resources:", response.status)
+        }
+      } catch (error) {
+        console.error("[OceanMiningGame] Error fetching stored resources:", error)
+      }
+    }
+
+    // Fetch immediately on mount
+    fetchStoredResources()
+
+    // Refresh every 5 seconds
+    const interval = setInterval(fetchStoredResources, 5000)
+
+    return () => clearInterval(interval)
+  }, [])
 
   const [balance, setBalance] = useState<number>(0)
   const [showUpgradeModal, setShowUpgradeModal] = useState<boolean>(false)
@@ -1684,7 +1720,7 @@ export function OceanMiningGame({
           )}
 
           {/* Player Stats HUD */}
-          <PlayerHUD stats={playerStats} tier={playerTier} />
+          <PlayerHUD stats={playerStats} tier={playerTier} storedResources={storedResources} />
 
           {/* Sonar/Mini-map at bottom left */}
           <div className="absolute left-4 bottom-4 z-20">

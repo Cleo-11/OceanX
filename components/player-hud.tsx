@@ -1,13 +1,14 @@
-import type { PlayerStats } from "@/lib/types"
+import type { PlayerStats, PlayerResources } from "@/lib/types"
 import { getSubmarineByTier } from "@/lib/submarine-tiers"
 import { motion } from "framer-motion"
 
 interface PlayerHUDProps {
   stats: PlayerStats;
   tier: number;
+  storedResources?: PlayerResources; // Resources from database
 }
 
-export function PlayerHUD({ stats, tier }: PlayerHUDProps) {
+export function PlayerHUD({ stats, tier, storedResources }: PlayerHUDProps) {
   const submarineData = getSubmarineByTier(tier);
   return (
     <motion.div
@@ -35,6 +36,20 @@ export function PlayerHUD({ stats, tier }: PlayerHUDProps) {
           color={stats.energy <= 0 ? "bg-red-500" : stats.energy <= 20 ? "bg-orange-500" : "bg-yellow-500"} 
           pulse={stats.energy <= 0}
         />
+        
+        {/* Stored Resources (from database) */}
+        {storedResources && (
+          <div className="mt-4 border-t border-cyan-400/20 pt-2">
+            <h3 className="mb-2 text-sm font-bold text-cyan-400">STORED RESOURCES</h3>
+            <div className="grid grid-cols-2 gap-2">
+              <StoredResourceDisplay label="NICKEL" value={storedResources.nickel} color="text-slate-400" />
+              <StoredResourceDisplay label="COBALT" value={storedResources.cobalt} color="text-blue-400" />
+              <StoredResourceDisplay label="COPPER" value={storedResources.copper} color="text-orange-400" />
+              <StoredResourceDisplay label="MANGANESE" value={storedResources.manganese} color="text-purple-400" />
+            </div>
+          </div>
+        )}
+        
         <div className="mt-4 border-t border-cyan-400/20 pt-2">
           <h3 className="mb-2 text-sm font-bold text-cyan-400">CARGO</h3>
           <div className="grid grid-cols-2 gap-2">
@@ -137,6 +152,23 @@ function ResourceBar({ label, value, maxValue, color }: ResourceBarProps) {
       <div className="h-1.5 w-full rounded-full bg-slate-700">
         <div className={`h-full rounded-full ${color}`} style={{ width: `${percentage}%` }} />
       </div>
+    </div>
+  )
+}
+
+interface StoredResourceDisplayProps {
+  label: string
+  value: number
+  color: string
+}
+
+function StoredResourceDisplay({ label, value, color }: StoredResourceDisplayProps) {
+  return (
+    <div className="flex items-center justify-between">
+      <span className="text-xs text-slate-300">{label}</span>
+      <span className={`font-mono text-xs font-bold ${color}`}>
+        {value.toLocaleString()}
+      </span>
     </div>
   )
 }
