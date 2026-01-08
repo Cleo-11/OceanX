@@ -70,13 +70,11 @@ function AuthPageContent() {
 
       if (data?.session) {
         console.log("✅ Ethereum wallet authenticated:", address, "isNewUser:", isNewUser)
-        // Force refresh to pick up the new session cookies
-        router.refresh()
-        // Small delay to ensure cookies are set before navigation
-        setTimeout(() => {
-          // Redirect new users to onboarding, returning users to home
-          window.location.href = isNewUser ? "/onboarding" : "/home"
-        }, 100)
+        // Wait for cookies to be fully processed by browser
+        await new Promise(resolve => setTimeout(resolve, 300))
+        // Use replace to ensure cookies are included in next request
+        window.location.replace(isNewUser ? "/onboarding" : "/home")
+        return // Prevent further execution
       }
     } catch (error) {
       console.error("Ethereum authentication error:", error)
@@ -101,11 +99,11 @@ function AuthPageContent() {
 
       if (data?.session) {
         console.log("✅ Coinbase Wallet authenticated:", address, "isNewUser:", isNewUser)
-        // Force refresh to pick up the new session cookies
-        router.refresh()
-        setTimeout(() => {
-          window.location.href = isNewUser ? "/onboarding" : "/home"
-        }, 100)
+        // Wait for cookies to be fully processed by browser
+        await new Promise(resolve => setTimeout(resolve, 300))
+        // Use replace to ensure cookies are included in next request
+        window.location.replace(isNewUser ? "/onboarding" : "/home")
+        return // Prevent further execution
       }
     } catch (error) {
       console.error("Coinbase Wallet authentication error:", error)
@@ -130,11 +128,11 @@ function AuthPageContent() {
 
       if (data?.session) {
         console.log("✅ WalletConnect authenticated:", address, "isNewUser:", isNewUser)
-        // Force refresh to pick up the new session cookies
-        router.refresh()
-        setTimeout(() => {
-          window.location.href = isNewUser ? "/onboarding" : "/home"
-        }, 100)
+        // Wait for cookies to be fully processed by browser
+        await new Promise(resolve => setTimeout(resolve, 300))
+        // Use replace to ensure cookies are included in next request
+        window.location.replace(isNewUser ? "/onboarding" : "/home")
+        return // Prevent further execution
       }
     } catch (error) {
       console.error("WalletConnect authentication error:", error)
