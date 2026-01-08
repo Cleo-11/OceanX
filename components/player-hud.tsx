@@ -37,43 +37,30 @@ export function PlayerHUD({ stats, tier, storedResources }: PlayerHUDProps) {
           pulse={stats.energy <= 0}
         />
         
-        {/* Stored Resources (from database) */}
-        {storedResources && (
-          <div className="mt-4 border-t border-cyan-400/20 pt-2">
-            <h3 className="mb-2 text-sm font-bold text-cyan-400">STORED RESOURCES</h3>
-            <div className="grid grid-cols-2 gap-2">
-              <StoredResourceDisplay label="NICKEL" value={storedResources.nickel} color="text-slate-400" />
-              <StoredResourceDisplay label="COBALT" value={storedResources.cobalt} color="text-blue-400" />
-              <StoredResourceDisplay label="COPPER" value={storedResources.copper} color="text-orange-400" />
-              <StoredResourceDisplay label="MANGANESE" value={storedResources.manganese} color="text-purple-400" />
-            </div>
-          </div>
-        )}
-        
         <div className="mt-4 border-t border-cyan-400/20 pt-2">
           <h3 className="mb-2 text-sm font-bold text-cyan-400">CARGO</h3>
           <div className="grid grid-cols-2 gap-2">
             <ResourceBar
               label="NICKEL"
-              value={stats.capacity.nickel}
+              value={storedResources?.nickel ?? 0}
               maxValue={stats.maxCapacity.nickel}
               color="bg-slate-400"
             />
             <ResourceBar
               label="COBALT"
-              value={stats.capacity.cobalt}
+              value={storedResources?.cobalt ?? 0}
               maxValue={stats.maxCapacity.cobalt}
               color="bg-blue-500"
             />
             <ResourceBar
               label="COPPER"
-              value={stats.capacity.copper}
+              value={storedResources?.copper ?? 0}
               maxValue={stats.maxCapacity.copper}
               color="bg-orange-500"
             />
             <ResourceBar
               label="MANGANESE"
-              value={stats.capacity.manganese}
+              value={storedResources?.manganese ?? 0}
               maxValue={stats.maxCapacity.manganese}
               color="bg-purple-500"
             />
@@ -146,29 +133,12 @@ function ResourceBar({ label, value, maxValue, color }: ResourceBarProps) {
       <div className="flex items-center justify-between">
         <span className="text-xs text-slate-300">{label}</span>
         <span className="font-mono text-xs text-cyan-400">
-          {value}/{maxValue}
+          {value.toLocaleString()}
         </span>
       </div>
       <div className="h-1.5 w-full rounded-full bg-slate-700">
         <div className={`h-full rounded-full ${color}`} style={{ width: `${percentage}%` }} />
       </div>
-    </div>
-  )
-}
-
-interface StoredResourceDisplayProps {
-  label: string
-  value: number
-  color: string
-}
-
-function StoredResourceDisplay({ label, value, color }: StoredResourceDisplayProps) {
-  return (
-    <div className="flex items-center justify-between">
-      <span className="text-xs text-slate-300">{label}</span>
-      <span className={`font-mono text-xs font-bold ${color}`}>
-        {value.toLocaleString()}
-      </span>
     </div>
   )
 }
