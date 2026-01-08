@@ -4,7 +4,7 @@ import { createServerClient } from "@supabase/ssr"
 import { cookies } from "next/headers"
 import type { Database } from "@/lib/types"
 
-export async function POST(request: Request) {
+export async function POST() {
   try {
     // Service role client for bypassing RLS
     const supabaseAdmin = createClient<Database>(
