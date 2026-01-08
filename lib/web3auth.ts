@@ -3,9 +3,9 @@
  * Supports Sign-In with Ethereum (SIWE), Sign-In with Solana (SIWS), and WalletConnect
  * 
  * Web3-first authentication - no email/password or social logins
+ * Session cookies are set server-side (httpOnly) - no client-side session management needed
  */
 
-import { supabase } from './supabase'
 import { ethers } from 'ethers'
 
 export interface Web3AuthProvider {
@@ -86,15 +86,9 @@ export async function signInWithEthereum() {
 
     const { session, user, isNewUser } = await response.json()
 
-    // Set the session in Supabase client
-    const { error: sessionError } = await supabase.auth.setSession({
-      access_token: session.access_token,
-      refresh_token: session.refresh_token,
-    })
-
-    if (sessionError) {
-      throw sessionError
-    }
+    // Session cookies are set server-side (httpOnly)
+    // No need to call setSession - just return success
+    console.log('✅ Ethereum auth successful, session cookies set server-side')
 
     return { 
       data: { session, user }, 
@@ -165,22 +159,9 @@ export async function signInWithSolana() {
 
     const { session, user, isNewUser } = await response.json()
 
-    // Set the session in Supabase client
-    const { error: sessionError } = await supabase.auth.setSession({
-      access_token: session.access_token,
-      refresh_token: session.refresh_token,
-    })
-
-    if (sessionError) {
-      throw sessionError
-    }
-
-    return { 
-      data: { session, user }, 
-      error: null, 
-      address: publicKey,
-      isNewUser 
-    }
+    // Session cookies are set server-side (httpOnly)
+    // No need to call setSession - just return success
+    console.log('✅ Solana auth successful, session cookies set server-side')
 
     return { 
       data: { session, user }, 
@@ -255,17 +236,9 @@ export async function signInWithCoinbase() {
 
     const { session, user, isNewUser } = await response.json()
 
-    // Set the session in Supabase client
-    const { error: sessionError } = await supabase.auth.setSession({
-      access_token: session.access_token,
-      refresh_token: session.refresh_token,
-    })
-
-    if (sessionError) {
-      throw sessionError
-    }
-
-    console.log('Coinbase Wallet auth successful:', address)
+    // Session cookies are set server-side (httpOnly)
+    // No need to call setSession - just return success
+    console.log('✅ Coinbase Wallet auth successful, session cookies set server-side:', address)
     return { 
       data: { session, user }, 
       error: null, 
@@ -591,16 +564,8 @@ export async function signInWithWalletConnect(): Promise<{
 
     const { session, user, isNewUser } = await response.json()
 
-    // Set the session in Supabase client
-    const { error: sessionError } = await supabase.auth.setSession({
-      access_token: session.access_token,
-      refresh_token: session.refresh_token,
-    })
-
-    if (sessionError) {
-      throw sessionError
-    }
-
+    // Session cookies are set server-side (httpOnly)
+    // No need to call setSession - just return success
     console.log(`✅ WalletConnect auth successful on ${ACTIVE_BASE_CHAIN.name}:`, address)
     return { 
       data: { session, user }, 
