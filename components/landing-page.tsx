@@ -9,7 +9,7 @@ import {
   UserPlus, LogIn, ShieldCheck,
   BarChart3, Radar, Wrench, Twitter, Globe2, Lock, LineChart
 } from "lucide-react"
-import { CustomSubmarine } from './custom-submarine';
+import { HeroSubmarine } from './hero-submarine';
 
 // Custom Icon Components
 function DiscordIcon(props: React.SVGProps<SVGSVGElement>) {
@@ -420,127 +420,15 @@ export default function LandingPage() {
             </Button>
           </div>
 
-          {/* Advanced Interactive Submarine Scene with responsive sizing */}
+          {/* Premium Submarine Hero Scene */}
           <div 
-            className={`relative my-16 max-w-6xl mx-auto transition-all duration-1000 transform ${animationLoaded ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}`}
+            className={`relative my-16 max-w-5xl mx-auto transition-all duration-1000 transform ${animationLoaded ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}`}
             style={{ transitionDelay: '1200ms' }}
           >
-            <div className="relative w-full h-64 sm:h-80 md:h-96 lg:h-[420px] overflow-hidden rounded-3xl bg-gradient-to-b from-depth-900/30 to-depth-950/30 backdrop-blur-sm border border-ocean-500/10">
-              {/* Ocean background with dynamic caustic effect */}
-              <div 
-                className="absolute inset-0 bg-cover bg-center opacity-30"
-                style={{
-                  backgroundImage: "url('/water-caustics.png')",
-                  animation: 'waterCaustics 20s linear infinite',
-                  transform: `scale(1.1) translate(${parallaxOffset.x * -0.02}px, ${parallaxOffset.y * -0.02}px)`,
-                }}
-              ></div>
-              
-              {/* Light beams */}
-              <div 
-                className="absolute top-0 left-1/4 w-40 h-96 bg-gradient-to-b from-cyan-400/10 to-transparent transform -rotate-12 blur-xl"
-                style={{
-                  transform: `translate(${parallaxOffset.x * 0.1}px, 0) rotate(-12deg)`,
-                }}
-              ></div>
-              <div 
-                className="absolute top-0 right-1/3 w-40 h-80 bg-gradient-to-b from-blue-400/10 to-transparent transform rotate-12 blur-xl"
-                style={{
-                  transform: `translate(${parallaxOffset.x * -0.15}px, 0) rotate(12deg)`,
-                }}
-              ></div>
-              
-              {/* Distant school of fish */}
-              <div className="absolute top-10 left-10 right-10 bottom-10 overflow-hidden">
-                {showParticles && [...Array(6)].map((_, i) => {
-                  const direction = i % 2 === 0 ? 'ltr' : 'rtl';
-                  return (
-                    <div 
-                      key={`fish-school-${i}`}
-                      className="absolute"
-                      style={{
-                        top: `${20 + (i * 12)}%`,
-                        left: direction === 'ltr' ? '-5%' : '105%',
-                        animation: `fishSchool${direction === 'ltr' ? '' : 'Reverse'} ${20 + (i * 5)}s linear infinite ${i * 2}s`,
-                        opacity: 0.6,
-                      }}
-                    >
-                      <div className="flex space-x-2">
-                        {[...Array(Math.floor(Math.random() * 5) + 3)].map((_, j) => (
-                          <div 
-                            key={`small-fish-${i}-${j}`}
-                            className="w-2 h-1 bg-cyan-400/30 rounded-full"
-                            style={{
-                              animation: `fishWiggle 2s ease-in-out infinite ${j * 0.2}s`,
-                            }}
-                          ></div>
-                        ))}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-              
-              {/* Custom Submarine with floating and bounce animation */}
-              <div
-                className="absolute inset-0 flex items-center justify-center"
-                style={{
-                  transform: `translate(${parallaxOffset.x * 0.05}px, ${parallaxOffset.y * 0.05}px)`
-                }}
-              >
-                <div
-                  className="animate-submarine-float"
-                  style={{
-                    width: '60%',
-                    height: '60%',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
-                >
-                  <CustomSubmarine size={320} className="drop-shadow-2xl" />
-                </div>
-              </div>
-              
-              {/* Bubble trail effect */}
-              {showParticles && [...Array(12)].map((_, i) => (
-                <div 
-                  key={`submarine-bubble-${i}`}
-                  className="absolute rounded-full bg-gradient-to-br from-white/60 to-white/20"
-                  style={{
-                    width: `${Math.random() * 6 + 2}px`,
-                    height: `${Math.random() * 6 + 2}px`,
-                    left: `${40 + Math.random() * 10}%`,
-                    top: `${40 + Math.random() * 20}%`,
-                    animation: `bubbleRiseSmall ${Math.random() * 6 + 3}s linear infinite ${Math.random() * 3}s`,
-                    opacity: Math.random() * 0.5 + 0.2,
-                  }}
-                ></div>
-              ))}
-              
-              {/* Ocean floor elements */}
-              <div className="absolute bottom-0 left-0 right-0 h-16">
-                <div className="absolute inset-0 bg-gradient-to-t from-slate-950 to-transparent"></div>
-                {/* Random rocks */}
-                {[...Array(8)].map((_, i) => (
-                  <div 
-                    key={`rock-${i}`}
-                    className="absolute bottom-0 rounded-t-lg bg-slate-800"
-                    style={{
-                      width: `${Math.random() * 30 + 10}px`,
-                      height: `${Math.random() * 10 + 5}px`,
-                      left: `${(i / 8) * 100}%`,
-                      opacity: 0.7 + Math.random() * 0.3,
-                    }}
-                  ></div>
-                ))}
-                
-                {/* Mineral glows */}
-                <div className="absolute bottom-1 left-1/5 w-3 h-3 bg-cyan-400/50 rounded-full animate-pulse"></div>
-                <div className="absolute bottom-2 left-2/3 w-2 h-2 bg-blue-400/50 rounded-full animate-pulse delay-500"></div>
-                <div className="absolute bottom-0 left-3/4 w-4 h-4 bg-teal-400/50 rounded-full animate-pulse delay-1000"></div>
-              </div>
-            </div>
+            <HeroSubmarine 
+              className="w-full"
+              parallaxOffset={parallaxOffset}
+            />
           </div>
 
           {/* Enhanced Feature Presentation */}
