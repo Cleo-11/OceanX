@@ -133,7 +133,7 @@ function ResourceBar({ label, value, maxValue, color }: ResourceBarProps) {
       <div className="flex items-center justify-between">
         <span className="text-xs text-slate-300">{label}</span>
         <span className="font-mono text-xs text-cyan-400">
-          {value.toLocaleString()}
+          {value}/{maxValue}
         </span>
       </div>
       <div className="h-1.5 w-full rounded-full bg-slate-700">
