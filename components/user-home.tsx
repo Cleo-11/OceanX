@@ -9,6 +9,7 @@ import { apiClient, createSignaturePayload } from "@/lib/api"
 import { WalletManager } from "@/lib/wallet"
 import { Button } from "./ui/button"
 import { Card, CardContent } from "./ui/card"
+import { Leaderboard } from "./leaderboard"
 // @ts-ignore
 import "../styles/user-home-animations.css"
 
@@ -592,6 +593,11 @@ export function UserHome({ playerData, onPlayClick, onSubmarineStoreClick }: Use
               </div>
             </div>
           </div>
+        </div>
+
+        {/* Leaderboard Section */}
+        <div className="mt-12">
+          <Leaderboard currentUsername={playerData.username} />
         </div>
 
         {/* Enhanced Bottom Status Bar */}
