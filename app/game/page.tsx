@@ -49,10 +49,11 @@ export default async function GamePage() {
         cobalt: 0,
         copper: 0,
         manganese: 0,
+        has_completed_tutorial: false,
         is_active: true,
         last_login: new Date().toISOString(),
       })
-      .select("wallet_address, nickel, cobalt, copper, manganese")
+      .select("wallet_address, nickel, cobalt, copper, manganese, has_completed_tutorial")
       .single()
 
     if (createError) {

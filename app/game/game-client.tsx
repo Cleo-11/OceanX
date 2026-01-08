@@ -18,6 +18,7 @@ interface GameClientProps {
     cobalt?: number
     copper?: number
     manganese?: number
+    has_completed_tutorial?: boolean | null
   } | null
 }
 
@@ -130,6 +131,7 @@ export default function GameClient({ userId, playerData }: GameClientProps) {
             sidebarOpen={sidebarOpen}
             setSidebarOpen={setSidebarOpen}
             onFullDisconnect={handleFullDisconnect}
+            hasCompletedTutorial={playerData?.has_completed_tutorial ?? false}
             initialResources={{
               nickel: playerData?.nickel ?? 0,
               cobalt: playerData?.cobalt ?? 0,

@@ -115,6 +115,7 @@ export interface Database {
           cobalt: number | null
           copper: number | null
           manganese: number | null
+          has_completed_tutorial: boolean | null
         }
         Insert: {
           id?: string
@@ -135,6 +136,7 @@ export interface Database {
           cobalt?: number | null
           copper?: number | null
           manganese?: number | null
+          has_completed_tutorial?: boolean | null
         }
         Update: {
           id?: string
@@ -155,6 +157,7 @@ export interface Database {
           cobalt?: number | null
           copper?: number | null
           manganese?: number | null
+          has_completed_tutorial?: boolean | null
         }
       }
       submarine_tiers: {

@@ -48,6 +48,8 @@ interface OceanMiningGameProps {
   onResourcesChange?: (resources: PlayerResources) => void
   // Optional: initial resources from database
   initialResources?: PlayerResources
+  // Tutorial completion status from database
+  hasCompletedTutorial?: boolean
 }
 
 export function OceanMiningGame({
@@ -60,6 +62,7 @@ export function OceanMiningGame({
   // onConnectWallet removed
   onResourcesChange,
   initialResources,
+  hasCompletedTutorial = false,
 }: OceanMiningGameProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const gameLoopRef = useRef<number>(0)
@@ -173,7 +176,7 @@ export function OceanMiningGame({
   const [showEnergyAlert, setShowEnergyAlert] = useState<boolean>(false)
   const [viewportOffset, setViewportOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 })
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>("disconnected")
-  const [showGuide, setShowGuide] = useState<boolean>(true);
+  const [showGuide, setShowGuide] = useState<boolean>(!hasCompletedTutorial);
   const [userId, setUserId] = useState<string | null>(null);
 
   // --- AQUATIC FEATURE STATE ---
@@ -1700,11 +1703,32 @@ export function OceanMiningGame({
 
   // Add debug logs for Mine button conditions
 
+  // Handle tutorial completion
+  const handleTutorialFinish = async () => {
+    setShowGuide(false)
+    
+    // Mark tutorial as complete in database
+    try {
+      const response = await fetch("/api/player/complete-tutorial", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      })
+
+      if (!response.ok) {
+        console.error("[OceanMiningGame] Failed to mark tutorial as complete")
+      } else {
+        console.info("[OceanMiningGame] Tutorial marked as complete")
+      }
+    } catch (error) {
+      console.error("[OceanMiningGame] Error marking tutorial as complete:", error)
+    }
+  }
+
 
   return (
     <>
       {showGuide && (
-        <ScubaDiverGuide onFinish={() => setShowGuide(false)} />
+        <ScubaDiverGuide onFinish={handleTutorialFinish} />
       )}
       <div className="relative h-full w-full">
         {/* Game Canvas */}
