@@ -68,7 +68,7 @@ function AuthPageContent() {
         throw error
       }
 
-      if (data?.session) {
+      if (data?.success) {
         console.log("✅ Ethereum wallet authenticated:", address, "isNewUser:", isNewUser)
         // Wait for cookies to be fully processed by browser
         await new Promise(resolve => setTimeout(resolve, 300))
@@ -97,7 +97,7 @@ function AuthPageContent() {
         throw error
       }
 
-      if (data?.session) {
+      if (data?.success) {
         console.log("✅ Coinbase Wallet authenticated:", address, "isNewUser:", isNewUser)
         // Wait for cookies to be fully processed by browser
         await new Promise(resolve => setTimeout(resolve, 300))
@@ -126,7 +126,7 @@ function AuthPageContent() {
         throw error
       }
 
-      if (data?.session) {
+      if (data?.success) {
         console.log("✅ WalletConnect authenticated:", address, "isNewUser:", isNewUser)
         // Wait for cookies to be fully processed by browser
         await new Promise(resolve => setTimeout(resolve, 300))

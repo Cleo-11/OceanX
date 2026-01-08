@@ -84,16 +84,15 @@ export async function signInWithEthereum() {
       throw new Error(errorData.error || 'SIWE authentication failed')
     }
 
-    const { session, user, isNewUser } = await response.json()
+    const { success, user, isNewUser, address: returnedAddress } = await response.json()
 
-    // Session cookies are set server-side (httpOnly)
-    // No need to call setSession - just return success
-    console.log('✅ Ethereum auth successful, session cookies set server-side')
+    // JWT cookies are set server-side (httpOnly)
+    console.log('✅ Ethereum auth successful, JWT cookies set server-side')
 
     return { 
-      data: { session, user }, 
+      data: { success, user }, 
       error: null, 
-      address,
+      address: returnedAddress || address,
       isNewUser 
     }
   } catch (error) {
@@ -157,16 +156,15 @@ export async function signInWithSolana() {
       throw new Error(errorData.error || 'Solana authentication failed')
     }
 
-    const { session, user, isNewUser } = await response.json()
+    const { success, user, isNewUser, address: returnedAddress } = await response.json()
 
-    // Session cookies are set server-side (httpOnly)
-    // No need to call setSession - just return success
-    console.log('✅ Solana auth successful, session cookies set server-side')
+    // JWT cookies are set server-side (httpOnly)
+    console.log('✅ Solana auth successful, JWT cookies set server-side')
 
     return { 
-      data: { session, user }, 
+      data: { success, user }, 
       error: null, 
-      address: publicKey,
+      address: returnedAddress || publicKey,
       isNewUser 
     }
   } catch (error) {
@@ -234,15 +232,14 @@ export async function signInWithCoinbase() {
       throw new Error(errorData.error || 'Coinbase Wallet authentication failed')
     }
 
-    const { session, user, isNewUser } = await response.json()
+    const { success, user, isNewUser, address: returnedAddress } = await response.json()
 
-    // Session cookies are set server-side (httpOnly)
-    // No need to call setSession - just return success
-    console.log('✅ Coinbase Wallet auth successful, session cookies set server-side:', address)
+    // JWT cookies are set server-side (httpOnly)
+    console.log('✅ Coinbase Wallet auth successful, JWT cookies set server-side:', returnedAddress || address)
     return { 
-      data: { session, user }, 
+      data: { success, user }, 
       error: null, 
-      address,
+      address: returnedAddress || address,
       isNewUser 
     }
   } catch (error) {
@@ -457,7 +454,7 @@ export function isWalletConnectAvailable(): boolean {
  * 3. Set NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID in .env
  */
 export async function signInWithWalletConnect(): Promise<{
-  data: { session: any; user: any } | null
+  data: { success: boolean; user: any } | null
   error: Error | null
   address: string | null
   isNewUser?: boolean
@@ -562,15 +559,14 @@ export async function signInWithWalletConnect(): Promise<{
       throw new Error(errorData.error || 'WalletConnect authentication failed')
     }
 
-    const { session, user, isNewUser } = await response.json()
+    const { success, user, isNewUser, address: returnedAddress } = await response.json()
 
-    // Session cookies are set server-side (httpOnly)
-    // No need to call setSession - just return success
-    console.log(`✅ WalletConnect auth successful on ${ACTIVE_BASE_CHAIN.name}:`, address)
+    // JWT cookies are set server-side (httpOnly)
+    console.log(`✅ WalletConnect auth successful on ${ACTIVE_BASE_CHAIN.name}:`, returnedAddress || address)
     return { 
-      data: { session, user }, 
+      data: { success, user }, 
       error: null, 
-      address,
+      address: returnedAddress || address,
       isNewUser,
       walletType: 'walletconnect'
     }
