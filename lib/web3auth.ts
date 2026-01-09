@@ -7,6 +7,7 @@
  */
 
 import { ethers } from 'ethers'
+import { WalletManager } from './wallet'
 
 export interface Web3AuthProvider {
   type: 'ethereum' | 'solana' | 'walletconnect'
@@ -43,6 +44,24 @@ export async function signInWithEthereum() {
   try {
     if (typeof window === 'undefined' || !window.ethereum) {
       throw new Error('No Ethereum wallet detected. Please install MetaMask.')
+    }
+
+    // Check and switch to allowed network (BASE or Sepolia)
+    const walletManager = WalletManager.getInstance()
+    
+    try {
+      // First, request account access
+      await window.ethereum.request({ method: 'eth_requestAccounts' })
+      
+      // Then ensure we're on the correct network
+      await walletManager.ensureAllowedNetwork()
+    } catch (networkError) {
+      console.error('Network switch error:', networkError)
+      throw new Error(
+        networkError instanceof Error 
+          ? networkError.message 
+          : 'Please switch to BASE or Sepolia network to continue'
+      )
     }
 
     // Request account access

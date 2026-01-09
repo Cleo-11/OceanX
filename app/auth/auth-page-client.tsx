@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { Anchor, ArrowLeft, Loader2, AlertCircle, Wallet, ExternalLink, Smartphone } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { NetworkStatus } from "@/components/network-status"
 import { 
   signInWithEthereum, 
   signInWithCoinbase, 
@@ -195,6 +196,13 @@ function AuthPageContent() {
               </span>
             </div>
           </div>
+
+          {/* Network Status - Shows if user needs to switch networks */}
+          {mounted && isEthereumAvailable() && (
+            <div className="mb-4">
+              <NetworkStatus />
+            </div>
+          )}
 
           {/* Ethereum Wallet */}
           <Button
