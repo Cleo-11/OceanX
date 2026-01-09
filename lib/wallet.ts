@@ -1,6 +1,6 @@
 import { ethers } from "ethers"
 import { CHAINS, getPrimaryChain, isChainAllowed, getChainName } from "./chain-config"
-import { getOCXBalance, OCX_TOKEN_ADDRESS } from "./contracts/ocx-token"
+import { getOCXBalance } from "./contracts/ocx-token"
 
 export interface WalletConnection {
   address: string
@@ -92,7 +92,7 @@ export class WalletManager {
    * If not, prompt the user to switch to the primary chain
    */
   async ensureAllowedNetwork(): Promise<void> {
-    const { allowed, chainId, chainName } = await this.isOnAllowedNetwork()
+    const { allowed, chainName } = await this.isOnAllowedNetwork()
     
     if (!allowed) {
       const primaryChain = getPrimaryChain()
