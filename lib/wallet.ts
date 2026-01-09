@@ -1,5 +1,5 @@
 import { ethers } from "ethers"
-import { CHAINS, ALLOWED_CHAIN_IDS, getPrimaryChain, isChainAllowed, getChainName } from "./chain-config"
+import { CHAINS, getPrimaryChain, isChainAllowed, getChainName } from "./chain-config"
 import { getOCXBalance, OCX_TOKEN_ADDRESS } from "./contracts/ocx-token"
 
 export interface WalletConnection {
