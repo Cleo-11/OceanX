@@ -7,8 +7,11 @@
 
 import { ethers } from 'ethers';
 
-// Contract address on Sepolia
-export const OCX_TOKEN_ADDRESS = '0x0D30A0D0d4De399ED862D0509817aDE64b7d2Ea9';
+// Contract address - use environment variable with fallback
+export const OCX_TOKEN_ADDRESS = 
+  process.env.NEXT_PUBLIC_TOKEN_CONTRACT_ADDRESS || 
+  process.env.NEXT_PUBLIC_OCEAN_X_TOKEN_ADDRESS || 
+  '0x0D30A0D0d4De399ED862D0509817aDE64b7d2Ea9';
 
 // Sepolia chain ID
 export const CHAIN_ID = 11155111;

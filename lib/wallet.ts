@@ -1,5 +1,6 @@
 import { ethers } from "ethers"
 import { CHAINS, ALLOWED_CHAIN_IDS, getPrimaryChain, isChainAllowed, getChainName } from "./chain-config"
+import { getOCXBalance, OCX_TOKEN_ADDRESS } from "./contracts/ocx-token"
 
 export interface WalletConnection {
   address: string
@@ -145,7 +146,23 @@ export class WalletManager {
     return await this.connection.signer.signMessage(message)
   }
 
+  /**
+   * Get OCX token balance for the connected wallet
+   * This fetches the ERC20 OCX token balance from the blockchain
+   */
   async getBalance(): Promise<string> {
+    if (!this.connection) {
+      throw new Error("Wallet not connected")
+    }
+
+    // Fetch OCX token balance (not native ETH balance)
+    return await getOCXBalance(this.connection.address, this.connection.provider)
+  }
+
+  /**
+   * Get native ETH balance for the connected wallet
+   */
+  async getNativeBalance(): Promise<string> {
     if (!this.connection) {
       throw new Error("Wallet not connected")
     }
