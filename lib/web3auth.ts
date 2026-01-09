@@ -1,7 +1,7 @@
 /**
  * Web3 Authentication with Supabase
  * Supports Sign-In with Ethereum (SIWE), Sign-In with Solana (SIWS), and WalletConnect
- * 
+ * ee
  * Web3-first authentication - no email/password or social logins
  * Session cookies are set server-side (httpOnly) - no client-side session management needed
  */
