@@ -5,6 +5,19 @@ const config: Config = {
 			 safelist: [
 				// Core body/layout classes to prevent purge removal
 				'min-h-screen', 'bg-depth-950', 'font-sans', 'antialiased',
+				// Design system classes
+				'ocean-home', 'container-ocean', 'grid-main', 'section-gap',
+				'card-base', 'card-glass', 'card-elevated',
+				'btn-primary', 'btn-secondary', 'btn-hero',
+				'heading-hero', 'heading-section', 'heading-card',
+				'text-body', 'text-caption', 'text-overline', 'text-mono',
+				'status-pill', 'status-indicator', 'status-bar',
+				'progress-bar', 'progress-bar-fill',
+				'stats-grid', 'stat-item', 'stat-icon', 'stat-value', 'stat-label',
+				'submarine-card', 'submarine-icon-wrapper',
+				'captains-log', 'captains-log-header', 'captains-log-entry', 'captains-log-cursor',
+				'leaderboard-row', 'rank-badge', 'rank-badge-gold', 'rank-badge-silver', 'rank-badge-bronze',
+				'ocx-amount', 'skeleton', 'interactive', 'depth-gradient', 'ocean-glow',
 			// For AnimatedFish and Seaweed dynamic color classes
 			'bg-cyan-500/40', 'bg-cyan-400/70', 'bg-cyan-300/40',
 			'bg-blue-500/40', 'bg-blue-400/70', 'bg-blue-300/40',
