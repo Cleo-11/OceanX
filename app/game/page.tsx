@@ -69,5 +69,5 @@ export default async function GamePage() {
     hasPlayerData: !!playerData,
   })
 
-  return <GameClient userId={auth.userId} playerData={playerData} />
+  return <GameClient userId={auth.userId} playerData={playerData} walletAddress={auth.walletAddress} />
 }

@@ -50,6 +50,8 @@ interface OceanMiningGameProps {
   initialResources?: PlayerResources
   // Tutorial completion status from database
   hasCompletedTutorial?: boolean
+  // Optional: initial wallet address from server auth
+  initialWalletAddress?: string
 }
 
 export function OceanMiningGame({
@@ -63,6 +65,7 @@ export function OceanMiningGame({
   onResourcesChange,
   initialResources,
   hasCompletedTutorial = false,
+  initialWalletAddress = "",
 }: OceanMiningGameProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const gameLoopRef = useRef<number>(0)
@@ -100,7 +103,7 @@ export function OceanMiningGame({
   const [sessionId, setSessionId] = useState<string | null>(null)
   // Multiplayer disabled: Only single player state is used
   // const [otherPlayers, setOtherPlayers] = useState<OtherPlayer[]>([])
-  const [walletAddress, setWalletAddress] = useState<string>("")
+  const [walletAddress, setWalletAddress] = useState<string>(initialWalletAddress)
   // CRITICAL FIX: Recalculate submarine data whenever playerTier changes
   const submarineData = useMemo(() => getSubmarineByTier(playerTier), [playerTier])
 

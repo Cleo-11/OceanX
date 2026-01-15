@@ -20,6 +20,7 @@ interface GameClientProps {
     manganese?: number
     has_completed_tutorial?: boolean | null
   } | null
+  walletAddress: string
 }
 
 function logCssDiagnostics(context: string) {
@@ -50,7 +51,7 @@ function logCssDiagnostics(context: string) {
   })
 }
 
-export default function GameClient({ userId, playerData }: GameClientProps) {
+export default function GameClient({ userId, playerData, walletAddress }: GameClientProps) {
   const [gameState, setGameState] = useState<GameState>("idle")
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
@@ -132,6 +133,7 @@ export default function GameClient({ userId, playerData }: GameClientProps) {
             setSidebarOpen={setSidebarOpen}
             onFullDisconnect={handleFullDisconnect}
             hasCompletedTutorial={playerData?.has_completed_tutorial ?? false}
+            initialWalletAddress={walletAddress}
             initialResources={{
               nickel: playerData?.nickel ?? 0,
               cobalt: playerData?.cobalt ?? 0,
