@@ -116,26 +116,28 @@ export default function MarketplaceClient({ playerData }: MarketplaceClientProps
 
     const loadResources = async () => {
       try {
-        // Fetch marketplace definitions (rates, icons, descriptions)
-        const { data: marketData, error: marketError } = await supabase
-          .from("marketplace_resources")
-          .select("id, name, icon, base_ocx_rate, description")
-
-        if (marketError) throw marketError
-
         // Fetch player's resource balances via RPC (returns nickel/cobalt/copper/manganese)
         const { data: playerRes, error: playerErr } = await supabase.rpc("get_player_resources", {
           p_player_id: playerData.id,
         })
 
         if (playerErr) {
-          // Not fatal — continue with marketData but amounts may be 0
           console.warn("get_player_resources RPC failed:", playerErr)
         }
 
         const pr = Array.isArray(playerRes) ? playerRes[0] : playerRes
 
-        const source = marketData && marketData.length ? marketData : DEFAULT_MARKETPLACE_RESOURCES
+        // Fetch marketplace definitions (rates, icons, descriptions) from Supabase
+        const { data: marketData, error: marketError } = await supabase
+          .from("marketplace_resources")
+          .select("id, name, icon, base_ocx_rate, description, rarity, category, is_tradable")
+
+        // Use Supabase data if available, otherwise fall back to defaults
+        const source = (marketData && marketData.length > 0) ? marketData : DEFAULT_MARKETPLACE_RESOURCES
+
+        if (marketError) {
+          console.warn("marketplace_resources table query failed, using defaults:", marketError.message)
+        }
 
         const mapped: Resource[] = source.map((m: any) => {
           const ocxRate = m.base_ocx_rate ?? m.ocxRate
