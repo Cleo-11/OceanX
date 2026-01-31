@@ -1500,13 +1500,14 @@ export function OceanMiningGame({
   const handleTradeAll = async () => {
     if (totalUsed === 0) return; // Only allow if player has resources
     setGameState("trading");
+    
     try {
       // Calculate OCX earned based on resource values
       const resourceValues = {
-        nickel: 1,
-        cobalt: 2,
-        copper: 3,
-        manganese: 4,
+        nickel: 10,  // Match marketplace rates
+        cobalt: 25,
+        copper: 50,
+        manganese: 100,
       };
       
       const ocxEarned = 
@@ -1515,7 +1516,64 @@ export function OceanMiningGame({
         resources.copper * resourceValues.copper +
         resources.manganese * resourceValues.manganese;
 
-      // Clear resources and update balance
+      if (ocxEarned <= 0) {
+        alert("No resources to trade!");
+        setGameState("idle");
+        return;
+      }
+
+      // Require wallet connection for trading
+      if (!walletConnected || !initialWalletAddress) {
+        alert("Please connect your wallet to trade resources for OCX tokens!");
+        setGameState("idle");
+        return;
+      }
+
+      const { executeMarketplaceTrade } = await import("@/lib/services/blockchain-trade.service");
+      const { ethers } = await import("ethers");
+      
+      // Get wallet signer
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const signer = await provider.getSigner();
+      
+      // Execute blockchain trade for all resources
+      const result = await executeMarketplaceTrade(
+        {
+          walletAddress: initialWalletAddress,
+          ocxAmount: ocxEarned,
+          resourceType: "mixed", // Trading all resources
+          resourceAmount: totalUsed,
+        },
+        signer,
+        (step, message) => {
+          console.log(`Trade step ${step}: ${message}`);
+        }
+      );
+
+      if (!result.success) {
+        throw new Error(result.error || "Blockchain trade failed");
+      }
+
+      // ✅ Blockchain transaction succeeded - now update Supabase
+      const user = await getCurrentUser();
+      if (user) {
+        const { createClient } = await import("@/lib/supabase");
+        const supabase = createClient();
+        
+        await supabase
+          .from("players")
+          .update({
+            total_ocx_earned: (await supabase
+              .from("players")
+              .select("total_ocx_earned")
+              .eq("id", user.id)
+              .single()
+              .then(r => r.data?.total_ocx_earned || 0)) + ocxEarned,
+          })
+          .eq("id", user.id);
+      }
+
+      // Update frontend state
       setResources({ nickel: 0, cobalt: 0, copper: 0, manganese: 0 });
       setPlayerStats((prev) => ({
         ...prev,
@@ -1524,8 +1582,9 @@ export function OceanMiningGame({
       setBalance((prev) => prev + ocxEarned);
       setGameState("resourceTraded");
       setTimeout(() => setGameState("idle"), 2000);
-    } catch (e) {
-      alert("Trade failed. Please try again.");
+    } catch (e: any) {
+      console.error("Trade error:", e);
+      alert(e.message || "Trade failed. Please try again.");
       setGameState("idle");
     }
   };

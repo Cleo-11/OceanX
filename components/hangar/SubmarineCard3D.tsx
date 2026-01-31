@@ -11,7 +11,7 @@ import { Lock, Star, Zap, Gauge, Battery, Anchor, Drill } from "lucide-react"
  * TESTING MODE: Set to true to unlock ALL submarines for testing
  * TODO: Set back to false before production deployment
  */
-const TESTING_MODE_UNLOCK_ALL = false
+const TESTING_MODE_UNLOCK_ALL = true
 
 /**
  * SubmarineCard3D Component
