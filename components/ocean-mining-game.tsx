@@ -1557,8 +1557,7 @@ export function OceanMiningGame({
       // ✅ Blockchain transaction succeeded - now update Supabase
       const user = await getCurrentUser();
       if (user) {
-        const { createClient } = await import("@/lib/supabase");
-        const supabase = createClient();
+        const { supabase } = await import("@/lib/supabase");
         
         await supabase
           .from("players")
