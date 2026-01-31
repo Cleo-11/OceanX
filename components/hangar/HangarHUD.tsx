@@ -1,6 +1,6 @@
 "use client"
 
-import { X, Wallet } from "lucide-react"
+import { X, Wallet, RefreshCw } from "lucide-react"
 import type { PlayerResources } from "@/lib/types"
 import { getSubmarineByTier } from "@/lib/submarine-tiers"
 
@@ -22,9 +22,10 @@ interface HangarHUDProps {
   currentTier: number
   walletAddress: string
   onClose: () => void
+  onRefreshBalance?: () => void
 }
 
-export function HangarHUD({ balance, resources, currentTier, walletAddress, onClose }: HangarHUDProps) {
+export function HangarHUD({ balance, resources, currentTier, walletAddress, onClose, onRefreshBalance }: HangarHUDProps) {
   const currentSubmarine = getSubmarineByTier(currentTier)
   
   // Calculate total resources
@@ -84,7 +85,16 @@ export function HangarHUD({ balance, resources, currentTier, walletAddress, onCl
                     <div className="flex items-center gap-2">
                       <Wallet className="w-4 h-4 text-cyan-400" />
                       <span className="text-xl font-bold text-cyan-300">{balance.toLocaleString()}</span>
-                      <span className="text-sm text-slate-400">OCE</span>
+                      <span className="text-sm text-slate-400">OCX</span>
+                      {onRefreshBalance && (
+                        <button
+                          onClick={onRefreshBalance}
+                          className="ml-1 p-1 rounded hover:bg-cyan-500/20 transition-colors group"
+                          title="Refresh balance"
+                        >
+                          <RefreshCw className="w-3 h-3 text-slate-400 group-hover:text-cyan-400 transition-colors" />
+                        </button>
+                      )}
                     </div>
                   </div>
 

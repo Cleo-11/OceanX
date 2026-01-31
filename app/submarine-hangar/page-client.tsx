@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { StyleWrapper } from "@/components/style-wrapper"
 import type { PlayerResources } from "@/lib/types"
@@ -38,13 +38,59 @@ type SubmarineHangarClientProps = {
 export default function SubmarineHangarClient({
   currentTier,
   resources,
-  balance,
+  balance: initialBalance,
   walletAddress,
 }: SubmarineHangarClientProps) {
   const router = useRouter()
+  const [balance, setBalance] = useState(initialBalance)
   const [isUpgrading, setIsUpgrading] = useState(false)
   const [upgradeStatus, setUpgradeStatus] = useState<string | null>(null)
   const [upgradeError, setUpgradeError] = useState<string | null>(null)
+  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null)
+
+  /**
+   * Fetch updated balance from the server
+   */
+  const fetchBalance = async () => {
+    try {
+      const response = await fetch('/api/player/balance')
+      if (response.ok) {
+        const data = await response.json()
+        if (typeof data.balance === 'number') {
+          setBalance(data.balance)
+        }
+      }
+    } catch (error) {
+      console.error('Failed to fetch balance:', error)
+    }
+  }
+
+  /**
+   * Setup polling for balance updates
+   */
+  useEffect(() => {
+    // Fetch balance immediately on mount
+    fetchBalance()
+
+    // Poll every 5 seconds to keep balance fresh
+    pollingIntervalRef.current = setInterval(() => {
+      fetchBalance()
+    }, 5000)
+
+    // Cleanup on unmount
+    return () => {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current)
+      }
+    }
+  }, [])
+
+  /**
+   * Update balance when initial balance prop changes
+   */
+  useEffect(() => {
+    setBalance(initialBalance)
+  }, [initialBalance])
 
   /**
    * Handle submarine purchase/upgrade
@@ -137,6 +183,9 @@ export default function SubmarineHangarClient({
         console.error('Failed to call execute endpoint', err)
       }
       
+      // Fetch updated balance after successful transaction
+      await fetchBalance()
+      
       // NOTE: After redirecting to /connect-wallet and returning, the real
       // upgrade flow should resume here and perform server verification.
       // That resume mechanism is left as a TODO (e.g. pending action saved server-side)
@@ -209,6 +258,7 @@ export default function SubmarineHangarClient({
             currentTier={currentTier}
             walletAddress={walletAddress}
             onClose={handleClose}
+            onRefreshBalance={fetchBalance}
           />
           {/* Hangar Header */}
           <HangarHeader currentTier={currentTier} />
