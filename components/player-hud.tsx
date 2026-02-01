@@ -5,10 +5,10 @@ import { motion } from "framer-motion"
 interface PlayerHUDProps {
   stats: PlayerStats;
   tier: number;
-  storedResources?: PlayerResources; // Resources from database
+  resources?: PlayerResources; // Live resources for instant UI updates
 }
 
-export function PlayerHUD({ stats, tier, storedResources }: PlayerHUDProps) {
+export function PlayerHUD({ stats, tier, resources }: PlayerHUDProps) {
   const submarineData = getSubmarineByTier(tier);
   return (
     <motion.div
@@ -42,25 +42,25 @@ export function PlayerHUD({ stats, tier, storedResources }: PlayerHUDProps) {
           <div className="grid grid-cols-2 gap-2">
             <ResourceBar
               label="NICKEL"
-              value={storedResources?.nickel ?? 0}
+              value={resources?.nickel ?? 0}
               maxValue={stats.maxCapacity.nickel}
               color="bg-slate-400"
             />
             <ResourceBar
               label="COBALT"
-              value={storedResources?.cobalt ?? 0}
+              value={resources?.cobalt ?? 0}
               maxValue={stats.maxCapacity.cobalt}
               color="bg-blue-500"
             />
             <ResourceBar
               label="COPPER"
-              value={storedResources?.copper ?? 0}
+              value={resources?.copper ?? 0}
               maxValue={stats.maxCapacity.copper}
               color="bg-orange-500"
             />
             <ResourceBar
               label="MANGANESE"
-              value={storedResources?.manganese ?? 0}
+              value={resources?.manganese ?? 0}
               maxValue={stats.maxCapacity.manganese}
               color="bg-purple-500"
             />

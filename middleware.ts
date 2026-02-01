@@ -12,18 +12,8 @@ import type { NextRequest } from 'next/server'
 const ACCESS_TOKEN_COOKIE = 'sb-access-token'
 
 /**
- * TESTING MODE: Controlled by environment variables.
+ * Production mode: Authentication is always enforced
  */
-const NODE_ENV = process.env.NODE_ENV || 'production'
-const ALLOW_AUTH_BYPASS_RAW = process.env.ALLOW_AUTH_BYPASS === 'true'
-
-if (NODE_ENV === 'production' && ALLOW_AUTH_BYPASS_RAW) {
-  throw new Error(
-    '🚨 SECURITY VIOLATION: ALLOW_AUTH_BYPASS cannot be enabled in production!'
-  )
-}
-
-const TESTING_MODE_BYPASS_AUTH = (NODE_ENV !== 'production' && ALLOW_AUTH_BYPASS_RAW)
 
 /**
  * Decode JWT payload without verification (Edge Runtime compatible)
@@ -68,12 +58,6 @@ export async function middleware(req: NextRequest) {
   // Skip middleware for auth callback
   if (pathname.startsWith('/auth/callback')) {
     console.log("[middleware] Skipping middleware for /auth/callback")
-    return res
-  }
-
-  // TESTING MODE: Skip all auth checks
-  if (TESTING_MODE_BYPASS_AUTH) {
-    console.log("[middleware] TESTING MODE - Bypassing all auth checks")
     return res
   }
 

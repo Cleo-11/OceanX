@@ -29,13 +29,6 @@ import { ScubaDiverGuide } from "./ScubaDiverGuide"
 import { loadGameState, setupAutoSave, clearGameState, getDefaultGameState } from "@/lib/gameStateStorage"
 import { getCurrentUser } from "@/lib/supabase"
 
-/**
- * TESTING MODE: Controlled by environment variables.
- * Only allow bypass on non-production builds and when explicitly enabled via
- * `NEXT_PUBLIC_ALLOW_BLOCKCHAIN_BYPASS=true` in local/dev env.
- */
-const TESTING_MODE_BYPASS_BLOCKCHAIN = (process.env.NODE_ENV !== 'production' && process.env.NEXT_PUBLIC_ALLOW_BLOCKCHAIN_BYPASS === 'true')
-
 interface OceanMiningGameProps {
   walletConnected: boolean
   gameState: GameState
@@ -125,14 +118,6 @@ export function OceanMiningGame({
     manganese: initialResources?.manganese ?? 0,
   })
 
-  // State for stored resources from database (refreshed periodically)
-  const [storedResources, setStoredResources] = useState<PlayerResources>({
-    nickel: initialResources?.nickel ?? 0,
-    cobalt: initialResources?.cobalt ?? 0,
-    copper: initialResources?.copper ?? 0,
-    manganese: initialResources?.manganese ?? 0,
-  })
-
   // Notify parent when resources change (lightweight autosave hook)
   useEffect(() => {
     if (onResourcesChange) {
@@ -140,34 +125,6 @@ export function OceanMiningGame({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resources])
-
-  // Fetch stored resources from database periodically
-  useEffect(() => {
-    const fetchStoredResources = async () => {
-      try {
-        const response = await fetch("/api/player/get-resources")
-        if (response.ok) {
-          const result = await response.json()
-          if (result.success && result.data) {
-            setStoredResources(result.data)
-            console.info("[OceanMiningGame] ✅ Refreshed stored resources:", result.data)
-          }
-        } else {
-          console.warn("[OceanMiningGame] Failed to fetch stored resources:", response.status)
-        }
-      } catch (error) {
-        console.error("[OceanMiningGame] Error fetching stored resources:", error)
-      }
-    }
-
-    // Fetch immediately on mount
-    fetchStoredResources()
-
-    // Refresh every 5 seconds
-    const interval = setInterval(fetchStoredResources, 5000)
-
-    return () => clearInterval(interval)
-  }, [])
 
   const [balance, setBalance] = useState<number>(0)
   const [showUpgradeModal, setShowUpgradeModal] = useState<boolean>(false)
@@ -1619,31 +1576,7 @@ export function OceanMiningGame({
   const executeSubmarineUpgrade = async (targetTierOverride?: number): Promise<SubmarineUpgradeResult> => {
     const targetTier = targetTierOverride ?? playerTier + 1
     
-    // TESTING MODE: Skip blockchain verification and directly update tier
-    if (TESTING_MODE_BYPASS_BLOCKCHAIN) {
-      console.log(`🧪 TESTING MODE: Upgrading to tier ${targetTier} without blockchain`)
-      
-      // Simulate a successful upgrade response
-      const mockUpgradeData: SubmarineUpgradeResult = {
-        playerId: 'testing-mode-player',
-        wallet: walletAddress || 'testing-mode',
-        previousTier: playerTier,
-        newTier: targetTier,
-        coins: balance, // Keep current balance in testing mode
-        cost: {
-          coins: 0 // No cost in testing mode
-        },
-        timestamp: new Date().toISOString(),
-        message: `Successfully upgraded to Tier ${targetTier} (Testing Mode)`
-      }
-      
-      // Apply the upgrade state
-      applyUpgradeStateFromResponse(mockUpgradeData)
-      
-      return mockUpgradeData
-    }
-    
-    // Original blockchain upgrade logic (only runs when TESTING_MODE_BYPASS_BLOCKCHAIN = false)
+    // Blockchain upgrade logic
     const connection = walletManager.getConnection()
     if (!connection) {
       throw new Error("Wallet not connected")
@@ -1805,7 +1738,7 @@ export function OceanMiningGame({
           )}
 
           {/* Player Stats HUD */}
-          <PlayerHUD stats={playerStats} tier={playerTier} storedResources={storedResources} />
+          <PlayerHUD stats={playerStats} tier={playerTier} resources={resources} />
 
           {/* Sonar/Mini-map at bottom left */}
           <div className="absolute left-4 bottom-4 z-20">

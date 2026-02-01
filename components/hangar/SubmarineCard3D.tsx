@@ -8,12 +8,6 @@ import { hasEnoughResourcesForUpgrade } from "@/lib/resource-utils"
 import { Lock, Star, Zap, Gauge, Battery, Anchor, Drill } from "lucide-react"
 
 /**
- * TESTING MODE: Set to true to unlock ALL submarines for testing
- * TODO: Set back to false before production deployment
- */
-const TESTING_MODE_UNLOCK_ALL = true
-
-/**
  * SubmarineCard3D Component
  * 
  * Displays a single submarine in a 3D holographic card with:
@@ -44,12 +38,6 @@ export function SubmarineCard3D({
   onPurchase,
 }: SubmarineCard3DProps) {
   const getTierStatus = () => {
-    // TESTING MODE: Treat all submarines as available when testing
-    if (TESTING_MODE_UNLOCK_ALL) {
-      if (submarine.tier === currentTier) return "current"
-      return "available"
-    }
-    
     if (submarine.tier < currentTier) return "owned"
     if (submarine.tier === currentTier) return "current"
     if (submarine.tier === currentTier + 1) return "available"
@@ -262,18 +250,17 @@ export function SubmarineCard3D({
               {/* Action Button */}
               {status === "available" && (
                 <motion.button
-                  whileHover={{ scale: (canAfford || TESTING_MODE_UNLOCK_ALL) && !isUpgrading ? 1.02 : 1 }}
-                  whileTap={{ scale: (canAfford || TESTING_MODE_UNLOCK_ALL) && !isUpgrading ? 0.98 : 1 }}
+                  whileHover={{ scale: canAfford && !isUpgrading ? 1.02 : 1 }}
+                  whileTap={{ scale: canAfford && !isUpgrading ? 0.98 : 1 }}
                   onClick={() => {
-                    // TESTING MODE: Allow purchasing any submarine
-                    if ((canAfford || TESTING_MODE_UNLOCK_ALL) && !isUpgrading) {
+                    if (canAfford && !isUpgrading) {
                       onPurchase(submarine.tier)
                     }
                   }}
-                  disabled={!(canAfford || TESTING_MODE_UNLOCK_ALL) || isUpgrading}
+                  disabled={!canAfford || isUpgrading}
                   className={`mt-4 w-full py-4 rounded-xl font-bold text-lg uppercase tracking-wider
                     transition-all duration-300 relative overflow-hidden
-                    ${(canAfford || TESTING_MODE_UNLOCK_ALL) && !isUpgrading
+                    ${canAfford && !isUpgrading
                       ? "bg-gradient-to-r from-cyan-600 to-blue-600 text-white shadow-lg shadow-cyan-500/50 hover:shadow-cyan-500/70"
                       : "bg-slate-700 text-slate-400 cursor-not-allowed opacity-50"
                     }`}
@@ -283,13 +270,13 @@ export function SubmarineCard3D({
                       <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin" />
                       Upgrading...
                     </span>
-                  ) : (canAfford || TESTING_MODE_UNLOCK_ALL) ? (
-                    TESTING_MODE_UNLOCK_ALL ? "Deploy Submarine (Testing)" : "Deploy Submarine"
+                  ) : canAfford ? (
+                    "Deploy Submarine"
                   ) : (
                     "Insufficient Resources"
                   )}
                   
-                  {(canAfford || TESTING_MODE_UNLOCK_ALL) && !isUpgrading && (
+                  {canAfford && !isUpgrading && (
                     <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent 
                                     transform -skew-x-12 -translate-x-full group-hover:translate-x-full 
                                     transition-transform duration-700" />
