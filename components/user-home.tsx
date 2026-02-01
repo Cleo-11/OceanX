@@ -240,6 +240,24 @@ export function UserHome({ playerData, onPlayClick, onSubmarineStoreClick }: Use
 
   const handleDisconnectWallet = async () => {
     try {
+      // Request MetaMask to revoke permissions (triggers popup)
+      if (typeof window !== 'undefined' && window.ethereum) {
+        try {
+          // Use wallet_revokePermissions to trigger MetaMask disconnect popup
+          await window.ethereum.request({
+            method: 'wallet_revokePermissions',
+            params: [
+              {
+                eth_accounts: {}
+              }
+            ]
+          })
+        } catch (error: any) {
+          // If wallet_revokePermissions is not supported, log and continue with session cleanup
+          console.log('Wallet revoke not supported, continuing with session cleanup:', error.message)
+        }
+      }
+
       // Call the signout API to clear JWT cookies
       const response = await fetch('/api/auth/signout', { method: 'POST' })
       if (response.ok) {
