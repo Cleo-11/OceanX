@@ -19,7 +19,8 @@ import {
   Clock,
   Gem,
   Shield,
-  Fuel
+  Fuel,
+  LogOut
 } from "lucide-react"
 import SubmarineIcon from "./SubmarineIcon"
 import { getSubmarineByTier } from "@/lib/submarine-tiers"
@@ -235,6 +236,25 @@ export function UserHome({ playerData, onPlayClick, onSubmarineStoreClick }: Use
       minute: '2-digit', 
       second: '2-digit' 
     })
+  }
+
+  const handleDisconnectWallet = async () => {
+    try {
+      // Call the signout API to clear JWT cookies
+      const response = await fetch('/api/auth/signout', { method: 'POST' })
+      if (response.ok) {
+        // Disconnect wallet manager
+        const walletManager = WalletManager.getInstance()
+        walletManager.disconnect()
+        
+        // Redirect to auth page
+        router.push('/')
+      } else {
+        console.error('Failed to sign out')
+      }
+    } catch (error) {
+      console.error('Error disconnecting wallet:', error)
+    }
   }
 
   const depthProgress = Math.min((currentSubmarine.baseStats.depth / 1000) * 100, 100)
@@ -590,6 +610,17 @@ export function UserHome({ playerData, onPlayClick, onSubmarineStoreClick }: Use
                   >
                     <User className="w-4 h-4 text-slate-400" />
                     <span className="text-sm text-slate-300">View Profile</span>
+                  </motion.button>
+
+                  {/* Disconnect Wallet Button */}
+                  <motion.button 
+                    whileHover={{ scale: 1.01, borderColor: 'rgba(239,68,68,0.4)' }}
+                    whileTap={{ scale: 0.99 }}
+                    onClick={handleDisconnectWallet}
+                    className="w-full flex items-center justify-center gap-2 py-3 px-6 rounded-xl bg-slate-800/30 border border-slate-700/30 hover:bg-red-900/30 hover:border-red-500/40 transition-all group"
+                  >
+                    <LogOut className="w-4 h-4 text-slate-400 group-hover:text-red-400 transition-colors" />
+                    <span className="text-sm text-slate-300 group-hover:text-red-300 transition-colors">Disconnect Wallet</span>
                   </motion.button>
                 </div>
               </div>
