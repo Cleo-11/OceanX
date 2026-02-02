@@ -13,6 +13,12 @@ import { getOCXTokenContractWithSigner } from '@/lib/contracts/ocx-token';
 // Backend API URL
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
 
+// Debug: Log the backend URL being used (remove after debugging)
+if (typeof window !== 'undefined') {
+  console.log('[BlockchainTradeService] BACKEND_URL:', BACKEND_URL);
+  console.log('[BlockchainTradeService] ENV value:', process.env.NEXT_PUBLIC_BACKEND_URL);
+}
+
 export interface ClaimSignatureResponse {
   success: boolean;
   tradeId: string | null;
