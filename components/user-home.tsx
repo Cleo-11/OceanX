@@ -111,6 +111,7 @@ export function UserHome({ playerData, onPlayClick, onSubmarineStoreClick }: Use
   const [walletChecked, setWalletChecked] = useState(false)
   const [currentLogIndex, setCurrentLogIndex] = useState(0)
   const [logEntryNumber, setLogEntryNumber] = useState(1)
+  const [isDisconnecting, setIsDisconnecting] = useState(false)
   
   const router = useRouter()
   const currentSubmarine = getSubmarineByTier(playerData.submarine_tier)
@@ -132,6 +133,8 @@ export function UserHome({ playerData, onPlayClick, onSubmarineStoreClick }: Use
   // Fetch OCX balance and network
   useEffect(() => {
     async function fetchBalanceAndNetwork() {
+      if (isDisconnecting) return // Skip if manually disconnecting
+      
       setBalanceLoading(true)
       try {
         const walletManager = WalletManager.getInstance()
@@ -161,7 +164,7 @@ export function UserHome({ playerData, onPlayClick, onSubmarineStoreClick }: Use
       }
     }
     fetchBalanceAndNetwork()
-  }, [playerData.wallet_address, isWalletConnected])
+  }, [playerData.wallet_address, isWalletConnected, isDisconnecting])
 
   // Redirect on disconnect
   useEffect(() => {
@@ -173,6 +176,8 @@ export function UserHome({ playerData, onPlayClick, onSubmarineStoreClick }: Use
   // Wallet disconnect detection
   useEffect(() => {
     async function syncAccounts(accounts?: string[]) {
+      if (isDisconnecting) return // Skip if manually disconnecting
+      
       try {
         const walletManager = WalletManager.getInstance()
         let nextAccounts = accounts
@@ -208,7 +213,7 @@ export function UserHome({ playerData, onPlayClick, onSubmarineStoreClick }: Use
       }
     }
     return undefined
-  }, [])
+  }, [isDisconnecting])
 
   // Captain's log rotation
   useEffect(() => {
@@ -239,6 +244,8 @@ export function UserHome({ playerData, onPlayClick, onSubmarineStoreClick }: Use
   }
 
   const handleDisconnectWallet = async () => {
+    setIsDisconnecting(true) // Prevent other effects from running
+    
     try {
       // Request MetaMask to revoke permissions (triggers popup)
       if (typeof window !== 'undefined' && window.ethereum) {
@@ -252,26 +259,49 @@ export function UserHome({ playerData, onPlayClick, onSubmarineStoreClick }: Use
               }
             ]
           })
+          console.log('Wallet permissions revoked successfully')
         } catch (error: any) {
-          // If wallet_revokePermissions is not supported, log and continue with session cleanup
-          console.log('Wallet revoke not supported, continuing with session cleanup:', error.message)
+          // Handle user rejection or unsupported method
+          if (error.code === 4001) {
+            console.log('User rejected the disconnect request')
+            setIsDisconnecting(false)
+            return // Exit if user cancelled
+          }
+          // If wallet_revokePermissions is not supported, continue with session cleanup
+          console.log('Wallet revoke not supported or failed, continuing with session cleanup:', error.message)
         }
       }
 
       // Call the signout API to clear JWT cookies
-      const response = await fetch('/api/auth/signout', { method: 'POST' })
-      if (response.ok) {
-        // Disconnect wallet manager
-        const walletManager = WalletManager.getInstance()
-        walletManager.disconnect()
+      try {
+        const response = await fetch('/api/auth/signout', { 
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        })
         
-        // Redirect to auth page
-        router.push('/')
-      } else {
-        console.error('Failed to sign out')
+        if (!response.ok) {
+          throw new Error('Signout API failed')
+        }
+        
+        console.log('Session cleared successfully')
+      } catch (fetchError) {
+        console.error('Failed to clear session:', fetchError)
+        // Continue anyway to ensure local cleanup happens
       }
+
+      // Disconnect wallet manager
+      const walletManager = WalletManager.getInstance()
+      walletManager.disconnect()
+      
+      // Redirect to auth page
+      router.push('/')
     } catch (error) {
       console.error('Error disconnecting wallet:', error)
+      setIsDisconnecting(false)
+      // Even if there's an error, try to redirect
+      router.push('/')
     }
   }
 
