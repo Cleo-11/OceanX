@@ -108,43 +108,66 @@ export default function MarketplaceClient({ playerData }: MarketplaceClientProps
     }
   }, [playerData.wallet_address, playerData.total_ocx_earned])
 
-  // Mock resource data - In production, fetch from Supabase
+  // Fetch player's actual resources from database with OCX rates matching backend
   useEffect(() => {
-    const mockResources: Resource[] = [
-      {
-        id: "nickel",
-        name: "Nickel",
-        icon: "⚪",
-        // ocxRate intentionally left undefined to reflect dynamic market
-        amount: 156,
-        description: "Common nickel deposits found on the ocean floor",
-      },
-      {
-        id: "cobalt",
-        name: "Cobalt",
-        icon: "🔵",
-        amount: 89,
-        description: "Valuable cobalt-rich mineral nodules from deep waters",
-      },
-      {
-        id: "copper",
-        name: "Copper",
-        icon: "🟠",
-        amount: 42,
-        description: "Rare copper ore deposits from volcanic vents",
-      },
-      {
-        id: "manganese",
-        name: "Manganese",
-        icon: "⚫",
-        amount: 23,
-        description: "Premium manganese nodules from the abyssal plains",
-      },
-    ]
+    const fetchPlayerResources = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("players")
+          .select("nickel, cobalt, copper, manganese")
+          .eq("id", playerData.id)
+          .single()
 
-    setResources(mockResources)
-    setFilteredResources(mockResources)
-  }, [])
+        if (error) {
+          console.error("Error fetching player resources:", error)
+          return
+        }
+
+        // OCX rates must match backend rates in server/index.js computeMaxClaimableAmount
+        const playerResources: Resource[] = [
+          {
+            id: "nickel",
+            name: "Nickel",
+            icon: "⚪",
+            ocxRate: 0.1, // Backend: nickel = 0.1 OCX
+            amount: data?.nickel || 0,
+            description: "Common nickel deposits found on the ocean floor",
+          },
+          {
+            id: "cobalt",
+            name: "Cobalt",
+            icon: "🔵",
+            ocxRate: 0.5, // Backend: cobalt = 0.5 OCX
+            amount: data?.cobalt || 0,
+            description: "Valuable cobalt-rich mineral nodules from deep waters",
+          },
+          {
+            id: "copper",
+            name: "Copper",
+            icon: "🟠",
+            ocxRate: 1.0, // Backend: copper = 1.0 OCX
+            amount: data?.copper || 0,
+            description: "Rare copper ore deposits from volcanic vents",
+          },
+          {
+            id: "manganese",
+            name: "Manganese",
+            icon: "⚫",
+            ocxRate: 2.0, // Backend: manganese = 2.0 OCX
+            amount: data?.manganese || 0,
+            description: "Premium manganese nodules from the abyssal plains",
+          },
+        ]
+
+        setResources(playerResources)
+        setFilteredResources(playerResources)
+      } catch (error) {
+        console.error("Error loading resources:", error)
+      }
+    }
+
+    fetchPlayerResources()
+  }, [playerData.id])
 
   useEffect(() => {
     fetchOCXBalance()
