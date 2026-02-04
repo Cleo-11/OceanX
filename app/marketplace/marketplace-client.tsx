@@ -240,6 +240,18 @@ export default function MarketplaceClient({ playerData }: MarketplaceClientProps
         return
       }
 
+      // Calculate total max claimable based on ALL resources
+      const totalMaxClaimable = resources.reduce((sum, r) => {
+        return sum + (r.ocxRate || 0) * r.amount
+      }, 0)
+
+      // Validate that requested amount doesn't exceed what backend allows
+      if (ocxToReceive > totalMaxClaimable) {
+        setTradeError(`Cannot trade ${ocxToReceive} OCX. Maximum claimable from all resources: ${totalMaxClaimable.toFixed(1)} OCX`)
+        setIsTrading(false)
+        return
+      }
+
       // Get signer from wallet
       const provider = new ethers.BrowserProvider(window.ethereum)
       const signer = await provider.getSigner()
