@@ -2076,16 +2076,34 @@ app.post("/marketplace/sign-claim", claimLimiter, requireClaimAuth, async (req, 
         }
 
         // Verify player has resources if this is a trade
-        // Skip individual resource check for "mixed" type (trading all resources at once)
-        if (resourceType && resourceType !== "mixed" && resourceAmount > 0) {
-            const availableResource = playerData.resources[resourceType] || 0;
-            if (resourceAmount > availableResource) {
-                return respondWithError(
-                    res,
-                    403,
-                    `Insufficient ${resourceType}. Available: ${availableResource}, requested: ${resourceAmount}`,
-                    "INSUFFICIENT_RESOURCES"
-                );
+        if (resourceType && resourceAmount > 0) {
+            if (resourceType === "mixed") {
+                // For "mixed" type, validate against sum of all resources
+                const totalAvailable = 
+                    (playerData.resources.nickel || 0) +
+                    (playerData.resources.cobalt || 0) +
+                    (playerData.resources.copper || 0) +
+                    (playerData.resources.manganese || 0);
+                
+                if (resourceAmount > totalAvailable) {
+                    return respondWithError(
+                        res,
+                        403,
+                        `Insufficient resources. Total available: ${totalAvailable}, requested: ${resourceAmount}`,
+                        "INSUFFICIENT_RESOURCES"
+                    );
+                }
+            } else {
+                // For specific resource type, validate against that resource
+                const availableResource = playerData.resources[resourceType] || 0;
+                if (resourceAmount > availableResource) {
+                    return respondWithError(
+                        res,
+                        403,
+                        `Insufficient ${resourceType}. Available: ${availableResource}, requested: ${resourceAmount}`,
+                        "INSUFFICIENT_RESOURCES"
+                    );
+                }
             }
         }
 
