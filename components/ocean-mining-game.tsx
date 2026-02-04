@@ -1460,11 +1460,12 @@ export function OceanMiningGame({
     
     try {
       // Calculate OCX earned based on resource values
+      // These rates MUST match the backend in server/index.js computeMaxClaimableAmount
       const resourceValues = {
-        nickel: 10,  // Match marketplace rates
-        cobalt: 25,
-        copper: 50,
-        manganese: 100,
+        nickel: 0.1,   // Backend: 0.1 OCX per nickel
+        cobalt: 0.5,   // Backend: 0.5 OCX per cobalt
+        copper: 1.0,   // Backend: 1.0 OCX per copper
+        manganese: 2.0 // Backend: 2.0 OCX per manganese
       };
       
       const ocxEarned = 
