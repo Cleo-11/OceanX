@@ -369,7 +369,7 @@ const logServerError = (scope, error, context = {}) => {
 
 /**
  * Compute maximum claimable OCX amount for a wallet based on business rules
- * Uses live resource balance (from resource_events) for accurate financial calculations
+ * Reads resources directly from players table columns (frontend writes there)
  * @param {string} wallet - Normalized wallet address (lowercase)
  * @returns {Promise<{maxClaimable: bigint, reason: string, playerData: object}>}
  */
@@ -379,10 +379,11 @@ async function computeMaxClaimableAmount(wallet) {
   }
 
   try {
-    // Fetch player base data
+    // Fetch player data including resources directly from players table
+    // Note: Frontend writes directly to players table columns, not resource_events
     const { data: player, error: playerError } = await supabase
       .from("players")
-      .select("id, wallet_address, submarine_tier, coins, total_ocx_earned")
+      .select("id, wallet_address, submarine_tier, coins, total_ocx_earned, nickel, cobalt, copper, manganese")
       .ilike("wallet_address", wallet)
       .single()
 
@@ -390,26 +391,15 @@ async function computeMaxClaimableAmount(wallet) {
       return { maxClaimable: 0n, reason: "Player not found", playerData: null }
     }
 
-    // Get LIVE resource balance (always accurate for financial operations)
-    // Uses append-only pattern: sums all resource_events for guaranteed accuracy
-    let resources;
-    try {
-      resources = await resourceService.getPlayerResourcesLive(supabase, player.id);
-    } catch (resourceError) {
-      // Fallback to cached balance if live query fails
-      console.warn('⚠️ Failed to get live resources, using cached:', resourceError.message);
-      const { data: cachedPlayer } = await supabase
-        .from("players")
-        .select("nickel, cobalt, copper, manganese")
-        .eq("id", player.id)
-        .single();
-      resources = {
-        nickel: cachedPlayer?.nickel || 0,
-        cobalt: cachedPlayer?.cobalt || 0,
-        copper: cachedPlayer?.copper || 0,
-        manganese: cachedPlayer?.manganese || 0
-      };
-    }
+    // Extract resources directly from player record
+    const resources = {
+      nickel: player.nickel || 0,
+      cobalt: player.cobalt || 0,
+      copper: player.copper || 0,
+      manganese: player.manganese || 0
+    };
+
+    console.log('💎 Player resources loaded:', { wallet, resources });
 
     // Business Rules for Max Claimable Amount:
     // 1. Base: Player's coins (off-chain currency) can be converted 1:1 to OCX
