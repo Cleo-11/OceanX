@@ -1461,6 +1461,7 @@ export function OceanMiningGame({
     try {
       // Calculate OCX earned based on resource values
       // These rates MUST match the backend in server/index.js computeMaxClaimableAmount
+      // Backend uses Math.floor() on each resource value individually
       const resourceValues = {
         nickel: 0.1,   // Backend: 0.1 OCX per nickel
         cobalt: 0.5,   // Backend: 0.5 OCX per cobalt
@@ -1469,10 +1470,10 @@ export function OceanMiningGame({
       };
       
       const ocxEarned = 
-        resources.nickel * resourceValues.nickel +
-        resources.cobalt * resourceValues.cobalt +
-        resources.copper * resourceValues.copper +
-        resources.manganese * resourceValues.manganese;
+        Math.floor(resources.nickel * resourceValues.nickel) +
+        Math.floor(resources.cobalt * resourceValues.cobalt) +
+        Math.floor(resources.copper * resourceValues.copper) +
+        Math.floor(resources.manganese * resourceValues.manganese);
 
       if (ocxEarned <= 0) {
         alert("No resources to trade!");
