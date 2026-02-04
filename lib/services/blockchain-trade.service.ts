@@ -87,6 +87,13 @@ export async function requestClaimSignature(
     const auth = await generateAuthSignature(wallet);
     const address = await wallet.getAddress();
 
+    console.log('🔍 Trade request details:', {
+      resourceType: params.resourceType,
+      resourceAmount: params.resourceAmount,
+      ocxAmount: params.ocxAmount,
+      note: 'If ocxAmount > 55, you are trying to trade more resources than you have'
+    });
+
     // Request signature from backend
     const response = await fetch(`${BACKEND_URL}/marketplace/sign-claim`, {
       method: 'POST',
