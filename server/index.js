@@ -2076,7 +2076,8 @@ app.post("/marketplace/sign-claim", claimLimiter, requireClaimAuth, async (req, 
         }
 
         // Verify player has resources if this is a trade
-        if (resourceType && resourceAmount > 0) {
+        // Skip individual resource check for "mixed" type (trading all resources at once)
+        if (resourceType && resourceType !== "mixed" && resourceAmount > 0) {
             const availableResource = playerData.resources[resourceType] || 0;
             if (resourceAmount > availableResource) {
                 return respondWithError(
