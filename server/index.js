@@ -895,11 +895,11 @@ const io = new SocketIOServer(server, {
 // Initialize Supabase client
 let supabase = null;
 try {
-  if (!process.env.SUPABASE_URL || !process.env.SUPABASE_ANON_KEY) {
+  if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
     console.log("⚠️ Missing Supabase environment variables - running in mock mode");
   } else {
-    supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY);
-    console.log("✅ Supabase client initialized");
+    supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
+    console.log("✅ Supabase client initialized with service role key");
   }
 } catch (error) {
   console.error("❌ Failed to initialize Supabase:", error);
