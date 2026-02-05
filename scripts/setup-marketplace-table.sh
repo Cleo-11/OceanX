@@ -1,4 +1,4 @@
-#!/bin/bash
+/bin/bash
 
 # Script to create marketplace_resources table in Supabase
 # This enables the Ocean Trading Hub to display resources from the database
