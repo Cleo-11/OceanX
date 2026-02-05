@@ -152,13 +152,18 @@ export async function submitClaimTransaction(
     try {
       onChainNonce = await contract.nonces(address);
       console.log('On-chain nonce:', onChainNonce.toString());
+      console.log('Signature nonce:', signatureData.nonce, 'type:', typeof signatureData.nonce);
     } catch (nonceError: any) {
       console.error('Failed to get nonce from contract:', nonceError.message);
       throw new Error(`Contract doesn't support nonces() function. Are you connected to the correct network? Current network: ${network.chainId}`);
     }
     
-    if (onChainNonce.toString() !== signatureData.nonce) {
-      throw new Error(`Nonce mismatch! Expected ${signatureData.nonce}, got ${onChainNonce}`);
+    // Compare nonces - convert both to strings for comparison
+    const onChainNonceStr = onChainNonce.toString();
+    const signatureNonceStr = String(signatureData.nonce);
+    
+    if (onChainNonceStr !== signatureNonceStr) {
+      throw new Error(`Nonce mismatch! Expected ${signatureNonceStr}, got ${onChainNonceStr}`);
     }
 
     console.log('Submitting claim transaction...', {
