@@ -134,10 +134,28 @@ export async function submitClaimTransaction(
   try {
     // Get contract instance with signer
     const contract = getOCXTokenContractWithSigner(wallet);
+    
+    // Check network
+    const provider = wallet.provider;
+    if (!provider) {
+      throw new Error('No provider found on wallet');
+    }
+    const network = await provider.getNetwork();
+    console.log('Connected to network:', network.chainId, network.name);
+    console.log('Contract address:', await contract.getAddress());
 
     // Verify nonce matches on-chain
     const address = await wallet.getAddress();
-    const onChainNonce = await contract.nonces(address);
+    console.log('Checking nonce for address:', address);
+    
+    let onChainNonce;
+    try {
+      onChainNonce = await contract.nonces(address);
+      console.log('On-chain nonce:', onChainNonce.toString());
+    } catch (nonceError: any) {
+      console.error('Failed to get nonce from contract:', nonceError.message);
+      throw new Error(`Contract doesn't support nonces() function. Are you connected to the correct network? Current network: ${network.chainId}`);
+    }
     
     if (onChainNonce.toString() !== signatureData.nonce) {
       throw new Error(`Nonce mismatch! Expected ${signatureData.nonce}, got ${onChainNonce}`);
