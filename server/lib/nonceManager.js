@@ -205,6 +205,36 @@ class NonceManager {
   }
 
   /**
+   * Cleanup expired signatures for a specific wallet
+   * Called before checking nonce usage to ensure stale reservations are cleared
+   * 
+   * @param {string} walletAddress - Ethereum wallet address
+   * @returns {Promise<number>} Number of expired signatures removed
+   */
+  async cleanupExpiredForWallet(walletAddress) {
+    const currentTimestamp = Math.floor(Date.now() / 1000);
+    
+    const { data, error } = await this.supabase
+      .from('claim_signatures')
+      .delete()
+      .eq('wallet', walletAddress.toLowerCase())
+      .eq('used', false)
+      .lt('expires_at', currentTimestamp)
+      .select();
+
+    if (error) {
+      console.error('❌ Error cleaning up expired signatures for wallet:', error);
+      return 0;
+    }
+
+    if (data && data.length > 0) {
+      console.log(`🧹 Cleaned up ${data.length} expired signatures for ${walletAddress}`);
+    }
+
+    return data ? data.length : 0;
+  }
+
+  /**
    * Get claim statistics for monitoring
    * 
    * @returns {Promise<Object>} Statistics about claim signatures

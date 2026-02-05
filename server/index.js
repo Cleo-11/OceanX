@@ -2039,6 +2039,9 @@ app.post("/marketplace/sign-claim", claimLimiter, requireClaimAuth, async (req, 
 
         // Get current nonce from blockchain
         const currentNonce = await nonceManager.getCurrentNonce(wallet);
+        
+        // Clean up any expired reservations for this wallet before checking
+        await nonceManager.cleanupExpiredForWallet(wallet);
 
         // Check if this nonce already has a signature (prevents replay)
         const existingClaim = await nonceManager.checkNonceUsage(wallet, currentNonce);
