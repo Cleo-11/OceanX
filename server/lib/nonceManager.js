@@ -53,7 +53,7 @@ class NonceManager {
       .from('claim_signatures')
       .select('*')
       .eq('wallet', walletAddress.toLowerCase())
-      .eq('nonce', nonce.toString())
+      .eq('nonce', parseInt(nonce))
       .eq('used', false) // Only check unused signatures
       .maybeSingle();
 
