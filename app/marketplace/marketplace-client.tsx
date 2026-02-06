@@ -206,6 +206,12 @@ export default function MarketplaceClient({ playerData }: MarketplaceClientProps
   const handleTrade = async () => {
     if (!selectedResource || tradeAmount <= 0 || tradeAmount > selectedResource.amount) return
 
+    // Prevent duplicate calls (double-click protection)
+    if (isTrading) {
+      console.warn('⚠️ Trade already in progress, ignoring duplicate request');
+      return;
+    }
+
     // Reset state
     setIsTrading(true)
     setTradeStep(0)

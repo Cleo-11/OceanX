@@ -2068,11 +2068,29 @@ app.post("/marketplace/sign-claim", claimLimiter, requireClaimAuth, async (req, 
             }
         }
 
+        // 🔒 Reserve nonce IMMEDIATELY to prevent race conditions
+        // This must happen before expensive validations to minimize race window
+        let nonceReserved = false;
+        try {
+            await nonceManager.reserveNonce(wallet, currentNonce, amountWei.toString());
+            nonceReserved = true;
+            console.log(`✅ Nonce ${currentNonce} reserved for ${wallet}`);
+        } catch (error) {
+            if (error.message.includes('already in use')) {
+                return respondWithError(res, 409, "Concurrent claim detected. Please try again.", "NONCE_CONFLICT");
+            }
+            throw error;
+        }
+
         // 🔒 CRITICAL: Server-side validation before signing
         const { maxClaimable, reason, playerData } = await computeMaxClaimableAmount(wallet);
         
         if (amountWei > maxClaimable) {
             console.warn(`⚠️ Sign-claim rejected: ${wallet} requested ${ocxAmount} OCX but max is ${ethers.formatEther(maxClaimable)}`);
+            // Rollback nonce reservation
+            if (nonceReserved) {
+                await nonceManager.deleteIncompleteReservation(wallet, currentNonce);
+            }
             return respondWithError(
                 res,
                 403,
@@ -2082,6 +2100,10 @@ app.post("/marketplace/sign-claim", claimLimiter, requireClaimAuth, async (req, 
         }
         
         if (!playerData) {
+            // Rollback nonce reservation
+            if (nonceReserved) {
+                await nonceManager.deleteIncompleteReservation(wallet, currentNonce);
+            }
             return respondWithError(res, 404, "Player not found", "PLAYER_NOT_FOUND");
         }
 
@@ -2096,6 +2118,10 @@ app.post("/marketplace/sign-claim", claimLimiter, requireClaimAuth, async (req, 
                     (playerData.resources.manganese || 0);
                 
                 if (resourceAmount > totalAvailable) {
+                    // Rollback nonce reservation
+                    if (nonceReserved) {
+                        await nonceManager.deleteIncompleteReservation(wallet, currentNonce);
+                    }
                     return respondWithError(
                         res,
                         403,
@@ -2107,6 +2133,10 @@ app.post("/marketplace/sign-claim", claimLimiter, requireClaimAuth, async (req, 
                 // For specific resource type, validate against that resource
                 const availableResource = playerData.resources[resourceType] || 0;
                 if (resourceAmount > availableResource) {
+                    // Rollback nonce reservation
+                    if (nonceReserved) {
+                        await nonceManager.deleteIncompleteReservation(wallet, currentNonce);
+                    }
                     return respondWithError(
                         res,
                         403,
@@ -2118,17 +2148,11 @@ app.post("/marketplace/sign-claim", claimLimiter, requireClaimAuth, async (req, 
         }
 
         if (!claimService || !claimService.generateClaimSignature) {
-            return respondWithError(res, 503, "Claim service not available", "SERVICE_UNAVAILABLE");
-        }
-        
-        // 🔒 Reserve nonce (prevents concurrent signing with same nonce)
-        try {
-            await nonceManager.reserveNonce(wallet, currentNonce, amountWei.toString());
-        } catch (error) {
-            if (error.message.includes('already in use')) {
-                return respondWithError(res, 409, "Concurrent claim detected. Please try again.", "NONCE_CONFLICT");
+            // Rollback nonce reservation
+            if (nonceReserved) {
+                await nonceManager.deleteIncompleteReservation(wallet, currentNonce);
             }
-            throw error;
+            return respondWithError(res, 503, "Claim service not available", "SERVICE_UNAVAILABLE");
         }
 
         // Log signature generation event
