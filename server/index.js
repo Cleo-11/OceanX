@@ -2047,18 +2047,25 @@ app.post("/marketplace/sign-claim", claimLimiter, requireClaimAuth, async (req, 
         const existingClaim = await nonceManager.checkNonceUsage(wallet, currentNonce);
         
         if (existingClaim) {
-            console.warn(`⚠️ Nonce ${currentNonce} already signed for ${wallet}`);
-            
-            // Return existing signature instead of creating a new one
-            return res.json({
-                success: true,
-                message: "Signature already generated for this nonce",
-                signature: existingClaim.signature,
-                nonce: existingClaim.nonce,
-                amount: existingClaim.amount,
-                deadline: Math.floor(Date.now() / 1000) + 3600, // 1 hour from now
-                isExisting: true,
-            });
+            // If existing claim has a valid signature, return it
+            if (existingClaim.signature) {
+                console.warn(`⚠️ Nonce ${currentNonce} already signed for ${wallet}, returning existing signature`);
+                
+                return res.json({
+                    success: true,
+                    message: "Signature already generated for this nonce",
+                    signature: existingClaim.signature,
+                    nonce: existingClaim.nonce.toString(),
+                    amount: existingClaim.amount,
+                    amountWei: existingClaim.amount,
+                    deadline: existingClaim.expires_at,
+                    isExisting: true,
+                });
+            } else {
+                // Existing reservation without signature - delete it and allow retry
+                console.warn(`⚠️ Found incomplete reservation for nonce ${currentNonce}, cleaning up...`);
+                await nonceManager.deleteIncompleteReservation(wallet, currentNonce);
+            }
         }
 
         // 🔒 CRITICAL: Server-side validation before signing

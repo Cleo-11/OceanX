@@ -235,6 +235,37 @@ class NonceManager {
   }
 
   /**
+   * Delete an incomplete reservation (no signature generated)
+   * Called when a previous attempt reserved a nonce but failed to complete
+   * 
+   * @param {string} walletAddress - Ethereum wallet address
+   * @param {string|number} nonce - Nonce to delete
+   * @returns {Promise<boolean>} Whether deletion was successful
+   */
+  async deleteIncompleteReservation(walletAddress, nonce) {
+    const { data, error } = await this.supabase
+      .from('claim_signatures')
+      .delete()
+      .eq('wallet', walletAddress.toLowerCase())
+      .eq('nonce', parseInt(nonce))
+      .eq('used', false)
+      .is('signature', null)
+      .select();
+
+    if (error) {
+      console.error('❌ Error deleting incomplete reservation:', error);
+      return false;
+    }
+
+    if (data && data.length > 0) {
+      console.log(`🧹 Deleted incomplete reservation for ${walletAddress}, nonce ${nonce}`);
+      return true;
+    }
+
+    return false;
+  }
+
+  /**
    * Get claim statistics for monitoring
    * 
    * @returns {Promise<Object>} Statistics about claim signatures
