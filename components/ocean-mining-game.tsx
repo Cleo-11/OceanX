@@ -1514,21 +1514,35 @@ export function OceanMiningGame({
       }
 
       // ✅ Blockchain transaction succeeded - now update Supabase
-      const { user } = await getCurrentUser();
-      if (user) {
+      // Use wallet address directly (getCurrentUser() returns null with custom JWT auth)
+      const tradeWallet = initialWalletAddress.toLowerCase();
+      if (tradeWallet) {
         const { supabase } = await import("@/lib/supabase");
         
-        await supabase
+        // First fetch current balance
+        const { data: currentPlayer, error: fetchErr } = await supabase
           .from("players")
-          .update({
-            total_ocx_earned: (await supabase
-              .from("players")
-              .select("total_ocx_earned")
-              .eq("id", user.id)
-              .single()
-              .then(r => r.data?.total_ocx_earned || 0)) + ocxEarned,
-          })
-          .eq("id", user.id);
+          .select("total_ocx_earned")
+          .ilike("wallet_address", tradeWallet)
+          .single();
+        
+        if (fetchErr) {
+          console.error("❌ Failed to fetch current OCX balance:", fetchErr);
+        } else {
+          const currentOcx = Number(currentPlayer?.total_ocx_earned) || 0;
+          const { error: updateErr } = await supabase
+            .from("players")
+            .update({
+              total_ocx_earned: currentOcx + ocxEarned,
+            })
+            .ilike("wallet_address", tradeWallet);
+          
+          if (updateErr) {
+            console.error("❌ Failed to update total_ocx_earned in database:", updateErr);
+          } else {
+            console.log(`✅ Database updated: total_ocx_earned = ${currentOcx + ocxEarned}`);
+          }
+        }
       }
 
       // Update frontend state

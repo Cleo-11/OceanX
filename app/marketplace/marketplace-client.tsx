@@ -306,12 +306,20 @@ export default function MarketplaceClient({ playerData }: MarketplaceClientProps
       setRecentTrades([trade, ...recentTrades.slice(0, 9)])
 
       // Update OCX balance in database
-      await supabase
+      // Use wallet_address with ilike for reliability (case-insensitive match)
+      const newOcxTotal = (playerData.total_ocx_earned || 0) + result.ocxReceived;
+      const { error: updateError } = await supabase
         .from("players")
         .update({
-          total_ocx_earned: (playerData.total_ocx_earned || 0) + result.ocxReceived,
+          total_ocx_earned: newOcxTotal,
         })
-        .eq("id", playerData.id)
+        .ilike("wallet_address", playerData.wallet_address.toLowerCase())
+      
+      if (updateError) {
+        console.error("❌ Failed to update total_ocx_earned:", updateError);
+      } else {
+        console.log(`✅ Database updated: total_ocx_earned = ${newOcxTotal}`);
+      }
 
       // Refresh balance
       await fetchOCXBalance()
