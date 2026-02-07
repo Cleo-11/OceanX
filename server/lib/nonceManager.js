@@ -292,8 +292,9 @@ class NonceManager {
   }
 
   /**
-   * Delete a stale record where used=true but the on-chain nonce hasn't incremented
-   * This happens when: tx failed, was never submitted, or signature expired and was auto-marked
+   * Delete a stale record for a given wallet+nonce regardless of used status.
+   * Use when: on-chain nonce hasn't moved but DB record blocks new reservation
+   * (expired signature, wrong signer key, failed tx, etc.)
    * 
    * @param {string} walletAddress - Ethereum wallet address
    * @param {string|number} nonce - Nonce to delete
@@ -305,7 +306,6 @@ class NonceManager {
       .delete()
       .eq('wallet', walletAddress.toLowerCase())
       .eq('nonce', parseInt(nonce))
-      .eq('used', true)
       .select();
 
     if (error) {
