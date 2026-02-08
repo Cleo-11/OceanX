@@ -46,7 +46,7 @@ export default async function SubmarineHangarPage() {
         copper: playerRecord.copper ?? 0,
         manganese: playerRecord.manganese ?? 0,
       }}
-      balance={playerRecord.balance ?? 0}
+      balance={playerRecord.total_ocx_earned ?? 0}
       walletAddress={playerRecord.wallet_address}
       userId={auth.userId}
     />

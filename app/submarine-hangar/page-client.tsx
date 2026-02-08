@@ -9,8 +9,10 @@ import { SubmarineCarousel } from "@/components/hangar/SubmarineCarousel"
 import { HangarHUD } from "@/components/hangar/HangarHUD"
 import { 
   executeSubmarineUpgrade, 
-  getUpgradeCostForTier 
+  getUpgradeCostForTier,
+  getOCXBalanceReadOnly
 } from "@/lib/contracts"
+import { supabase } from "@/lib/supabase"
 
 /**
  * Submarine Hangar - Client Component
@@ -53,6 +55,22 @@ export default function SubmarineHangarClient({
    */
   const fetchBalance = async () => {
     try {
+      // First, sync on-chain balance to DB (captures pre-fix OCX)
+      try {
+        const onChainStr = await getOCXBalanceReadOnly(walletAddress)
+        const onChainBalance = parseFloat(onChainStr) || 0
+        if (onChainBalance > balance) {
+          await supabase
+            .from("players")
+            .update({ total_ocx_earned: onChainBalance })
+            .ilike("wallet_address", walletAddress.toLowerCase())
+          setBalance(onChainBalance)
+          return // Already have the freshest value
+        }
+      } catch (syncErr) {
+        console.warn("On-chain sync failed, falling back to API:", syncErr)
+      }
+      
       const response = await fetch('/api/player/balance')
       if (response.ok) {
         const data = await response.json()

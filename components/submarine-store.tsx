@@ -135,7 +135,7 @@ export function SubmarineStore({
             <div className="text-right">
               <div className="text-sm text-slate-400">Your Balance</div>
               <div className="flex gap-2 text-lg font-bold">
-                <span className="text-cyan-300">💰 {balance} OCE</span>
+                <span className="text-cyan-300">💰 {balance} OCX</span>
               </div>
             </div>
           </div>
@@ -263,7 +263,7 @@ export function SubmarineStore({
                             <h4 className="mb-2 text-xs font-semibold text-slate-400">UPGRADE COST</h4>
                             <div className="space-y-1 text-xs">
                               <div className="flex justify-between">
-                                <span className="text-cyan-300">OCE Tokens:</span>
+                                <span className="text-cyan-300">OCX Tokens:</span>
                                 <span
                                   className={`font-mono text-lg font-bold ${
                                     balance >= submarine.upgradeCost.tokens ? "text-green-300" : "text-red-300"

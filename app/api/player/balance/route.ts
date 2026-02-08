@@ -21,7 +21,7 @@ export async function GET() {
 
     const { data: playerData, error: fetchError } = await supabase
       .from("players")
-      .select("balance")
+      .select("balance, total_ocx_earned")
       .eq("wallet_address", auth.walletAddress)
       .single()
 
@@ -48,7 +48,7 @@ export async function GET() {
 
     return NextResponse.json({
       success: true,
-      balance: playerData.balance ?? 0,
+      balance: playerData.total_ocx_earned ?? playerData.balance ?? 0,
     })
   } catch (error) {
     console.error("[get-balance] Unexpected error:", error)

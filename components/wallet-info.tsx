@@ -57,7 +57,7 @@ export function WalletInfo({ balance }: WalletInfoProps) {
       {/* Token balance display */}
       <div className="mt-1 flex items-center justify-between">
         <div className={`font-mono text-lg font-bold ${isBalanceChanged ? 'text-white' : 'text-cyan-400'} transition-colors`}>
-          {balance.toLocaleString()} OCE
+          {balance.toLocaleString()} OCX
         </div>
         
         {/* Balance change indicator */}

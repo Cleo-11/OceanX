@@ -188,7 +188,7 @@ export function UpgradeModal({ currentTier, resources, balance, onUpgrade, onClo
           <div className="flex justify-center">
             <div className="rounded-md bg-slate-800 p-4 text-center">
               <div className="text-3xl mb-2">�</div>
-              <div className="text-sm text-slate-300 mb-1">OCE Tokens</div>
+              <div className="text-sm text-slate-300 mb-1">OCX Tokens</div>
               <div
                 className={`font-mono text-2xl font-bold ${balance >= selectedSubmarine.upgradeCost.tokens ? "text-green-400" : "text-red-400"}`}
               >

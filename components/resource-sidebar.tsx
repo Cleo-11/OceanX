@@ -132,7 +132,7 @@ export function ResourceSidebar({ isOpen, resources, balance, onTradeAll, gameSt
               <h3 className="mb-3 border-b border-cyan-900/50 pb-1 text-lg font-semibold text-slate-200">Wallet</h3>
               <div className="rounded-lg bg-slate-800/50 p-4">
                 <div className="flex items-center justify-between">
-                  <span className="text-slate-300">OCE Balance:</span>
+                  <span className="text-slate-300">OCX Balance:</span>
                   <span className="font-mono text-lg font-bold text-cyan-400">{balance.toLocaleString()}</span>
                 </div>
               </div>
@@ -148,25 +148,25 @@ export function ResourceSidebar({ isOpen, resources, balance, onTradeAll, gameSt
                   <span className="flex items-center text-slate-300">
                     <span className="mr-2">🔋</span> Nickel
                   </span>
-                  <span className="font-mono text-cyan-400">5-15 OCE</span>
+                  <span className="font-mono text-cyan-400">5-15 OCX</span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="flex items-center text-slate-300">
                     <span className="mr-2">⚡</span> Cobalt
                   </span>
-                  <span className="font-mono text-cyan-400">10-25 OCE</span>
+                  <span className="font-mono text-cyan-400">10-25 OCX</span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="flex items-center text-slate-300">
                     <span className="mr-2">🔌</span> Copper
                   </span>
-                  <span className="font-mono text-cyan-400">8-20 OCE</span>
+                  <span className="font-mono text-cyan-400">8-20 OCX</span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="flex items-center text-slate-300">
                     <span className="mr-2">🧲</span> Manganese
                   </span>
-                  <span className="font-mono text-cyan-400">15-35 OCE</span>
+                  <span className="font-mono text-cyan-400">15-35 OCX</span>
                 </div>
               </div>
             </div>

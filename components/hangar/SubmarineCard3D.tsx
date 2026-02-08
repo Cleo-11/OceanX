@@ -236,7 +236,7 @@ export function SubmarineCard3D({
                       Upgrade Cost
                     </h4>
                     <div className="flex items-center justify-between">
-                      <span className="text-sm text-slate-400">OCE Tokens:</span>
+                      <span className="text-sm text-slate-400">OCX Tokens:</span>
                       <span className={`text-2xl font-bold ${
                         balance >= submarine.upgradeCost.tokens ? "text-green-400" : "text-red-400"
                       }`}>
