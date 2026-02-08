@@ -82,6 +82,37 @@ export default function MarketplaceClient({ playerData }: MarketplaceClientProps
   const [txHash, setTxHash] = useState<string>("")
   const [tradeError, setTradeError] = useState<string>("")
 
+  // Sync on-chain OCX balance to database (catches pre-fix claims)
+  const syncOnChainBalanceToDB = useCallback(async () => {
+    if (!playerData.wallet_address) return
+    try {
+      const walletManager = WalletManager.getInstance()
+      const connection = walletManager.getConnection()
+      if (!connection) return
+
+      // Read on-chain balance
+      const onChainBalance = parseFloat(await walletManager.getBalance())
+      const dbBalance = playerData.total_ocx_earned || 0
+
+      // If on-chain balance is higher than DB, update DB to match
+      if (onChainBalance > dbBalance) {
+        console.log(`🔄 Syncing OCX: on-chain ${onChainBalance} > DB ${dbBalance}. Updating DB...`)
+        const { error } = await supabase
+          .from("players")
+          .update({ total_ocx_earned: onChainBalance })
+          .ilike("wallet_address", playerData.wallet_address.toLowerCase())
+
+        if (error) {
+          console.error("❌ Failed to sync on-chain OCX to DB:", error)
+        } else {
+          console.log(`✅ DB synced: total_ocx_earned = ${onChainBalance} (was ${dbBalance})`)
+        }
+      }
+    } catch (error) {
+      console.error("Error syncing on-chain balance:", error)
+    }
+  }, [playerData.wallet_address, playerData.total_ocx_earned])
+
   // Fetch OCX balance
   const fetchOCXBalance = useCallback(async () => {
     if (!playerData.wallet_address) return
@@ -95,6 +126,9 @@ export default function MarketplaceClient({ playerData }: MarketplaceClientProps
       if (connection && connection.address.toLowerCase() === playerData.wallet_address.toLowerCase()) {
         const balance = await walletManager.getBalance()
         setOcxBalance(balance)
+
+        // Auto-sync on-chain balance to DB if it's higher (captures pre-fix claims)
+        await syncOnChainBalanceToDB()
       } else {
         // If wallet not connected or different address, show player's earned OCX
         setOcxBalance(playerData.total_ocx_earned.toString())
@@ -106,7 +140,7 @@ export default function MarketplaceClient({ playerData }: MarketplaceClientProps
     } finally {
       setBalanceLoading(false)
     }
-  }, [playerData.wallet_address, playerData.total_ocx_earned])
+  }, [playerData.wallet_address, playerData.total_ocx_earned, syncOnChainBalanceToDB])
 
   // Fetch player's actual resources from database with OCX rates matching backend
   useEffect(() => {

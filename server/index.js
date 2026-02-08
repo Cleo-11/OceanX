@@ -614,6 +614,79 @@ app.post("/player/balance", playerDataLimiter, requirePlayerBalanceAuth, async (
   }
 });
 
+/**
+ * POST /player/sync-ocx-balance
+ * Reads the on-chain OCX token balance (via balanceOf) and syncs it to the DB.
+ * This captures OCX earned before the total_ocx_earned column existed.
+ * The DB is updated to whichever is higher: current DB value or on-chain balance.
+ */
+app.post("/player/sync-ocx-balance", playerDataLimiter, requirePlayerBalanceAuth, async (req, res) => {
+  if (!supabase) {
+    return res.status(500).json({ error: "Supabase not initialized" });
+  }
+  if (!tokenContract) {
+    return res.status(503).json({ error: "Token contract not available" });
+  }
+
+  const wallet = req?.auth?.wallet;
+  if (!wallet) {
+    return res.status(401).json({ error: "Wallet authentication required" });
+  }
+
+  try {
+    // 1. Read on-chain OCX balance
+    const onChainBalanceWei = await tokenContract.balanceOf(wallet);
+    const onChainBalance = parseFloat(ethers.formatEther(onChainBalanceWei));
+
+    // 2. Get current DB value
+    const { data: player, error: fetchError } = await supabase
+      .from("players")
+      .select("id, total_ocx_earned")
+      .eq("wallet_address", wallet.toLowerCase())
+      .single();
+
+    if (fetchError || !player) {
+      return res.status(404).json({ error: "Player not found" });
+    }
+
+    const dbOcx = player.total_ocx_earned || 0;
+
+    // 3. If on-chain balance is higher, update DB to match
+    if (onChainBalance > dbOcx) {
+      const { error: updateError } = await supabase
+        .from("players")
+        .update({ total_ocx_earned: onChainBalance })
+        .eq("id", player.id);
+
+      if (updateError) {
+        console.error("❌ Failed to sync OCX balance to DB:", updateError);
+        return res.status(500).json({ error: "Failed to update balance" });
+      }
+
+      console.log(`✅ Synced OCX balance for ${wallet}: DB ${dbOcx} → ${onChainBalance} (on-chain)`);
+      return res.json({
+        success: true,
+        synced: true,
+        previousBalance: dbOcx,
+        newBalance: onChainBalance,
+        onChainBalance,
+      });
+    }
+
+    // DB is already >= on-chain, no update needed
+    res.json({
+      success: true,
+      synced: false,
+      currentBalance: dbOcx,
+      onChainBalance,
+      message: "Database already up to date",
+    });
+  } catch (err) {
+    logServerError("sync-ocx-balance", err, { wallet });
+    respondWithError(res, 500, "Unable to sync OCX balance.", "SYNC_BALANCE_FAILED");
+  }
+});
+
 // Get player submarine info
 app.post("/player/submarine", playerDataLimiter, requirePlayerSubmarineAuth, async (req, res) => {
   if (!supabase) {
