@@ -263,6 +263,28 @@ export async function getPlayerOCXBalance(address: string): Promise<string> {
   return ethers.formatEther(balance)
 }
 
+/**
+ * Get player's OCX balance using a public RPC provider (no wallet connection needed).
+ * This is a read-only call that works even when MetaMask is not connected.
+ */
+export async function getOCXBalanceReadOnly(address: string): Promise<string> {
+  const rpcUrl = process.env.NEXT_PUBLIC_RPC_URL || 'https://sepolia.infura.io/v3/'
+  const provider = new ethers.JsonRpcProvider(rpcUrl)
+  const tokenContract = new ethers.Contract(
+    CONTRACT_ADDRESSES.OCEAN_X_TOKEN,
+    [{
+      inputs: [{ internalType: 'address', name: 'account', type: 'address' }],
+      name: 'balanceOf',
+      outputs: [{ internalType: 'uint256', name: '', type: 'uint256' }],
+      stateMutability: 'view',
+      type: 'function',
+    }],
+    provider
+  )
+  const balance = await tokenContract.balanceOf(address)
+  return ethers.formatEther(balance)
+}
+
 // Type augmentation
 declare global {
   interface Window {

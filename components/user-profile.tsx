@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { supabase } from "@/lib/supabase"
-import { ContractManager } from "@/lib/contracts"
+import { ContractManager, getOCXBalanceReadOnly } from "@/lib/contracts"
 
 import type { PlayerResources } from "@/lib/types"
 import { Loader2, Ship, Coins, Package, Trophy, User } from "lucide-react"
@@ -119,11 +119,36 @@ export function UserProfile({ walletAddress, resources }: UserProfileProps) {
 
       setSubmarineTierData(tierData)
 
-      // Load OCX token balance from blockchain
+      // Load OCX token balance from blockchain (read-only, no wallet connection needed)
       try {
-        const balance = await ContractManager.getTokenBalance(walletAddress)
+        let balance: string
+        try {
+          // Try connected wallet first (faster)
+          balance = await ContractManager.getTokenBalance(walletAddress)
+        } catch {
+          // Fallback: read-only via public RPC (works without MetaMask)
+          balance = await getOCXBalanceReadOnly(walletAddress)
+        }
         console.log("[DEBUG] Wallet Address:", walletAddress, "Raw OCX Balance:", balance);
         setOcxBalance(balance)
+
+        // Sync on-chain balance to DB if it's higher (captures pre-fix claims)
+        const onChainAmount = parseFloat(balance) || 0
+        const dbAmount = player.total_ocx_earned || 0
+        if (onChainAmount > dbAmount) {
+          console.log(`🔄 Syncing OCX: on-chain ${onChainAmount} > DB ${dbAmount}. Updating...`)
+          const { error: syncError } = await supabase
+            .from("players")
+            .update({ total_ocx_earned: onChainAmount })
+            .eq("id", player.id)
+          if (syncError) {
+            console.error("❌ Failed to sync on-chain OCX to DB:", syncError)
+          } else {
+            console.log(`✅ DB synced: total_ocx_earned = ${onChainAmount}`)
+            // Update local state so "Total Earned" reflects the sync immediately
+            setPlayerData({ ...player, total_ocx_earned: onChainAmount })
+          }
+        }
       } catch (balanceError) {
         console.error("Error loading OCX balance:", balanceError)
         // Don't set error for balance, just show 0

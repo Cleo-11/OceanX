@@ -26,6 +26,8 @@ import SubmarineIcon from "./SubmarineIcon"
 import { getSubmarineByTier } from "@/lib/submarine-tiers"
 import { apiClient, createSignaturePayload } from "@/lib/api"
 import { WalletManager } from "@/lib/wallet"
+import { getOCXBalanceReadOnly } from "@/lib/contracts"
+import { supabase } from "@/lib/supabase"
 import { Leaderboard } from "./leaderboard"
 import "@/styles/design-system.css"
 
@@ -112,6 +114,7 @@ export function UserHome({ playerData, onPlayClick, onSubmarineStoreClick }: Use
   const [currentLogIndex, setCurrentLogIndex] = useState(0)
   const [logEntryNumber, setLogEntryNumber] = useState(1)
   const [isDisconnecting, setIsDisconnecting] = useState(false)
+  const [syncedOcxEarned, setSyncedOcxEarned] = useState<number>(playerData.total_ocx_earned)
   
   const router = useRouter()
   const currentSubmarine = getSubmarineByTier(playerData.submarine_tier)
@@ -129,6 +132,33 @@ export function UserHome({ playerData, onPlayClick, onSubmarineStoreClick }: Use
     const interval = setInterval(() => setIsFloating(prev => !prev), 3000)
     return () => clearInterval(interval)
   }, [])
+
+  // Sync on-chain OCX balance to DB (captures pre-fix claims)
+  useEffect(() => {
+    async function syncOnChainOCX() {
+      if (!playerData.wallet_address) return
+      try {
+        const onChainBalanceStr = await getOCXBalanceReadOnly(playerData.wallet_address)
+        const onChainBalance = parseFloat(onChainBalanceStr) || 0
+        const dbBalance = playerData.total_ocx_earned || 0
+
+        if (onChainBalance > dbBalance) {
+          console.log(`🔄 Home: syncing OCX on-chain ${onChainBalance} > DB ${dbBalance}`)
+          const { error } = await supabase
+            .from("players")
+            .update({ total_ocx_earned: onChainBalance })
+            .eq("id", playerData.id)
+          if (!error) {
+            console.log(`✅ Home: DB synced total_ocx_earned = ${onChainBalance}`)
+            setSyncedOcxEarned(onChainBalance)
+          }
+        }
+      } catch (err) {
+        console.error("Failed to sync on-chain OCX on home:", err)
+      }
+    }
+    syncOnChainOCX()
+  }, [playerData.wallet_address, playerData.id, playerData.total_ocx_earned])
 
   // Fetch OCX balance and network
   useEffect(() => {
@@ -729,7 +759,7 @@ export function UserHome({ playerData, onPlayClick, onSubmarineStoreClick }: Use
                   <StatRow 
                     icon={<Gem className="w-5 h-5" />}
                     label="OCX Earned"
-                    value={playerData.total_ocx_earned.toLocaleString()}
+                    value={syncedOcxEarned.toLocaleString()}
                     color="#22C55E"
                   />
                   <StatRow 
