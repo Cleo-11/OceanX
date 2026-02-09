@@ -183,7 +183,9 @@ export function UserHome({ playerData, onPlayClick, onSubmarineStoreClick }: Use
         const signature = await walletManager.signMessage(message)
         const resp = await apiClient.getPlayerBalance(connection.address, signature, message)
         if (resp.success && resp.data) {
-          setOcxBalance(resp.data.balance)
+          // Use total_ocx_earned (balance) from server; fall back to legacyTokenBalance
+          const bal = resp.data.balance || resp.data.legacyTokenBalance || '0'
+          setOcxBalance(bal)
           setOcxSymbol(resp.data.symbol || "OCX")
         }
       } catch {

@@ -119,22 +119,31 @@ export function UserProfile({ walletAddress, resources }: UserProfileProps) {
 
       setSubmarineTierData(tierData)
 
-      // Load OCX token balance from blockchain (read-only, no wallet connection needed)
+      // Load OCX token balance — try on-chain first, fall back to DB total_ocx_earned
       try {
-        let balance: string
+        let balance: string = "0"
+        let onChainAmount = 0
         try {
           // Try connected wallet first (faster)
           balance = await ContractManager.getTokenBalance(walletAddress)
+          onChainAmount = parseFloat(balance) || 0
         } catch {
-          // Fallback: read-only via public RPC (works without MetaMask)
-          balance = await getOCXBalanceReadOnly(walletAddress)
+          try {
+            // Fallback: read-only via public RPC (works without MetaMask)
+            balance = await getOCXBalanceReadOnly(walletAddress)
+            onChainAmount = parseFloat(balance) || 0
+          } catch (rpcErr) {
+            console.warn("Could not read on-chain OCX balance:", rpcErr)
+          }
         }
-        console.log("[DEBUG] Wallet Address:", walletAddress, "Raw OCX Balance:", balance);
-        setOcxBalance(balance)
+        console.log("[DEBUG] Wallet Address:", walletAddress, "On-chain OCX:", onChainAmount, "DB OCX:", player.total_ocx_earned);
+
+        // Use whichever is higher: on-chain balance or DB total_ocx_earned
+        const dbAmount = player.total_ocx_earned || 0
+        const effectiveBalance = Math.max(onChainAmount, dbAmount)
+        setOcxBalance(effectiveBalance.toString())
 
         // Sync on-chain balance to DB if it's higher (captures pre-fix claims)
-        const onChainAmount = parseFloat(balance) || 0
-        const dbAmount = player.total_ocx_earned || 0
         if (onChainAmount > dbAmount) {
           console.log(`🔄 Syncing OCX: on-chain ${onChainAmount} > DB ${dbAmount}. Updating...`)
           const { error: syncError } = await supabase
@@ -145,14 +154,13 @@ export function UserProfile({ walletAddress, resources }: UserProfileProps) {
             console.error("❌ Failed to sync on-chain OCX to DB:", syncError)
           } else {
             console.log(`✅ DB synced: total_ocx_earned = ${onChainAmount}`)
-            // Update local state so "Total Earned" reflects the sync immediately
             setPlayerData({ ...player, total_ocx_earned: onChainAmount })
           }
         }
       } catch (balanceError) {
         console.error("Error loading OCX balance:", balanceError)
-        // Don't set error for balance, just show 0
-        setOcxBalance("0")
+        // Fall back to DB balance instead of showing 0
+        setOcxBalance((player.total_ocx_earned || 0).toString())
       }
     } catch (error) {
       console.error("Error loading profile data:", error)
@@ -177,7 +185,9 @@ export function UserProfile({ walletAddress, resources }: UserProfileProps) {
   }
 
   const formatOcxBalance = (balance: string) => {
-    const num = parseFloat(balance) / Math.pow(10, 18) // Assuming 18 decimals
+    // getOCXBalanceReadOnly already calls ethers.formatEther (converts from wei)
+    // so balance is already in human-readable units — no division needed
+    const num = parseFloat(balance) || 0
     return num.toLocaleString(undefined, { maximumFractionDigits: 2 })
   }
 

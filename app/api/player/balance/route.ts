@@ -49,6 +49,7 @@ export async function GET() {
     return NextResponse.json({
       success: true,
       balance: playerData.total_ocx_earned ?? playerData.balance ?? 0,
+      symbol: "OCX",
     })
   } catch (error) {
     console.error("[get-balance] Unexpected error:", error)

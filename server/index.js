@@ -603,8 +603,8 @@ app.post("/player/balance", playerDataLimiter, requirePlayerBalanceAuth, async (
 
     res.json({
       coins: Number.isFinite(coinsValue) ? coinsValue : 0,
-      balance: coinsValue.toString(),
-      symbol: "COIN",
+      balance: ocxValue,
+      symbol: "OCX",
       network: "offchain",
       legacyTokenBalance: ocxValue,
     });
