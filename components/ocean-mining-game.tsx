@@ -1625,36 +1625,85 @@ export function OceanMiningGame({
   const executeSubmarineUpgrade = async (targetTierOverride?: number): Promise<SubmarineUpgradeResult> => {
     const targetTier = targetTierOverride ?? playerTier + 1
     
-    // Blockchain upgrade logic
     const connection = walletManager.getConnection()
-    if (!connection) {
-      throw new Error("Wallet not connected")
+    
+    // Determine wallet address: prefer live connection, fall back to initialWalletAddress
+    const walletAddress = connection?.address || initialWalletAddress
+    if (!walletAddress) {
+      throw new Error("No wallet address available")
     }
 
     const tierDefinition = getSubmarineByTier(targetTier)
     const upgradeCost = tierDefinition.upgradeCost.tokens
 
+    // Check balance client-side before calling server
+    if (balance < upgradeCost) {
+      throw new Error(`Insufficient OCX tokens (have: ${balance}, need: ${upgradeCost})`)
+    }
+
     try {
-      // STEP 1: Approve token spending (if using ERC20 tokens for upgrades)
-      console.log(`🔐 Approving ${upgradeCost} tokens for upgrade...`)
-      const approvalTx = await ContractManager.approveTokens(upgradeCost.toString())
-      await approvalTx.wait()
-      console.log("✅ Token approval successful")
+      // Try blockchain upgrade if wallet is connected (optional, skip if fails)
+      let blockchainSuccess = false
+      if (connection) {
+        try {
+          console.log(`🔐 Approving ${upgradeCost} tokens for upgrade...`)
+          const approvalTx = await ContractManager.approveTokens(upgradeCost.toString())
+          await approvalTx.wait()
+          console.log("✅ Token approval successful")
 
-      // STEP 2: Call smart contract upgradeSubmarine()
-      console.log(`⛓️ Calling smart contract upgradeSubmarine(${targetTier})...`)
-      const contractTx = await ContractManager.upgradeSubmarine(targetTier)
-      await contractTx.wait()
-      console.log("✅ Smart contract upgrade successful")
+          console.log(`⛓️ Calling smart contract upgradeSubmarine(${targetTier})...`)
+          const contractTx = await ContractManager.upgradeSubmarine(targetTier)
+          await contractTx.wait()
+          console.log("✅ Smart contract upgrade successful")
+          blockchainSuccess = true
+        } catch (blockchainErr: any) {
+          // If user rejected the TX, abort entirely
+          if (blockchainErr.code === 'ACTION_REJECTED') {
+            throw new Error("Transaction rejected by user")
+          }
+          // Otherwise, fall through to server-only upgrade
+          console.warn("⚠️ Blockchain upgrade skipped (OCX is DB-tracked):", blockchainErr.message)
+        }
+      } else {
+        console.log("ℹ️ No wallet connection — using server-side upgrade (DB-tracked OCX)")
+      }
 
-      // STEP 3: Update backend state (after on-chain confirmation)
-      const upgradePayload = await createSignaturePayload(connection.address, "upgrade submarine")
-      const upgradeResponse = await apiClient.upgradeSubmarine(
-        connection.address,
-        upgradePayload.signature,
-        upgradePayload.message,
-        targetTier,
-      )
+      // Server-side upgrade: deducts total_ocx_earned in the database
+      // Try Express API first (with signature), fall back to Next.js API (with JWT cookie)
+      let upgradeResponse: any = { success: false }
+      
+      if (connection) {
+        try {
+          const upgradePayload = await createSignaturePayload(connection.address, "upgrade submarine")
+          upgradeResponse = await apiClient.upgradeSubmarine(
+            walletAddress,
+            upgradePayload.signature,
+            upgradePayload.message,
+            targetTier,
+          )
+        } catch (expressErr) {
+          console.warn("Express upgrade API failed, trying Next.js API:", expressErr)
+        }
+      }
+
+      // Fallback: Next.js API route (uses JWT cookie auth, no signature needed)
+      if (!upgradeResponse.success) {
+        try {
+          const resp = await fetch("/api/submarine/upgrade", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ targetTier }),
+          })
+          const data = await resp.json()
+          if (resp.ok && data.success) {
+            upgradeResponse = data
+          } else {
+            throw new Error(data.error || "Upgrade failed")
+          }
+        } catch (nextErr: any) {
+          throw new Error(nextErr.message || "Failed to upgrade submarine")
+        }
+      }
 
       if (!upgradeResponse.success || !upgradeResponse.data) {
         const errorMessage =
@@ -1665,13 +1714,19 @@ export function OceanMiningGame({
       const upgradeData = upgradeResponse.data
       applyUpgradeStateFromResponse(upgradeData)
 
+      // Update balance from server response (may be in 'balance' or 'coins')
+      const newBal = upgradeData.balance ?? upgradeData.coins
+      if (typeof newBal === "number" && Number.isFinite(newBal)) {
+        setBalance(newBal)
+      }
+
       console.info("✅ Submarine upgrade confirmed", {
         wallet: upgradeData.wallet,
         tier: upgradeData.newTier,
-        coinsRemaining: upgradeData.coins,
+        balanceRemaining: newBal,
       })
 
-      await loadPlayerData(connection.address)
+      await loadPlayerData(walletAddress)
 
       return upgradeData
     } catch (error: any) {
@@ -1681,6 +1736,9 @@ export function OceanMiningGame({
       }
       if (error.message?.includes("insufficient funds")) {
         throw new Error("Insufficient ETH for gas fees")
+      }
+      if (error.message?.includes("Insufficient OCX")) {
+        throw error
       }
       if (error.message?.includes("sequential only")) {
         throw new Error("Submarines must be upgraded sequentially")

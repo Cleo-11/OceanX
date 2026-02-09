@@ -34,6 +34,7 @@ export default async function SubmarineStorePage() {
         manganese: playerRecord.manganese ?? 0,
       }}
       balance={playerRecord.total_ocx_earned ?? 0}
+      walletAddress={playerRecord.wallet_address}
     />
   )
 }

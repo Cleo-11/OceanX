@@ -764,7 +764,7 @@ app.post("/submarine/upgrade", sensitiveActionLimiter, requireSubmarineUpgradeAu
   try {
     let query = supabase
       .from("players")
-      .select("id, wallet_address, submarine_tier, coins")
+      .select("id, wallet_address, submarine_tier, coins, total_ocx_earned")
       .limit(1);
 
     if (requestedPlayerIdRaw) {
@@ -817,18 +817,18 @@ app.post("/submarine/upgrade", sensitiveActionLimiter, requireSubmarineUpgradeAu
     return respondWithError(res, 404, "Requested tier definition not found", "TIER_DEFINITION_MISSING");
   }
 
-  const currentCoinsRaw = playerRecord?.coins;
-  const currentCoinsValue = Number(currentCoinsRaw);
-  const currentCoins = Number.isFinite(currentCoinsValue) ? currentCoinsValue : 0;
+  // Use total_ocx_earned as the balance (token-only economy)
+  const currentOcx = Number(playerRecord?.total_ocx_earned ?? 0);
+  const currentBalance = Number.isFinite(currentOcx) ? currentOcx : 0;
   
   // Get upgrade cost from tier definition (token-only economy)
   const upgradeCost = tierDefinition.upgradeCost?.tokens ?? 0;
 
-  if (currentCoins < upgradeCost) {
-    return respondWithError(res, 402, "Not enough coins to upgrade submarine", "INSUFFICIENT_COINS");
+  if (currentBalance < upgradeCost) {
+    return respondWithError(res, 402, `Not enough OCX to upgrade submarine (have: ${currentBalance}, need: ${upgradeCost})`, "INSUFFICIENT_OCX");
   }
 
-  const newCoins = currentCoins - upgradeCost;
+  const newBalance = currentBalance - upgradeCost;
   const timestamp = new Date().toISOString();
 
   try {
@@ -836,11 +836,11 @@ app.post("/submarine/upgrade", sensitiveActionLimiter, requireSubmarineUpgradeAu
       .from("players")
       .update({
         submarine_tier: targetTier,
-        coins: newCoins,
+        total_ocx_earned: newBalance,
         updated_at: timestamp,
       })
       .eq("id", playerRecord.id)
-      .select("id, submarine_tier, coins")
+      .select("id, submarine_tier, total_ocx_earned")
       .single();
 
     if (updateError || !updatedPlayer) {
@@ -849,7 +849,7 @@ app.post("/submarine/upgrade", sensitiveActionLimiter, requireSubmarineUpgradeAu
 
     const newTierPayload = buildSubmarineResponse(tierDefinition);
 
-    const updatedCoinsValue = Number(updatedPlayer.coins);
+    const updatedOcxValue = Number(updatedPlayer.total_ocx_earned);
 
     res.json({
       playerId: updatedPlayer.id,
@@ -857,9 +857,10 @@ app.post("/submarine/upgrade", sensitiveActionLimiter, requireSubmarineUpgradeAu
       previousTier: currentTier,
       newTier: newTierPayload?.tier ?? updatedPlayer.submarine_tier,
       tierDetails: newTierPayload,
-      coins: Number.isFinite(updatedCoinsValue) ? updatedCoinsValue : newCoins,
+      coins: Number.isFinite(updatedOcxValue) ? updatedOcxValue : newBalance,
+      balance: Number.isFinite(updatedOcxValue) ? updatedOcxValue : newBalance,
       cost: {
-        coins: upgradeCost,
+        tokens: upgradeCost,
       },
       timestamp,
       message: `Submarine upgraded to tier ${targetTier}`,
@@ -878,6 +879,8 @@ const allowedOrigins = [
   // Production domains
   /^https:\/\/oceanx-frontend.*\.onrender\.com$/,
   /^https:\/\/ocean.*\.vercel\.app$/,
+  // Vercel preview deployments (any project)
+  /^https:\/\/.*\.vercel\.app$/,
   // Development
   "http://localhost:3000",
   "https://localhost:3000",

@@ -8,8 +8,6 @@ import { HangarHeader } from "@/components/hangar/HangarHeader"
 import { SubmarineCarousel } from "@/components/hangar/SubmarineCarousel"
 import { HangarHUD } from "@/components/hangar/HangarHUD"
 import { 
-  executeSubmarineUpgrade, 
-  getUpgradeCostForTier,
   getOCXBalanceReadOnly
 } from "@/lib/contracts"
 import { supabase } from "@/lib/supabase"
@@ -125,116 +123,79 @@ export default function SubmarineHangarClient({
     try {
       setIsUpgrading(true)
       setUpgradeError(null)
-      setUpgradeStatus('Connecting wallet...')
-      
-      // Step 1: Create a server-side pending action. If wallet is connected perform on-chain tx now,
-      // otherwise redirect user to connect-wallet to link and resume.
-      let pendingId: string | null = null
+      setUpgradeStatus('Processing upgrade...')
+
+      // Use the DB-based upgrade API (no wallet/blockchain required)
+      const EXPRESS_URL = process.env.NEXT_PUBLIC_GAME_SERVER_URL || 'https://oceanx.onrender.com'
+      let upgradeData: any = null
+
+      // Try Express server first
       try {
-        const resp = await fetch('/api/hangar/pending', {
+        setUpgradeStatus('Requesting upgrade...')
+        const expressResp = await fetch(`${EXPRESS_URL}/submarine/upgrade`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ actionType: 'purchase', payload: { targetTier } }),
+          body: JSON.stringify({
+            walletAddress: walletAddress,
+            targetTier: targetTier,
+          }),
         })
-        const data = await resp.json()
-        if (!resp.ok || !data.id) {
-          throw new Error(data?.error || 'Failed to create pending action')
+        if (expressResp.ok) {
+          upgradeData = await expressResp.json()
+        } else {
+          const errText = await expressResp.text()
+          console.warn('Express upgrade failed:', errText)
         }
-
-        pendingId = data.id
-      } catch (e) {
-        console.error('Failed to create pending action', e)
-        setUpgradeError('Failed to start purchase flow. Please try again.')
-        setIsUpgrading(false)
-        return
+      } catch (err) {
+        console.warn('Express upgrade unavailable, trying Next.js API:', err)
       }
 
-      // If we already have a connected wallet address, proceed to do the on-chain tx now and
-      // confirm it server-side. Otherwise redirect to home to connect wallet.
-      const id = pendingId as string
-      if (!walletAddress) {
-        const returnTo = `/submarine-hangar?pending=${encodeURIComponent(id)}`
-        router.push(`/home?returnTo=${encodeURIComponent(returnTo)}`)
-        return
-      }
-      
-      // Step 2: Get upgrade cost and display to user
-      setUpgradeStatus('Fetching upgrade cost...')
-      const costInOCX = await getUpgradeCostForTier(targetTier)
-      console.log(`Upgrade to Tier ${targetTier} costs ${costInOCX} OCX`)
-      
-      // Step 3: Execute blockchain transaction
-      setUpgradeStatus(`Requesting approval for ${costInOCX} OCX...`)
-      
-      const txResult = await executeSubmarineUpgrade(targetTier)
-
-      setUpgradeStatus('Transaction submitted! Waiting for confirmation...')
-      console.log('Transaction hash:', txResult.txHash)
-
-      // POST txHash to server confirm endpoint so server can verify
-      try {
-  const id = pendingId as string
-  const confirmResp = await fetch(`/api/hangar/pending/${encodeURIComponent(id)}/confirm`, {
+      // Fallback to Next.js API route
+      if (!upgradeData) {
+        setUpgradeStatus('Using fallback upgrade path...')
+        const nextResp = await fetch('/api/submarine/upgrade', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ txHash: txResult.txHash }),
+          body: JSON.stringify({
+            walletAddress: walletAddress,
+            targetTier: targetTier,
+          }),
         })
-        if (!confirmResp.ok) {
-          const errText = await confirmResp.text()
-          console.warn('Confirm endpoint returned error', errText)
+        if (!nextResp.ok) {
+          const errBody = await nextResp.json().catch(() => ({}))
+          throw new Error(errBody.error || 'Upgrade failed')
         }
-      } catch (err) {
-        console.error('Failed to POST txHash to confirm endpoint', err)
+        upgradeData = await nextResp.json()
       }
 
-      // Ask server to execute/verify the pending action now
-      try {
-  const execResp = await fetch(`/api/hangar/pending/${encodeURIComponent(id)}/execute`, { method: 'POST' })
-        if (!execResp.ok) {
-          const errText = await execResp.text()
-          console.warn('Execute endpoint returned error', errText)
-          setUpgradeError('Server failed to verify the transaction. Please contact support or try again.')
-          setIsUpgrading(false)
-          return
-        }
-      } catch (err) {
-        console.error('Failed to call execute endpoint', err)
+      if (!upgradeData) {
+        throw new Error('Upgrade failed — no response from server')
       }
-      
-      // Fetch updated balance after successful transaction
+
+      // Update balance from response
+      const newBalance = upgradeData.balance ?? upgradeData.coins ?? balance
+      setBalance(typeof newBalance === 'number' ? newBalance : parseFloat(newBalance) || 0)
+
+      // Refresh balance from server
       await fetchBalance()
-      
-      // NOTE: After redirecting to /connect-wallet and returning, the real
-      // upgrade flow should resume here and perform server verification.
-      // That resume mechanism is left as a TODO (e.g. pending action saved server-side)
-      
-      // Step 5: Success! Redirect to game
+
+      // Success — redirect to game
       setUpgradeStatus('Upgrade complete! Loading your new submarine...')
-      
-      // Wait a moment to show success message
       await new Promise(resolve => setTimeout(resolve, 1500))
-      
-      // Redirect to game to see new submarine
       router.push('/game')
       router.refresh()
-      
     } catch (error) {
       console.error('Purchase failed:', error)
-      
+
       let errorMessage = 'Purchase failed'
       if (error instanceof Error) {
         errorMessage = error.message
       }
-      
-      // Handle common errors with user-friendly messages
-      if (errorMessage.includes('user rejected')) {
-        errorMessage = 'Transaction cancelled by user'
-      } else if (errorMessage.includes('insufficient funds')) {
+
+      if (errorMessage.includes('insufficient') || errorMessage.includes('Not enough')) {
         errorMessage = 'Insufficient OCX tokens for upgrade'
-      } else if (errorMessage.includes('No Web3 wallet')) {
-        errorMessage = 'Please install MetaMask or another Web3 wallet'
       }
-      
+
       setUpgradeError(errorMessage)
       setUpgradeStatus(null)
     } finally {
