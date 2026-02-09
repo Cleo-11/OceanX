@@ -8,7 +8,10 @@ import { HangarHeader } from "@/components/hangar/HangarHeader"
 import { SubmarineCarousel } from "@/components/hangar/SubmarineCarousel"
 import { HangarHUD } from "@/components/hangar/HangarHUD"
 import { 
-  getOCXBalanceReadOnly
+  executeSubmarineUpgrade, 
+  getUpgradeCostForTier,
+  getOCXBalanceReadOnly,
+  connectWallet
 } from "@/lib/contracts"
 import { supabase } from "@/lib/supabase"
 
@@ -123,60 +126,74 @@ export default function SubmarineHangarClient({
     try {
       setIsUpgrading(true)
       setUpgradeError(null)
-      setUpgradeStatus('Processing upgrade...')
+      setUpgradeStatus('Connecting wallet...')
 
-      // Use the DB-based upgrade API (no wallet/blockchain required)
-      const EXPRESS_URL = process.env.NEXT_PUBLIC_GAME_SERVER_URL || 'https://oceanx.onrender.com'
-      let upgradeData: any = null
-
-      // Try Express server first
+      // Step 1: Connect MetaMask wallet — required for blockchain transaction
+      let connection
       try {
-        setUpgradeStatus('Requesting upgrade...')
-        const expressResp = await fetch(`${EXPRESS_URL}/submarine/upgrade`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            walletAddress: walletAddress,
-            targetTier: targetTier,
-          }),
-        })
-        if (expressResp.ok) {
-          upgradeData = await expressResp.json()
-        } else {
-          const errText = await expressResp.text()
-          console.warn('Express upgrade failed:', errText)
-        }
+        connection = await connectWallet()
       } catch (err) {
-        console.warn('Express upgrade unavailable, trying Next.js API:', err)
+        throw new Error('Please install MetaMask and connect your wallet to authorize this transaction.')
       }
 
-      // Fallback to Next.js API route
-      if (!upgradeData) {
-        setUpgradeStatus('Using fallback upgrade path...')
-        const nextResp = await fetch('/api/submarine/upgrade', {
+      if (!connection?.address) {
+        throw new Error('Wallet not connected. Please connect MetaMask to proceed.')
+      }
+
+      // Step 2: Get upgrade cost and display to user
+      setUpgradeStatus('Fetching upgrade cost...')
+      const costInOCX = await getUpgradeCostForTier(targetTier)
+      console.log(`Upgrade to Tier ${targetTier} costs ${costInOCX} OCX`)
+
+      // Step 3: Execute on-chain blockchain transaction (MetaMask popup)
+      setUpgradeStatus(`Requesting approval for ${costInOCX} OCX...`)
+      const txResult = await executeSubmarineUpgrade(targetTier)
+
+      setUpgradeStatus('Transaction submitted! Waiting for confirmation...')
+      console.log('Transaction hash:', txResult.txHash)
+
+      // Step 4: Confirm with server to update DB
+      setUpgradeStatus('Verifying transaction on server...')
+      try {
+        const EXPRESS_URL = process.env.NEXT_PUBLIC_GAME_SERVER_URL || 'https://oceanx.onrender.com'
+        const serverResp = await fetch(`${EXPRESS_URL}/submarine/upgrade`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            walletAddress: walletAddress,
+            walletAddress: connection.address,
             targetTier: targetTier,
+            txHash: txResult.txHash,
           }),
         })
-        if (!nextResp.ok) {
-          const errBody = await nextResp.json().catch(() => ({}))
-          throw new Error(errBody.error || 'Upgrade failed')
+        if (serverResp.ok) {
+          const data = await serverResp.json()
+          const newBalance = data.balance ?? data.coins ?? balance
+          setBalance(typeof newBalance === 'number' ? newBalance : parseFloat(newBalance) || 0)
         }
-        upgradeData = await nextResp.json()
+      } catch (serverErr) {
+        console.warn('Server confirmation failed, trying Next.js API:', serverErr)
+        // Fallback to Next.js API
+        try {
+          const resp = await fetch('/api/submarine/upgrade', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              walletAddress: connection.address,
+              targetTier: targetTier,
+              txHash: txResult.txHash,
+            }),
+          })
+          if (resp.ok) {
+            const data = await resp.json()
+            const newBalance = data.balance ?? data.coins ?? balance
+            setBalance(typeof newBalance === 'number' ? newBalance : parseFloat(newBalance) || 0)
+          }
+        } catch (fallbackErr) {
+          console.warn('Fallback server update also failed:', fallbackErr)
+        }
       }
 
-      if (!upgradeData) {
-        throw new Error('Upgrade failed — no response from server')
-      }
-
-      // Update balance from response
-      const newBalance = upgradeData.balance ?? upgradeData.coins ?? balance
-      setBalance(typeof newBalance === 'number' ? newBalance : parseFloat(newBalance) || 0)
-
-      // Refresh balance from server
+      // Refresh balance from chain
       await fetchBalance()
 
       // Success — redirect to game
@@ -192,8 +209,14 @@ export default function SubmarineHangarClient({
         errorMessage = error.message
       }
 
-      if (errorMessage.includes('insufficient') || errorMessage.includes('Not enough')) {
+      if (errorMessage.includes('user rejected') || errorMessage.includes('ACTION_REJECTED')) {
+        errorMessage = 'Transaction cancelled by user'
+      } else if (errorMessage.includes('insufficient funds')) {
+        errorMessage = 'Insufficient ETH for gas fees'
+      } else if (errorMessage.includes('Insufficient OCX') || errorMessage.includes('Not enough')) {
         errorMessage = 'Insufficient OCX tokens for upgrade'
+      } else if (errorMessage.includes('No Web3 wallet') || errorMessage.includes('MetaMask')) {
+        errorMessage = 'Please install MetaMask or another Web3 wallet'
       }
 
       setUpgradeError(errorMessage)

@@ -1627,10 +1627,14 @@ export function OceanMiningGame({
     
     const connection = walletManager.getConnection()
     
-    // Determine wallet address: prefer live connection, fall back to initialWalletAddress
-    const walletAddress = connection?.address || initialWalletAddress
+    // Wallet MUST be connected — this is a blockchain-first game
+    if (!connection) {
+      throw new Error("Wallet not connected. Please connect MetaMask to authorize the transaction.")
+    }
+
+    const walletAddress = connection.address
     if (!walletAddress) {
-      throw new Error("No wallet address available")
+      throw new Error("No wallet address available. Please reconnect MetaMask.")
     }
 
     const tierDefinition = getSubmarineByTier(targetTier)
@@ -1642,51 +1646,33 @@ export function OceanMiningGame({
     }
 
     try {
-      // Try blockchain upgrade if wallet is connected (optional, skip if fails)
-      let blockchainSuccess = false
-      if (connection) {
-        try {
-          console.log(`🔐 Approving ${upgradeCost} tokens for upgrade...`)
-          const approvalTx = await ContractManager.approveTokens(upgradeCost.toString())
-          await approvalTx.wait()
-          console.log("✅ Token approval successful")
+      // Step 1: On-chain blockchain transaction (MetaMask popup for approval + upgrade)
+      console.log(`🔐 Approving ${upgradeCost} tokens for upgrade...`)
+      const approvalTx = await ContractManager.approveTokens(upgradeCost.toString())
+      await approvalTx.wait()
+      console.log("✅ Token approval successful")
 
-          console.log(`⛓️ Calling smart contract upgradeSubmarine(${targetTier})...`)
-          const contractTx = await ContractManager.upgradeSubmarine(targetTier)
-          await contractTx.wait()
-          console.log("✅ Smart contract upgrade successful")
-          blockchainSuccess = true
-        } catch (blockchainErr: any) {
-          // If user rejected the TX, abort entirely
-          if (blockchainErr.code === 'ACTION_REJECTED') {
-            throw new Error("Transaction rejected by user")
-          }
-          // Otherwise, fall through to server-only upgrade
-          console.warn("⚠️ Blockchain upgrade skipped (OCX is DB-tracked):", blockchainErr.message)
-        }
-      } else {
-        console.log("ℹ️ No wallet connection — using server-side upgrade (DB-tracked OCX)")
-      }
+      console.log(`⛓️ Calling smart contract upgradeSubmarine(${targetTier})...`)
+      const contractTx = await ContractManager.upgradeSubmarine(targetTier)
+      await contractTx.wait()
+      console.log("✅ Smart contract upgrade successful")
 
-      // Server-side upgrade: deducts total_ocx_earned in the database
-      // Try Express API first (with signature), fall back to Next.js API (with JWT cookie)
+      // Step 2: Confirm with server — deducts total_ocx_earned in the database
       let upgradeResponse: any = { success: false }
       
-      if (connection) {
-        try {
-          const upgradePayload = await createSignaturePayload(connection.address, "upgrade submarine")
-          upgradeResponse = await apiClient.upgradeSubmarine(
-            walletAddress,
-            upgradePayload.signature,
-            upgradePayload.message,
-            targetTier,
-          )
-        } catch (expressErr) {
-          console.warn("Express upgrade API failed, trying Next.js API:", expressErr)
-        }
+      try {
+        const upgradePayload = await createSignaturePayload(connection.address, "upgrade submarine")
+        upgradeResponse = await apiClient.upgradeSubmarine(
+          walletAddress,
+          upgradePayload.signature,
+          upgradePayload.message,
+          targetTier,
+        )
+      } catch (expressErr) {
+        console.warn("Express upgrade API failed, trying Next.js API:", expressErr)
       }
 
-      // Fallback: Next.js API route (uses JWT cookie auth, no signature needed)
+      // Fallback: Next.js API route (uses JWT cookie auth)
       if (!upgradeResponse.success) {
         try {
           const resp = await fetch("/api/submarine/upgrade", {
