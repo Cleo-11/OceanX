@@ -319,9 +319,10 @@ export function OceanMiningGame({
       // Load player balance
       const balanceResponse = await apiClient.getPlayerBalance(walletAddress, balancePayload.signature, balancePayload.message)
       if (balanceResponse.success && balanceResponse.data) {
-        const coinsValue = typeof balanceResponse.data.coins === "number" ? balanceResponse.data.coins : Number.parseFloat(balanceResponse.data.balance)
-        if (Number.isFinite(coinsValue)) {
-          setBalance(coinsValue)
+        // Prefer 'balance' (total_ocx_earned) over legacy 'coins' field
+        const ocxValue = Number.parseFloat(balanceResponse.data.balance) || 0
+        if (Number.isFinite(ocxValue)) {
+          setBalance(ocxValue)
         }
       }
 
