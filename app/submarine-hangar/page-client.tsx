@@ -11,8 +11,8 @@ import {
   executeSubmarineUpgrade, 
   getUpgradeCostForTier,
   getOCXBalanceReadOnly,
-  connectWallet
 } from "@/lib/contracts"
+import { walletManager } from "@/lib/wallet"
 import { supabase } from "@/lib/supabase"
 
 /**
@@ -128,12 +128,12 @@ export default function SubmarineHangarClient({
       setUpgradeError(null)
       setUpgradeStatus('Connecting wallet...')
 
-      // Step 1: Connect MetaMask wallet — required for blockchain transaction
+      // Step 1: Ensure wallet is connected — auto-reconnects or prompts MetaMask
       let connection
       try {
-        connection = await connectWallet()
+        connection = await walletManager.ensureConnected()
       } catch (err) {
-        throw new Error('Please install MetaMask and connect your wallet to authorize this transaction.')
+        throw new Error('Please connect MetaMask or WalletConnect to authorize this transaction.')
       }
 
       if (!connection?.address) {

@@ -1625,16 +1625,19 @@ export function OceanMiningGame({
   const executeSubmarineUpgrade = async (targetTierOverride?: number): Promise<SubmarineUpgradeResult> => {
     const targetTier = targetTierOverride ?? playerTier + 1
     
-    const connection = walletManager.getConnection()
-    
-    // Wallet MUST be connected — this is a blockchain-first game
+    // Wallet MUST be connected — auto-reconnect or prompt MetaMask
+    let connection = walletManager.getConnection()
     if (!connection) {
-      throw new Error("Wallet not connected. Please connect MetaMask to authorize the transaction.")
+      try {
+        connection = await walletManager.ensureConnected()
+      } catch (err) {
+        throw new Error("Wallet not connected. Please connect MetaMask or WalletConnect to authorize the transaction.")
+      }
     }
 
     const walletAddress = connection.address
     if (!walletAddress) {
-      throw new Error("No wallet address available. Please reconnect MetaMask.")
+      throw new Error("No wallet address available. Please reconnect your wallet.")
     }
 
     const tierDefinition = getSubmarineByTier(targetTier)

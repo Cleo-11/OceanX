@@ -2,16 +2,20 @@ import { ethers } from "ethers"
 import { CHAINS, getPrimaryChain, isChainAllowed, getChainName } from "./chain-config"
 import { getOCXBalance } from "./contracts/ocx-token"
 
+export type WalletProviderType = 'metamask' | 'walletconnect'
+
 export interface WalletConnection {
   address: string
   provider: ethers.BrowserProvider
   signer: ethers.JsonRpcSigner
   chainId: number
+  providerType?: WalletProviderType
 }
 
 export class WalletManager {
   private static instance: WalletManager
   private connection: WalletConnection | null = null
+  private wcProvider: any = null // WalletConnect EthereumProvider instance
 
   static getInstance(): WalletManager {
     if (!WalletManager.instance) {
@@ -112,7 +116,7 @@ export class WalletManager {
 
   async connectWallet(): Promise<WalletConnection> {
     if (typeof window === "undefined" || !window.ethereum) {
-      throw new Error("MetaMask not installed")
+      throw new Error("MetaMask not installed. Please install MetaMask or use WalletConnect.")
     }
 
     try {
@@ -128,7 +132,7 @@ export class WalletManager {
       const network = await provider.getNetwork()
       const chainId = Number(network.chainId)
 
-      this.connection = { address, provider, signer, chainId }
+      this.connection = { address, provider, signer, chainId, providerType: 'metamask' }
       return this.connection
     } catch (error) {
       if (error instanceof Error) {
@@ -136,6 +140,102 @@ export class WalletManager {
       }
       throw new Error("Failed to connect wallet")
     }
+  }
+
+  /**
+   * Connect via WalletConnect (mobile wallets, QR code scanning)
+   * Requires NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID to be set
+   */
+  async connectWalletConnect(): Promise<WalletConnection> {
+    try {
+      const { EthereumProvider } = await import('@walletconnect/ethereum-provider')
+
+      const projectId = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID
+      if (!projectId) {
+        throw new Error('WalletConnect not configured. Set NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID in your environment.')
+      }
+
+      const primaryChain = getPrimaryChain()
+
+      this.wcProvider = await EthereumProvider.init({
+        projectId,
+        chains: [primaryChain.chainId],
+        showQrModal: true,
+        metadata: {
+          name: 'OceanX',
+          description: 'Web3 Ocean Mining Game',
+          url: typeof window !== 'undefined' ? window.location.origin : 'https://abyssx.io',
+          icons: ['https://abyssx.io/icon.png'],
+        },
+        optionalChains: [8453, 84532, 11155111],
+        rpcMap: {
+          8453: 'https://mainnet.base.org',
+          84532: 'https://sepolia.base.org',
+          11155111: 'https://rpc.sepolia.org',
+        },
+      })
+
+      await this.wcProvider.connect()
+
+      const provider = new ethers.BrowserProvider(this.wcProvider as any)
+      const signer = await provider.getSigner()
+      const address = await signer.getAddress()
+      const network = await provider.getNetwork()
+      const chainId = Number(network.chainId)
+
+      this.connection = { address, provider, signer, chainId, providerType: 'walletconnect' }
+      return this.connection
+    } catch (error: any) {
+      if (error.code === 'MODULE_NOT_FOUND' || error.message?.includes('Cannot find module')) {
+        throw new Error('WalletConnect not installed. Please use MetaMask instead.')
+      }
+      if (error instanceof Error) throw error
+      throw new Error('Failed to connect via WalletConnect')
+    }
+  }
+
+  /**
+   * Ensure wallet is connected — auto-reconnects if MetaMask is available
+   * and the user has previously authorized this site.
+   * This is the preferred method to call before any transaction.
+   * Returns the existing connection if alive, or reconnects silently,
+   * or prompts MetaMask to connect.
+   */
+  async ensureConnected(): Promise<WalletConnection> {
+    // If we already have a live connection, return it
+    if (this.connection) {
+      return this.connection
+    }
+
+    // Try to silently reconnect to MetaMask if accounts are already authorized
+    if (typeof window !== 'undefined' && window.ethereum) {
+      try {
+        // eth_accounts doesn't prompt — returns [] if no authorized accounts
+        const accounts: string[] = await window.ethereum.request({ method: 'eth_accounts' })
+        if (accounts && accounts.length > 0) {
+          // User has previously authorized — reconnect silently
+          const provider = new ethers.BrowserProvider(window.ethereum)
+          const signer = await provider.getSigner()
+          const address = await signer.getAddress()
+          const network = await provider.getNetwork()
+          const chainId = Number(network.chainId)
+
+          // Verify we're on an allowed network
+          if (isChainAllowed(chainId)) {
+            this.connection = { address, provider, signer, chainId, providerType: 'metamask' }
+            console.log('🔄 Wallet auto-reconnected:', address)
+            return this.connection
+          }
+        }
+      } catch (err) {
+        console.warn('Silent reconnect failed:', err)
+      }
+
+      // If silent reconnect didn't work, prompt MetaMask
+      return this.connectWallet()
+    }
+
+    throw new Error('No Web3 wallet detected. Please install MetaMask or use WalletConnect.')
   }
 
   async signMessage(message: string): Promise<string> {
@@ -176,6 +276,14 @@ export class WalletManager {
   }
 
   disconnect(): void {
+    if (this.wcProvider) {
+      try {
+        this.wcProvider.disconnect()
+      } catch (err) {
+        console.warn('WalletConnect disconnect error:', err)
+      }
+      this.wcProvider = null
+    }
     this.connection = null
   }
 

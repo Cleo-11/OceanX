@@ -8,8 +8,8 @@ import type { PlayerResources } from "@/lib/types"
 import {
   executeSubmarineUpgrade,
   getUpgradeCostForTier,
-  connectWallet
 } from "@/lib/contracts"
+import { walletManager } from "@/lib/wallet"
 
 type SubmarineStoreClientProps = {
   currentTier: number
@@ -28,12 +28,12 @@ export default function SubmarineStoreClient({ currentTier, resources, balance: 
     setIsUpgrading(true)
 
     try {
-      // Step 1: Connect MetaMask wallet — required for blockchain transaction
+      // Step 1: Ensure wallet is connected — auto-reconnects or prompts MetaMask
       let connection
       try {
-        connection = await connectWallet()
+        connection = await walletManager.ensureConnected()
       } catch (err) {
-        throw new Error('Please install MetaMask and connect your wallet to authorize this transaction.')
+        throw new Error('Please connect MetaMask or WalletConnect to authorize this transaction.')
       }
 
       if (!connection?.address) {
