@@ -14,6 +14,7 @@ import { apiClient, type SubmarineUpgradeResult } from "@/lib/api"
 import { walletManager } from "@/lib/wallet"
 import { wsManager } from "@/lib/websocket"
 import { ContractManager } from "@/lib/contracts"
+import { ethers } from "ethers"
 import { getSubmarineByTier } from "@/lib/submarine-tiers"
 import { canMineResource, getStoragePercentage, getResourceColor } from "@/lib/resource-utils"
 import type { GameState, ResourceNode, PlayerStats, PlayerResources, PlayerPosition } from "@/lib/types"
@@ -1649,22 +1650,46 @@ export function OceanMiningGame({
     }
 
     try {
-      // Step 1: On-chain blockchain transaction (MetaMask popup for approval + upgrade)
-      console.log(`🔐 Approving ${upgradeCost} tokens for upgrade...`)
-      const approvalTx = await ContractManager.approveTokens(upgradeCost.toString())
-      await approvalTx.wait()
-      console.log("✅ Token approval successful")
+      // Try on-chain blockchain transaction first (full token transfer)
+      let onChainSuccess = false
+      try {
+        console.log(`🔐 Attempting on-chain upgrade to tier ${targetTier}...`)
+        const approvalTx = await ContractManager.approveTokens(
+          ethers.parseEther(upgradeCost.toString()).toString()
+        )
+        await approvalTx.wait()
+        console.log("✅ Token approval successful")
 
-      console.log(`⛓️ Calling smart contract upgradeSubmarine(${targetTier})...`)
-      const contractTx = await ContractManager.upgradeSubmarine(targetTier)
-      await contractTx.wait()
-      console.log("✅ Smart contract upgrade successful")
+        const contractTx = await ContractManager.upgradeSubmarine(targetTier)
+        await contractTx.wait()
+        console.log("✅ Smart contract upgrade successful")
+        onChainSuccess = true
+      } catch (onChainErr: any) {
+        // CALL_EXCEPTION = user has no on-chain OCX tokens to spend
+        // This is expected when tokens are tracked off-chain in the DB
+        const isCallException = onChainErr?.code === 'CALL_EXCEPTION' ||
+          onChainErr?.message?.includes('CALL_EXCEPTION') ||
+          onChainErr?.message?.includes('missing revert data') ||
+          onChainErr?.message?.includes('estimateGas')
+        
+        if (onChainErr?.code === 'ACTION_REJECTED') {
+          throw new Error("Transaction rejected by user")
+        }
+        
+        if (isCallException) {
+          console.warn("⚠️ On-chain upgrade failed (no on-chain tokens). Falling back to signed authorization...")
+        } else {
+          console.warn("⚠️ On-chain upgrade failed, falling back to signed authorization:", onChainErr?.message)
+        }
+      }
 
-      // Step 2: Confirm with server — deducts total_ocx_earned in the database
+      // Step 2: MetaMask-signed authorization + server-side DB upgrade
+      // This ensures MetaMask popup always appears (for the signature) even if on-chain tx was skipped
+      const upgradePayload = await createSignaturePayload(connection.address, "upgrade submarine")
+
       let upgradeResponse: any = { success: false }
       
       try {
-        const upgradePayload = await createSignaturePayload(connection.address, "upgrade submarine")
         upgradeResponse = await apiClient.upgradeSubmarine(
           walletAddress,
           upgradePayload.signature,
@@ -1713,6 +1738,7 @@ export function OceanMiningGame({
         wallet: upgradeData.wallet,
         tier: upgradeData.newTier,
         balanceRemaining: newBal,
+        onChainSuccess,
       })
 
       await loadPlayerData(walletAddress)
@@ -1720,7 +1746,7 @@ export function OceanMiningGame({
       return upgradeData
     } catch (error: any) {
       // Handle specific errors
-      if (error.code === 'ACTION_REJECTED') {
+      if (error.code === 'ACTION_REJECTED' || error.message?.includes("rejected by user")) {
         throw new Error("Transaction rejected by user")
       }
       if (error.message?.includes("insufficient funds")) {

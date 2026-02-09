@@ -178,7 +178,9 @@ export async function approveOCXTokens(amount: bigint) {
 
 /**
  * Execute submarine upgrade on-chain
- * Returns transaction details for server verification
+ * Tries full on-chain flow first (approve + upgradeSubmarine).
+ * If it fails (e.g. user has no on-chain OCX tokens), returns null
+ * so callers can fall back to signature-based server upgrade.
  */
 export async function executeSubmarineUpgrade(targetTier: number) {
   const { signer, address } = await connectWallet()
@@ -218,6 +220,25 @@ export async function executeSubmarineUpgrade(targetTier: number) {
     newTier: upgradeEvent?.args?.newTier ? Number(upgradeEvent.args.newTier) : targetTier,
     playerAddress: address,
     timestamp: upgradeEvent?.args?.timestamp ? Number(upgradeEvent.args.timestamp) : Math.floor(Date.now() / 1000),
+  }
+}
+
+/**
+ * Try on-chain upgrade, return null if it fails (e.g. no on-chain tokens).
+ * Callers should fall back to signed server-side upgrade on null.
+ * Rethrows ACTION_REJECTED so user cancellation isn't silently swallowed.
+ */
+export async function tryOnChainUpgrade(targetTier: number) {
+  try {
+    return await executeSubmarineUpgrade(targetTier)
+  } catch (err: any) {
+    // If user explicitly rejected the MetaMask popup, rethrow
+    if (err?.code === 'ACTION_REJECTED' || err?.message?.includes('user rejected')) {
+      throw err
+    }
+    // CALL_EXCEPTION / missing revert data = no on-chain tokens; fall back
+    console.warn('On-chain upgrade failed, eligible for signed fallback:', err?.message)
+    return null
   }
 }
 

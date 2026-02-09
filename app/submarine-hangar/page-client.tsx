@@ -8,7 +8,7 @@ import { HangarHeader } from "@/components/hangar/HangarHeader"
 import { SubmarineCarousel } from "@/components/hangar/SubmarineCarousel"
 import { HangarHUD } from "@/components/hangar/HangarHUD"
 import { 
-  executeSubmarineUpgrade, 
+  tryOnChainUpgrade, 
   getUpgradeCostForTier,
   getOCXBalanceReadOnly,
 } from "@/lib/contracts"
@@ -145,36 +145,19 @@ export default function SubmarineHangarClient({
       const costInOCX = await getUpgradeCostForTier(targetTier)
       console.log(`Upgrade to Tier ${targetTier} costs ${costInOCX} OCX`)
 
-      // Step 3: Execute on-chain blockchain transaction (MetaMask popup)
+      // Step 3: Try on-chain blockchain transaction first (MetaMask popup)
       setUpgradeStatus(`Requesting approval for ${costInOCX} OCX...`)
-      const txResult = await executeSubmarineUpgrade(targetTier)
+      const txResult = await tryOnChainUpgrade(targetTier)
 
-      setUpgradeStatus('Transaction submitted! Waiting for confirmation...')
-      console.log('Transaction hash:', txResult.txHash)
+      if (txResult) {
+        // On-chain succeeded — confirm with server using txHash
+        setUpgradeStatus('Transaction submitted! Waiting for confirmation...')
+        console.log('Transaction hash:', txResult.txHash)
 
-      // Step 4: Confirm with server to update DB
-      setUpgradeStatus('Verifying transaction on server...')
-      try {
-        const EXPRESS_URL = process.env.NEXT_PUBLIC_GAME_SERVER_URL || 'https://oceanx.onrender.com'
-        const serverResp = await fetch(`${EXPRESS_URL}/submarine/upgrade`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            walletAddress: connection.address,
-            targetTier: targetTier,
-            txHash: txResult.txHash,
-          }),
-        })
-        if (serverResp.ok) {
-          const data = await serverResp.json()
-          const newBalance = data.balance ?? data.coins ?? balance
-          setBalance(typeof newBalance === 'number' ? newBalance : parseFloat(newBalance) || 0)
-        }
-      } catch (serverErr) {
-        console.warn('Server confirmation failed, trying Next.js API:', serverErr)
-        // Fallback to Next.js API
+        setUpgradeStatus('Verifying transaction on server...')
         try {
-          const resp = await fetch('/api/submarine/upgrade', {
+          const EXPRESS_URL = process.env.NEXT_PUBLIC_GAME_SERVER_URL || 'https://oceanx.onrender.com'
+          const serverResp = await fetch(`${EXPRESS_URL}/submarine/upgrade`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -183,13 +166,67 @@ export default function SubmarineHangarClient({
               txHash: txResult.txHash,
             }),
           })
+          if (serverResp.ok) {
+            const data = await serverResp.json()
+            const newBalance = data.balance ?? data.coins ?? balance
+            setBalance(typeof newBalance === 'number' ? newBalance : parseFloat(newBalance) || 0)
+          }
+        } catch (serverErr) {
+          console.warn('Server confirmation with txHash failed:', serverErr)
+        }
+      } else {
+        // On-chain failed (no on-chain tokens) — fall back to signed authorization
+        setUpgradeStatus('Signing purchase authorization...')
+        const message = `Authorize submarine upgrade to Tier ${targetTier} for account ${connection.address}`
+        const signer = connection.signer
+        const signature = await signer.signMessage(message)
+
+        setUpgradeStatus('Verifying signed authorization on server...')
+        // Try Express API
+        let serverSuccess = false
+        try {
+          const EXPRESS_URL = process.env.NEXT_PUBLIC_GAME_SERVER_URL || 'https://oceanx.onrender.com'
+          const serverResp = await fetch(`${EXPRESS_URL}/submarine/upgrade`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-wallet-address': connection.address,
+              'x-auth-signature': signature,
+              'x-auth-message': message,
+            },
+            body: JSON.stringify({
+              walletAddress: connection.address,
+              targetTier: targetTier,
+            }),
+          })
+          if (serverResp.ok) {
+            const data = await serverResp.json()
+            const newBalance = data.balance ?? data.coins ?? balance
+            setBalance(typeof newBalance === 'number' ? newBalance : parseFloat(newBalance) || 0)
+            serverSuccess = true
+          }
+        } catch (expressErr) {
+          console.warn('Express signed upgrade failed:', expressErr)
+        }
+
+        if (!serverSuccess) {
+          // Fallback to Next.js API
+          const resp = await fetch('/api/submarine/upgrade', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              walletAddress: connection.address,
+              targetTier: targetTier,
+            }),
+          })
           if (resp.ok) {
             const data = await resp.json()
             const newBalance = data.balance ?? data.coins ?? balance
             setBalance(typeof newBalance === 'number' ? newBalance : parseFloat(newBalance) || 0)
+          } else {
+            const errData = await resp.json().catch(() => ({}))
+            throw new Error(errData.error || 'Upgrade failed on server')
           }
-        } catch (fallbackErr) {
-          console.warn('Fallback server update also failed:', fallbackErr)
         }
       }
 
