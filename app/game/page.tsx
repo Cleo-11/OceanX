@@ -18,11 +18,11 @@ export default async function GamePage() {
   // Use admin client for database operations
   const supabase = createSupabaseAdmin()
 
-  // Load player data by wallet address
+  // Load player data by wallet address (case-insensitive)
   let { data: playerData, error: playerError } = await supabase
     .from("players")
-    .select("wallet_address, nickel, cobalt, copper, manganese")
-    .eq("wallet_address", auth.walletAddress)
+    .select("wallet_address, nickel, cobalt, copper, manganese, total_ocx_earned, submarine_tier, has_completed_tutorial")
+    .ilike("wallet_address", auth.walletAddress)
     .maybeSingle()
 
   if (playerError) {

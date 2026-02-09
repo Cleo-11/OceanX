@@ -18,6 +18,8 @@ interface GameClientProps {
     cobalt?: number
     copper?: number
     manganese?: number
+    total_ocx_earned?: number
+    submarine_tier?: number
     has_completed_tutorial?: boolean | null
   } | null
   walletAddress: string
@@ -134,6 +136,7 @@ export default function GameClient({ userId, playerData, walletAddress }: GameCl
             onFullDisconnect={handleFullDisconnect}
             hasCompletedTutorial={playerData?.has_completed_tutorial ?? false}
             initialWalletAddress={walletAddress}
+            initialBalance={playerData?.total_ocx_earned ?? 0}
             initialResources={{
               nickel: playerData?.nickel ?? 0,
               cobalt: playerData?.cobalt ?? 0,

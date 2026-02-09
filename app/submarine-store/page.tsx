@@ -13,11 +13,11 @@ export default async function SubmarineStorePage() {
   // Use admin client for database operations
   const supabase = createSupabaseAdmin()
 
-  // Fetch player data by wallet address
+  // Fetch player data by wallet address (case-insensitive)
   const { data: playerRecord } = await supabase
     .from("players")
     .select("*")
-    .eq("wallet_address", auth.walletAddress)
+    .ilike("wallet_address", auth.walletAddress)
     .maybeSingle()
 
   if (!playerRecord || !playerRecord.wallet_address) {

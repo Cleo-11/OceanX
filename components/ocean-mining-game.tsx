@@ -45,6 +45,8 @@ interface OceanMiningGameProps {
   hasCompletedTutorial?: boolean
   // Optional: initial wallet address from server auth
   initialWalletAddress?: string
+  // Optional: initial OCX balance from database (avoids Express API dependency)
+  initialBalance?: number
 }
 
 export function OceanMiningGame({
@@ -59,6 +61,7 @@ export function OceanMiningGame({
   initialResources,
   hasCompletedTutorial = false,
   initialWalletAddress = "",
+  initialBalance = 0,
 }: OceanMiningGameProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const gameLoopRef = useRef<number>(0)
@@ -126,7 +129,7 @@ export function OceanMiningGame({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resources])
 
-  const [balance, setBalance] = useState<number>(0)
+  const [balance, setBalance] = useState<number>(initialBalance)
   const [showUpgradeModal, setShowUpgradeModal] = useState<boolean>(false)
   const [showSubmarineStore, setShowSubmarineStore] = useState<boolean>(false)
   const [targetNode, setTargetNode] = useState<ResourceNode | null>(null)
@@ -312,17 +315,46 @@ export function OceanMiningGame({
 
   const loadPlayerData = async (walletAddress: string) => {
     try {
-      const balancePayload = await createSignaturePayload(
-        walletAddress,
-        "get balance",
-      )
-      // Load player balance
-      const balanceResponse = await apiClient.getPlayerBalance(walletAddress, balancePayload.signature, balancePayload.message)
-      if (balanceResponse.success && balanceResponse.data) {
-        // Prefer 'balance' (total_ocx_earned) over legacy 'coins' field
-        const ocxValue = Number.parseFloat(balanceResponse.data.balance) || 0
-        if (Number.isFinite(ocxValue)) {
-          setBalance(ocxValue)
+      let balanceLoaded = false
+      
+      // Try Express server API first
+      try {
+        const balancePayload = await createSignaturePayload(
+          walletAddress,
+          "get balance",
+        )
+        // Load player balance
+        const balanceResponse = await apiClient.getPlayerBalance(walletAddress, balancePayload.signature, balancePayload.message)
+        if (balanceResponse.success && balanceResponse.data) {
+          // Prefer 'balance' (total_ocx_earned) over legacy 'coins' field
+          const ocxValue = Number.parseFloat(balanceResponse.data.balance) || 0
+          if (Number.isFinite(ocxValue) && ocxValue > 0) {
+            setBalance(ocxValue)
+            balanceLoaded = true
+          }
+        }
+      } catch (apiErr) {
+        console.warn("Express API balance fetch failed, falling back to Supabase:", apiErr)
+      }
+
+      // Fallback: fetch total_ocx_earned directly from Supabase
+      if (!balanceLoaded) {
+        try {
+          const { supabase } = await import("@/lib/supabase")
+          const { data: player } = await supabase
+            .from("players")
+            .select("total_ocx_earned")
+            .ilike("wallet_address", walletAddress)
+            .single()
+          if (player?.total_ocx_earned) {
+            const dbOcx = Number(player.total_ocx_earned) || 0
+            if (dbOcx > 0) {
+              setBalance(dbOcx)
+              console.log("✅ Balance loaded from Supabase fallback:", dbOcx)
+            }
+          }
+        } catch (dbErr) {
+          console.warn("Supabase balance fallback also failed:", dbErr)
         }
       }
 

@@ -947,7 +947,8 @@ app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 // Socket.IO setup with production optimizations
 const io = new SocketIOServer(server, {
   cors: corsOptions,
-  transports: ["websocket"], // DISABLE POLLING for performance
+  transports: ["polling", "websocket"], // Allow polling handshake then upgrade to websocket (required for Render proxy)
+  allowUpgrades: true,
   maxHttpBufferSize: 1e6, // 1MB limit
   pingTimeout: 60000,
   pingInterval: 25000,
@@ -1948,12 +1949,33 @@ app.get("/", (req, res) => {
 });
 
 // Health check endpoint
-app.get("/health", (req, res) => {
+app.get("/health", async (req, res) => {
+    let registeredPlayers = 0;
+    let databaseStatus = "unknown";
+
+    if (supabase) {
+        try {
+            const { count, error } = await supabase
+                .from("players")
+                .select("*", { count: "exact", head: true });
+            if (!error) {
+                registeredPlayers = count || 0;
+                databaseStatus = "connected";
+            } else {
+                databaseStatus = "error";
+            }
+        } catch (e) {
+            databaseStatus = "unreachable";
+        }
+    }
+
     res.json({
         status: "OK",
         timestamp: new Date().toISOString(),
         activeSessions: gameSessions.size,
-        totalPlayers: Array.from(gameSessions.values()).reduce((total, session) => total + session.players.size, 0),
+        activePlayersInSessions: Array.from(gameSessions.values()).reduce((total, session) => total + session.players.size, 0),
+        registeredPlayers,
+        databaseStatus,
         claimServiceAvailable: !!claimService,
     });
 });

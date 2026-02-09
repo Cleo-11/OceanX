@@ -73,7 +73,8 @@ export class WebSocketManager {
     return new Promise((resolve, reject) => {
       try {
         this.socket = io(url, {
-          transports: ["websocket"], // Disable polling for production
+          transports: ["polling", "websocket"], // Start with polling, upgrade to websocket (required for Render proxy)
+          upgrade: true,
           reconnection: true,
           reconnectionDelay: 1000,
           reconnectionDelayMax: 5000,
