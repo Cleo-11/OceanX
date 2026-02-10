@@ -10,8 +10,6 @@ import {
   Waves, 
   ChevronDown, 
   Wifi, 
-  ShoppingBag, 
-  TrendingUp,
   Anchor,
   Gauge,
   Zap,
@@ -658,28 +656,15 @@ export function UserHome({ playerData, onPlayClick, onSubmarineStoreClick }: Use
                   </motion.button>
 
                   {/* Secondary Actions */}
-                  <div className="grid grid-cols-2 gap-3">
-                    <motion.button 
-                      whileHover={{ scale: 1.02, borderColor: 'rgba(6,182,212,0.6)' }}
-                      whileTap={{ scale: 0.98 }}
-                      onClick={() => router.push('/marketplace')}
-                      className="flex items-center justify-center gap-2 py-4 px-6 rounded-xl bg-slate-800/60 border border-slate-700/50 hover:bg-slate-700/60 transition-all group"
-                    >
-                      <ShoppingBag className="w-5 h-5 text-cyan-400 group-hover:rotate-6 transition-transform" />
-                      <span className="font-semibold text-white">Trade OCX</span>
-                      <TrendingUp className="w-4 h-4 text-green-400" />
-                    </motion.button>
-                    
-                    <motion.button 
-                      whileHover={{ scale: 1.02, borderColor: 'rgba(6,182,212,0.6)' }}
-                      whileTap={{ scale: 0.98 }}
-                      onClick={onSubmarineStoreClick}
-                      className="flex items-center justify-center gap-2 py-4 px-6 rounded-xl bg-slate-800/60 border border-slate-700/50 hover:bg-slate-700/60 transition-all group"
-                    >
-                      <Store className="w-5 h-5 text-blue-400 group-hover:scale-110 transition-transform" />
-                      <span className="font-semibold text-white">Hangar Bay</span>
-                    </motion.button>
-                  </div>
+                  <motion.button 
+                    whileHover={{ scale: 1.02, borderColor: 'rgba(6,182,212,0.6)' }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={onSubmarineStoreClick}
+                    className="w-full flex items-center justify-center gap-2 py-4 px-6 rounded-xl bg-slate-800/60 border border-slate-700/50 hover:bg-slate-700/60 transition-all group"
+                  >
+                    <Store className="w-5 h-5 text-blue-400 group-hover:scale-110 transition-transform" />
+                    <span className="font-semibold text-white">Hangar Bay</span>
+                  </motion.button>
 
                   {/* Tertiary Actions */}
                   <motion.button 
