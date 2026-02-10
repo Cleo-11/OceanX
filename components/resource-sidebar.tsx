@@ -12,6 +12,7 @@ interface ResourceSidebarProps {
   resources: PlayerResources
   balance: number
   onTradeAll: () => void
+  onClaimOcx?: () => void
   gameState: GameState
   playerStats: PlayerStats
   walletAddress: string
@@ -19,11 +20,12 @@ interface ResourceSidebarProps {
   onDisconnect?: () => void
 }
 
-export function ResourceSidebar({ isOpen, resources, balance, onTradeAll, gameState, playerStats, walletAddress, walletConnected, onDisconnect }: ResourceSidebarProps) {
+export function ResourceSidebar({ isOpen, resources, balance, onTradeAll, onClaimOcx, gameState, playerStats, walletAddress, walletConnected, onDisconnect }: ResourceSidebarProps) {
   const router = useRouter()
   const isTrading = gameState === "trading" || gameState === "resourceTraded"
+  const isClaiming = gameState === "claiming" || gameState === "claimed"
   const isUpgrading = gameState === "upgrading" || gameState === "upgraded"
-  const isDisabled = isTrading || isUpgrading
+  const isDisabled = isTrading || isClaiming || isUpgrading
 
   const handleBackToHome = () => {
     router.push("/home")
@@ -62,14 +64,25 @@ export function ResourceSidebar({ isOpen, resources, balance, onTradeAll, gameSt
         </div>
 
         <TabsContent value="resources" className="flex-1 p-4 overflow-y-auto">
-          {/* Trade All Button - Available anytime you have resources */}
+          {/* Trade All Button - converts resources to OCX (off-chain) */}
           {totalUsed > 0 && (
             <button
               onClick={onTradeAll}
-              className="mb-4 w-full rounded-lg bg-gradient-to-r from-yellow-500 to-cyan-600 py-3 text-lg font-bold text-white shadow-lg hover:from-yellow-400 hover:to-cyan-500 transition-all"
+              className="mb-2 w-full rounded-lg bg-gradient-to-r from-yellow-500 to-cyan-600 py-3 text-lg font-bold text-white shadow-lg hover:from-yellow-400 hover:to-cyan-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               disabled={isDisabled}
             >
-              Trade All for OCX
+              {isTrading ? "Trading..." : "Trade All for OCX"}
+            </button>
+          )}
+
+          {/* Claim OCX Button - withdraws OCX to wallet on-chain */}
+          {walletConnected && balance > 0 && onClaimOcx && (
+            <button
+              onClick={onClaimOcx}
+              className="mb-4 w-full rounded-lg bg-gradient-to-r from-emerald-500 to-teal-600 py-3 text-lg font-bold text-white shadow-lg hover:from-emerald-400 hover:to-teal-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={isDisabled}
+            >
+              {isClaiming ? "Claiming..." : `Claim ${balance.toLocaleString()} OCX`}
             </button>
           )}
 

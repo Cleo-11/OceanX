@@ -2102,6 +2102,313 @@ app.post("/claim", claimLimiter, requireClaimAuth, async (req, res) => {
 // MARKETPLACE ENDPOINTS (Sign-only flow)
 // ==========================================
 
+// ==========================================
+// OFF-CHAIN TRADE: Convert resources → OCX (database only, no blockchain)
+// ==========================================
+
+/**
+ * POST /marketplace/trade-resources
+ * Converts player resources to OCX off-chain (deducts resources, credits total_ocx_earned).
+ * No blockchain interaction — purely database update.
+ * The player can later use POST /marketplace/claim-ocx to withdraw OCX on-chain.
+ */
+app.post("/marketplace/trade-resources", sensitiveActionLimiter, requireClaimAuth, async (req, res) => {
+    try {
+        const wallet = req?.auth?.wallet;
+        if (!wallet) {
+            return respondWithError(res, 401, "Wallet authentication required", "WALLET_REQUIRED");
+        }
+
+        if (!supabase) {
+            return respondWithError(res, 503, "Database not available", "DB_UNAVAILABLE");
+        }
+
+        // Fetch current player data
+        const { data: player, error: playerError } = await supabase
+            .from("players")
+            .select("id, wallet_address, submarine_tier, coins, total_ocx_earned, nickel, cobalt, copper, manganese")
+            .ilike("wallet_address", wallet)
+            .single();
+
+        if (playerError || !player) {
+            return respondWithError(res, 404, "Player not found", "PLAYER_NOT_FOUND");
+        }
+
+        // Read current resources
+        const resources = {
+            nickel: player.nickel || 0,
+            cobalt: player.cobalt || 0,
+            copper: player.copper || 0,
+            manganese: player.manganese || 0,
+        };
+
+        const totalResources = resources.nickel + resources.cobalt + resources.copper + resources.manganese;
+        if (totalResources <= 0) {
+            return respondWithError(res, 400, "No resources to trade", "NO_RESOURCES");
+        }
+
+        // Calculate OCX value using the same rates as computeMaxClaimableAmount
+        const RESOURCE_TO_OCX_RATE = {
+            nickel: 0.1,
+            cobalt: 0.5,
+            copper: 1.0,
+            manganese: 2.0,
+        };
+
+        const nickelValue = Math.floor(resources.nickel * RESOURCE_TO_OCX_RATE.nickel);
+        const cobaltValue = Math.floor(resources.cobalt * RESOURCE_TO_OCX_RATE.cobalt);
+        const copperValue = Math.floor(resources.copper * RESOURCE_TO_OCX_RATE.copper);
+        const manganeseValue = Math.floor(resources.manganese * RESOURCE_TO_OCX_RATE.manganese);
+        const totalOcxEarned = nickelValue + cobaltValue + copperValue + manganeseValue;
+
+        if (totalOcxEarned <= 0) {
+            return respondWithError(res, 400, "Resources too few to yield any OCX", "ZERO_OCX");
+        }
+
+        // Update DB: zero out resources and credit total_ocx_earned
+        const currentOcx = Number(player.total_ocx_earned) || 0;
+        const newOcxBalance = currentOcx + totalOcxEarned;
+
+        const { error: updateError } = await supabase
+            .from("players")
+            .update({
+                nickel: 0,
+                cobalt: 0,
+                copper: 0,
+                manganese: 0,
+                total_ocx_earned: newOcxBalance,
+                updated_at: new Date().toISOString(),
+            })
+            .eq("id", player.id);
+
+        if (updateError) {
+            logServerError("trade-resources-update", updateError, { wallet });
+            return respondWithError(res, 500, "Failed to update player", "UPDATE_FAILED");
+        }
+
+        console.log(`✅ Off-chain trade: ${wallet} traded resources for ${totalOcxEarned} OCX (new balance: ${newOcxBalance})`);
+
+        res.json({
+            success: true,
+            wallet,
+            resourcesTraded: resources,
+            ocxEarned: totalOcxEarned,
+            newOcxBalance,
+            breakdown: {
+                nickel: { amount: resources.nickel, rate: RESOURCE_TO_OCX_RATE.nickel, value: nickelValue },
+                cobalt: { amount: resources.cobalt, rate: RESOURCE_TO_OCX_RATE.cobalt, value: cobaltValue },
+                copper: { amount: resources.copper, rate: RESOURCE_TO_OCX_RATE.copper, value: copperValue },
+                manganese: { amount: resources.manganese, rate: RESOURCE_TO_OCX_RATE.manganese, value: manganeseValue },
+            },
+            message: `Traded all resources for ${totalOcxEarned} OCX. Use Claim OCX to withdraw to your wallet.`,
+        });
+    } catch (err) {
+        logServerError("trade-resources", err, { wallet: req?.auth?.wallet });
+        respondWithError(res, 500, "Trade failed", "TRADE_ERROR");
+    }
+});
+
+// ==========================================
+// CLAIM OCX: Withdraw accumulated OCX on-chain
+// ==========================================
+
+/**
+ * POST /marketplace/claim-ocx
+ * Checks the player's total_ocx_earned in DB and generates a blockchain signature
+ * for the full amount (or a requested amount). The client uses this signature to
+ * call OCXToken.claim() on-chain, then confirms with /marketplace/trade/confirm.
+ */
+app.post("/marketplace/claim-ocx", claimLimiter, requireClaimAuth, async (req, res) => {
+    try {
+        const wallet = req?.auth?.wallet;
+        if (!wallet) {
+            return respondWithError(res, 401, "Wallet authentication required", "WALLET_REQUIRED");
+        }
+
+        if (!supabase) {
+            return respondWithError(res, 503, "Database not available", "DB_UNAVAILABLE");
+        }
+
+        // Fetch player's claimable OCX balance from DB
+        const { data: player, error: playerError } = await supabase
+            .from("players")
+            .select("id, wallet_address, total_ocx_earned")
+            .ilike("wallet_address", wallet)
+            .single();
+
+        if (playerError || !player) {
+            return respondWithError(res, 404, "Player not found", "PLAYER_NOT_FOUND");
+        }
+
+        const availableOcx = Number(player.total_ocx_earned) || 0;
+
+        if (availableOcx <= 0) {
+            return respondWithError(res, 400, "No OCX available to claim. Trade resources first.", "NO_OCX_TO_CLAIM");
+        }
+
+        // Allow partial claims (optional body param), default to full balance
+        const requestedAmount = parseFloat(req.body?.ocxAmount || req.body?.amount || 0);
+        const claimAmount = (requestedAmount > 0 && requestedAmount <= availableOcx) 
+            ? requestedAmount 
+            : availableOcx;
+
+        // Convert to wei
+        const amountWei = ethers.parseEther(claimAmount.toString());
+
+        console.log(`📝 Claim OCX request: ${wallet} wants to claim ${claimAmount} OCX (available: ${availableOcx})`);
+
+        // 🔒 Nonce management for replay protection
+        if (!nonceManager) {
+            return respondWithError(res, 503, "Signature service temporarily unavailable", "SERVICE_UNAVAILABLE");
+        }
+
+        const currentNonce = await nonceManager.getCurrentNonce(wallet);
+        
+        // Clean up expired reservations
+        const cleanedCount = await nonceManager.cleanupExpiredForWallet(wallet);
+        if (cleanedCount > 0) {
+            console.log(`🧹 [${wallet.slice(0,6)}] Cleaned ${cleanedCount} expired reservations`);
+        }
+
+        // Check if nonce already in use
+        const existingClaim = await nonceManager.checkNonceUsage(wallet, currentNonce);
+        if (existingClaim) {
+            if (existingClaim.used) {
+                await nonceManager.deleteStaleRecord(wallet, currentNonce);
+            } else if (existingClaim.signature) {
+                const now = Math.floor(Date.now() / 1000);
+                if (existingClaim.expires_at <= now) {
+                    await nonceManager.deleteStaleRecord(wallet, currentNonce);
+                } else {
+                    const existingSig = ethers.Signature.from(existingClaim.signature);
+                    return res.json({
+                        success: true,
+                        message: "Signature already generated for this nonce",
+                        claimableOcx: claimAmount,
+                        amountWei: existingClaim.amount,
+                        nonce: existingClaim.nonce.toString(),
+                        deadline: existingClaim.expires_at,
+                        signature: existingClaim.signature,
+                        v: existingSig.v,
+                        r: existingSig.r,
+                        s: existingSig.s,
+                        isExisting: true,
+                    });
+                }
+            } else {
+                await nonceManager.deleteIncompleteReservation(wallet, currentNonce);
+            }
+        }
+
+        // Reserve nonce
+        let nonceReserved = false;
+        try {
+            const reservationData = await nonceManager.reserveNonce(wallet, currentNonce, amountWei.toString());
+            nonceReserved = true;
+
+            if (reservationData.signature) {
+                const concurrentSig = ethers.Signature.from(reservationData.signature);
+                return res.json({
+                    success: true,
+                    message: "Signature already generated by concurrent request",
+                    claimableOcx: claimAmount,
+                    amountWei: reservationData.amount,
+                    nonce: reservationData.nonce.toString(),
+                    deadline: reservationData.expires_at,
+                    signature: reservationData.signature,
+                    v: concurrentSig.v,
+                    r: concurrentSig.r,
+                    s: concurrentSig.s,
+                    isExisting: true,
+                });
+            }
+        } catch (error) {
+            if (error.message.includes('already in use')) {
+                return respondWithError(res, 409, "Concurrent claim detected. Please try again.", "NONCE_CONFLICT");
+            }
+            throw error;
+        }
+
+        if (!claimService || !claimService.generateClaimSignature) {
+            if (nonceReserved) {
+                await nonceManager.deleteIncompleteReservation(wallet, currentNonce);
+            }
+            return respondWithError(res, 503, "Claim service not available", "SERVICE_UNAVAILABLE");
+        }
+
+        // Generate signature
+        console.log(`🔐 Generating claim signature for ${wallet}: ${claimAmount} OCX (nonce: ${currentNonce})`);
+        const signatureData = await claimService.generateClaimSignature(wallet, amountWei.toString());
+
+        // Store signature
+        await nonceManager.storeSignature(wallet, currentNonce, signatureData.signature);
+
+        // Create pending trade record
+        let tradeId = null;
+        const idempotencyKey = generateIdempotencyKey();
+        try {
+            const { data: trade, error: tradeError } = await supabase
+                .from('trades')
+                .insert({
+                    player_id: player.id,
+                    wallet_address: wallet.toLowerCase(),
+                    resource_type: 'ocx_claim',
+                    resource_amount: 0,
+                    ocx_amount: amountWei.toString(),
+                    status: 'pending',
+                    nonce: signatureData.nonce,
+                    deadline: signatureData.deadline,
+                    idempotency_key: idempotencyKey,
+                    created_at: new Date().toISOString()
+                })
+                .select('id')
+                .single();
+
+            if (!tradeError && trade) {
+                tradeId = trade.id;
+                console.log(`✅ Created pending OCX claim trade: ${tradeId}`);
+            }
+        } catch (dbErr) {
+            logServerError('claim-ocx-trade-record', dbErr, { wallet, amount: claimAmount });
+        }
+
+        // Deduct the claimed amount from total_ocx_earned immediately
+        // This prevents double-claiming. If the on-chain tx fails, the player
+        // can re-claim since the resources are already converted.
+        const { error: deductError } = await supabase
+            .from("players")
+            .update({
+                total_ocx_earned: Math.max(0, availableOcx - claimAmount),
+                updated_at: new Date().toISOString(),
+            })
+            .eq("id", player.id);
+
+        if (deductError) {
+            logServerError("claim-ocx-deduct", deductError, { wallet });
+            // Don't fail — signature already issued. Log for manual reconciliation.
+        }
+
+        res.json({
+            success: true,
+            tradeId,
+            wallet,
+            claimableOcx: claimAmount,
+            remainingOcx: Math.max(0, availableOcx - claimAmount),
+            amountWei: signatureData.amountWei,
+            nonce: signatureData.nonce,
+            deadline: signatureData.deadline,
+            signature: signatureData.signature,
+            v: signatureData.v,
+            r: signatureData.r,
+            s: signatureData.s,
+            message: `Signature generated for ${claimAmount} OCX. Submit OCXToken.claim() to receive tokens.`,
+        });
+    } catch (err) {
+        logServerError("claim-ocx", err, { wallet: req?.auth?.wallet });
+        respondWithError(res, 500, "Claim failed", "CLAIM_ERROR");
+    }
+});
+
 /**
  * POST /marketplace/sign-claim
  * Generate EIP-712 signature for a claim (does NOT submit transaction)

@@ -1493,104 +1493,169 @@ export function OceanMiningGame({
     setGameState("trading");
     
     try {
-      // Calculate OCX earned based on resource values
-      // These rates MUST match the backend in server/index.js computeMaxClaimableAmount
-      // Backend uses Math.floor() on each resource value individually
-      const resourceValues = {
-        nickel: 0.1,   // Backend: 0.1 OCX per nickel
-        cobalt: 0.5,   // Backend: 0.5 OCX per cobalt
-        copper: 1.0,   // Backend: 1.0 OCX per copper
-        manganese: 2.0 // Backend: 2.0 OCX per manganese
-      };
-      
-      const ocxEarned = 
-        Math.floor(resources.nickel * resourceValues.nickel) +
-        Math.floor(resources.cobalt * resourceValues.cobalt) +
-        Math.floor(resources.copper * resourceValues.copper) +
-        Math.floor(resources.manganese * resourceValues.manganese);
-
-      if (ocxEarned <= 0) {
-        alert("No resources to trade!");
-        setGameState("idle");
-        return;
-      }
-
-      // Require wallet connection for trading
+      // Require wallet connection
       if (!walletConnected || !initialWalletAddress) {
         alert("Please connect your wallet to trade resources for OCX tokens!");
         setGameState("idle");
         return;
       }
 
-      const { executeMarketplaceTrade } = await import("@/lib/services/blockchain-trade.service");
+      const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
       const { ethers } = await import("ethers");
       
-      // Get wallet signer
+      // Generate auth signature for the backend
       const provider = new ethers.BrowserProvider(window.ethereum);
       const signer = await provider.getSigner();
+      const address = await signer.getAddress();
+      const authMessage = `AbyssX claim\nWallet: ${address}\nTimestamp: ${Date.now()}\nNetwork: sepolia`;
+      const authSignature = await signer.signMessage(authMessage);
       
-      // Execute blockchain trade for all resources
-      const result = await executeMarketplaceTrade(
-        {
-          walletAddress: initialWalletAddress,
-          ocxAmount: ocxEarned,
-          resourceType: "mixed", // Trading all resources
-          resourceAmount: totalUsed,
-        },
-        signer,
-        (step, message) => {
-          console.log(`Trade step ${step}: ${message}`);
-        }
-      );
+      // Call off-chain trade endpoint (no blockchain tx needed)
+      const response = await fetch(`${BACKEND_URL}/marketplace/trade-resources`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          walletAddress: address,
+          address: address,
+          authMessage,
+          authSignature,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Trade failed' }));
+        throw new Error(errorData.error || `Server error: ${response.status}`);
+      }
+
+      const result = await response.json();
 
       if (!result.success) {
-        throw new Error(result.error || "Blockchain trade failed");
+        throw new Error(result.error || "Trade failed");
       }
 
-      // ✅ Blockchain transaction succeeded - now update Supabase
-      // Use wallet address directly (getCurrentUser() returns null with custom JWT auth)
-      const tradeWallet = initialWalletAddress.toLowerCase();
-      if (tradeWallet) {
-        const { supabase } = await import("@/lib/supabase");
-        
-        // First fetch current balance
-        const { data: currentPlayer, error: fetchErr } = await supabase
-          .from("players")
-          .select("total_ocx_earned")
-          .ilike("wallet_address", tradeWallet)
-          .single();
-        
-        if (fetchErr) {
-          console.error("❌ Failed to fetch current OCX balance:", fetchErr);
-        } else {
-          const currentOcx = Number(currentPlayer?.total_ocx_earned) || 0;
-          const { error: updateErr } = await supabase
-            .from("players")
-            .update({
-              total_ocx_earned: currentOcx + ocxEarned,
-            })
-            .ilike("wallet_address", tradeWallet);
-          
-          if (updateErr) {
-            console.error("❌ Failed to update total_ocx_earned in database:", updateErr);
-          } else {
-            console.log(`✅ Database updated: total_ocx_earned = ${currentOcx + ocxEarned}`);
-          }
-        }
-      }
-
-      // Update frontend state
+      // Update frontend state — resources are zeroed, OCX balance updated
       setResources({ nickel: 0, cobalt: 0, copper: 0, manganese: 0 });
       setPlayerStats((prev) => ({
         ...prev,
         capacity: { nickel: 0, cobalt: 0, copper: 0, manganese: 0 },
       }));
-      setBalance((prev) => prev + ocxEarned);
+      setBalance(result.newOcxBalance || (balance + (result.ocxEarned || 0)));
       setGameState("resourceTraded");
       setTimeout(() => setGameState("idle"), 2000);
     } catch (e: any) {
       console.error("Trade error:", e);
       alert(e.message || "Trade failed. Please try again.");
+      setGameState("idle");
+    }
+  };
+
+  /**
+   * Claim OCX: Withdraw accumulated OCX from DB to the user's wallet on-chain.
+   * This triggers the blockchain signature + transaction flow.
+   */
+  const handleClaimOcx = async () => {
+    if (!walletConnected || !initialWalletAddress) {
+      alert("Please connect your wallet to claim OCX tokens!");
+      return;
+    }
+
+    setGameState("claiming");
+
+    try {
+      const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
+      const { ethers } = await import("ethers");
+      const { getOCXTokenContractWithSigner } = await import("@/lib/contracts/ocx-token");
+
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const signer = await provider.getSigner();
+      const address = await signer.getAddress();
+
+      // Step 1: Request claim signature from backend (checks DB balance)
+      const authMessage = `AbyssX claim\nWallet: ${address}\nTimestamp: ${Date.now()}\nNetwork: sepolia`;
+      const authSignature = await signer.signMessage(authMessage);
+
+      const signResponse = await fetch(`${BACKEND_URL}/marketplace/claim-ocx`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          walletAddress: address,
+          address: address,
+          authMessage,
+          authSignature,
+        }),
+      });
+
+      if (!signResponse.ok) {
+        const errorData = await signResponse.json().catch(() => ({ error: 'Claim failed' }));
+        throw new Error(errorData.error || `Server error: ${signResponse.status}`);
+      }
+
+      const signatureData = await signResponse.json();
+
+      if (!signatureData.success) {
+        throw new Error(signatureData.error || "Failed to get claim signature");
+      }
+
+      console.log(`📝 Claim signature received for ${signatureData.claimableOcx} OCX`);
+
+      // Step 2: Submit on-chain claim transaction (user pays gas)
+      const contract = getOCXTokenContractWithSigner(signer);
+
+      const tx = await contract.claim(
+        signatureData.amountWei,
+        signatureData.nonce,
+        signatureData.deadline,
+        signatureData.v,
+        signatureData.r,
+        signatureData.s
+      );
+
+      console.log("Transaction submitted:", tx.hash);
+      const receipt = await tx.wait();
+
+      if (!receipt) {
+        throw new Error("Transaction receipt is null");
+      }
+
+      console.log("✅ Claim transaction confirmed in block:", receipt.blockNumber);
+
+      // Step 3: Confirm with backend
+      try {
+        const confirmAuth = `AbyssX claim\nWallet: ${address}\nTimestamp: ${Date.now()}\nNetwork: sepolia`;
+        const confirmSig = await signer.signMessage(confirmAuth);
+
+        await fetch(`${BACKEND_URL}/marketplace/trade/confirm`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            walletAddress: address,
+            address: address,
+            authMessage: confirmAuth,
+            authSignature: confirmSig,
+            txHash: tx.hash,
+            tradeId: signatureData.tradeId,
+          }),
+        });
+      } catch (confirmErr) {
+        console.warn("Backend confirmation failed (tx already on-chain):", confirmErr);
+      }
+
+      // Update frontend state
+      const claimedAmount = signatureData.claimableOcx || 0;
+      setBalance((prev) => Math.max(0, prev - claimedAmount));
+
+      alert(`Successfully claimed ${claimedAmount} OCX to your wallet!`);
+      setGameState("claimed");
+      setTimeout(() => setGameState("idle"), 2000);
+    } catch (e: any) {
+      console.error("Claim error:", e);
+      if (e.code === 'ACTION_REJECTED') {
+        alert("Transaction rejected by user");
+      } else if (e.message?.includes('insufficient funds')) {
+        alert("Insufficient ETH for gas fees");
+      } else {
+        alert(e.message || "Claim failed. Please try again.");
+      }
       setGameState("idle");
     }
   };
@@ -1932,6 +1997,7 @@ export function OceanMiningGame({
               resources={resources}
               balance={balance}
               onTradeAll={handleTradeAll}
+              onClaimOcx={handleClaimOcx}
               gameState={gameState}
               playerStats={playerStats}
               walletAddress={walletAddress}

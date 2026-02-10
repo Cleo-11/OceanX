@@ -4,6 +4,8 @@ export type GameState =
   | "resourceGained"
   | "trading"
   | "resourceTraded"
+  | "claiming"
+  | "claimed"
   | "voting"
   | "voteSubmitted"
   | "upgrading"
