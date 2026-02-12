@@ -1726,74 +1726,32 @@ export function OceanMiningGame({
     }
 
     try {
-      // Try on-chain blockchain transaction first (full token transfer)
-      let onChainSuccess = false
-      try {
-        console.log(`🔐 Attempting on-chain upgrade to tier ${targetTier}...`)
-        const approvalTx = await ContractManager.approveTokens(
-          ethers.parseEther(upgradeCost.toString()).toString()
-        )
-        await approvalTx.wait()
-        console.log("✅ Token approval successful")
+      // Blockchain transaction is mandatory — no database fallback
+      console.log(`🔐 Executing on-chain upgrade to tier ${targetTier}...`)
+      const approvalTx = await ContractManager.approveTokens(
+        ethers.parseEther(upgradeCost.toString()).toString()
+      )
+      await approvalTx.wait()
+      console.log("✅ Token approval successful")
 
-        const contractTx = await ContractManager.upgradeSubmarine(targetTier)
-        await contractTx.wait()
-        console.log("✅ Smart contract upgrade successful")
-        onChainSuccess = true
-      } catch (onChainErr: any) {
-        // CALL_EXCEPTION = user has no on-chain OCX tokens to spend
-        // This is expected when tokens are tracked off-chain in the DB
-        const isCallException = onChainErr?.code === 'CALL_EXCEPTION' ||
-          onChainErr?.message?.includes('CALL_EXCEPTION') ||
-          onChainErr?.message?.includes('missing revert data') ||
-          onChainErr?.message?.includes('estimateGas')
-        
-        if (onChainErr?.code === 'ACTION_REJECTED') {
-          throw new Error("Transaction rejected by user")
-        }
-        
-        if (isCallException) {
-          console.warn("⚠️ On-chain upgrade failed (no on-chain tokens). Falling back to signed authorization...")
-        } else {
-          console.warn("⚠️ On-chain upgrade failed, falling back to signed authorization:", onChainErr?.message)
-        }
-      }
+      const contractTx = await ContractManager.upgradeSubmarine(targetTier)
+      await contractTx.wait()
+      console.log("✅ Smart contract upgrade confirmed on blockchain")
 
+      // Sync tier in DB (tokens already deducted on-chain)
       let upgradeResponse: any = { success: false }
-
-      if (onChainSuccess) {
-        // On-chain succeeded — only sync tier in DB (tokens already deducted on-chain)
-        try {
-          const resp = await fetch("/api/submarine/sync-tier", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ targetTier }),
-          })
-          const data = await resp.json()
-          if (resp.ok && data.success) {
-            upgradeResponse = data
-          }
-        } catch (syncErr) {
-          console.warn("Tier sync after on-chain upgrade failed:", syncErr)
+      try {
+        const resp = await fetch("/api/submarine/sync-tier", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ targetTier }),
+        })
+        const data = await resp.json()
+        if (resp.ok && data.success) {
+          upgradeResponse = data
         }
-      } else {
-        // On-chain failed — use server-side DB deduction (no blockchain tx)
-        // Use Next.js API route with JWT cookie auth (no MetaMask popup)
-        try {
-          const resp = await fetch("/api/submarine/upgrade", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ targetTier }),
-          })
-          const data = await resp.json()
-          if (resp.ok && data.success) {
-            upgradeResponse = data
-          } else {
-            throw new Error(data.error || "Upgrade failed")
-          }
-        } catch (nextErr: any) {
-          throw new Error(nextErr.message || "Failed to upgrade submarine")
-        }
+      } catch (syncErr) {
+        console.warn("Tier sync after on-chain upgrade failed:", syncErr)
       }
 
       if (!upgradeResponse.success || !upgradeResponse.data) {
@@ -1815,7 +1773,7 @@ export function OceanMiningGame({
         wallet: upgradeData.wallet,
         tier: upgradeData.newTier,
         balanceRemaining: newBal,
-        onChainSuccess,
+        onChain: true,
       })
 
       await loadPlayerData(walletAddress)

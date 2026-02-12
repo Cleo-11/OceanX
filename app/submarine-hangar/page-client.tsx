@@ -149,48 +149,31 @@ export default function SubmarineHangarClient({
       setUpgradeStatus(`Requesting approval for ${costInOCX} OCX...`)
       const txResult = await tryOnChainUpgrade(targetTier)
 
-      if (txResult) {
-        // On-chain succeeded — sync tier in DB only (tokens already deducted on-chain)
-        setUpgradeStatus('Transaction confirmed! Syncing upgrade...')
-        console.log('Transaction hash:', txResult.txHash)
+      // On-chain transaction is mandatory — no database fallback
+      if (!txResult) {
+        throw new Error('Blockchain transaction failed. Ensure you have on-chain OCX tokens and sufficient ETH for gas.')
+      }
 
-        try {
-          const syncResp = await fetch('/api/submarine/sync-tier', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              targetTier,
-              txHash: txResult.txHash,
-            }),
-          })
-          if (syncResp.ok) {
-            const data = await syncResp.json()
-            if (data.success && data.data) {
-              const newBalance = data.data.balance ?? data.data.coins ?? balance
-              setBalance(typeof newBalance === 'number' ? newBalance : parseFloat(newBalance) || 0)
-            }
-          }
-        } catch (syncErr) {
-          console.warn('Server tier sync failed:', syncErr)
+      // On-chain succeeded — sync tier in DB (tokens already deducted on-chain)
+      setUpgradeStatus('Transaction confirmed on blockchain! Syncing upgrade...')
+      console.log('Transaction hash:', txResult.txHash)
+
+      const syncResp = await fetch('/api/submarine/sync-tier', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          targetTier,
+          txHash: txResult.txHash,
+        }),
+      })
+      if (syncResp.ok) {
+        const data = await syncResp.json()
+        if (data.success && data.data) {
+          const newBalance = data.data.balance ?? data.data.coins ?? balance
+          setBalance(typeof newBalance === 'number' ? newBalance : parseFloat(newBalance) || 0)
         }
       } else {
-        // On-chain failed (no on-chain tokens) — use server-side DB deduction
-        setUpgradeStatus('Processing upgrade...')
-        const resp = await fetch('/api/submarine/upgrade', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ targetTier }),
-        })
-        if (resp.ok) {
-          const data = await resp.json()
-          if (data.success && data.data) {
-            const newBalance = data.data.balance ?? data.data.coins ?? balance
-            setBalance(typeof newBalance === 'number' ? newBalance : parseFloat(newBalance) || 0)
-          }
-        } else {
-          const errData = await resp.json().catch(() => ({}))
-          throw new Error(errData.error || 'Upgrade failed on server')
-        }
+        console.warn('Server tier sync failed but blockchain transaction succeeded. Tier will sync on next load.')
       }
 
       // Refresh balance from chain

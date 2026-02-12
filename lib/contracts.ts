@@ -236,9 +236,12 @@ export async function tryOnChainUpgrade(targetTier: number) {
     if (err?.code === 'ACTION_REJECTED' || err?.message?.includes('user rejected')) {
       throw err
     }
-    // CALL_EXCEPTION / missing revert data = no on-chain tokens; fall back
-    console.warn('On-chain upgrade failed, eligible for signed fallback:', err?.message)
-    return null
+    // All on-chain failures are fatal — no database fallback
+    const msg = err?.message || 'Unknown blockchain error'
+    if (msg.includes('CALL_EXCEPTION') || msg.includes('missing revert data') || msg.includes('estimateGas')) {
+      throw new Error('Blockchain transaction failed: You may not have enough on-chain OCX tokens. Please claim your tokens to the blockchain first.')
+    }
+    throw new Error(`Blockchain transaction failed: ${msg}`)
   }
 }
 
