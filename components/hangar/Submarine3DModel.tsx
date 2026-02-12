@@ -45,31 +45,31 @@ export function Submarine3DModel({ tier, color }: Submarine3DModelProps) {
       {/* Main Hull */}
       <mesh rotation={[0, 0, Math.PI / 2]}>
         <cylinderGeometry args={[0.4, 0.4, 2, 32]} />
-        <meshStandardMaterial color={color} metalness={0.8} roughness={0.2} />
+        <meshPhysicalMaterial color={color} metalness={0.4} roughness={0.05} transparent opacity={0.82} clearcoat={1} clearcoatRoughness={0.1} envMapIntensity={1.5} />
       </mesh>
 
       {/* Front Nose Cone */}
       <mesh position={[1.2, 0, 0]} rotation={[0, 0, -Math.PI / 2]}>
         <coneGeometry args={[0.4, 0.6, 32]} />
-        <meshStandardMaterial color={color} metalness={0.8} roughness={0.2} />
+        <meshPhysicalMaterial color={color} metalness={0.4} roughness={0.05} transparent opacity={0.82} clearcoat={1} clearcoatRoughness={0.1} />
       </mesh>
 
       {/* Rear Cone */}
       <mesh position={[-1.2, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
         <coneGeometry args={[0.4, 0.6, 32]} />
-        <meshStandardMaterial color={color} metalness={0.8} roughness={0.2} />
+        <meshPhysicalMaterial color={color} metalness={0.4} roughness={0.05} transparent opacity={0.82} clearcoat={1} clearcoatRoughness={0.1} />
       </mesh>
 
       {/* Conning Tower */}
       <mesh position={[0, 0.5, 0]}>
         <boxGeometry args={[0.6, 0.4, 0.3]} />
-        <meshStandardMaterial color={color} metalness={0.8} roughness={0.2} />
+        <meshPhysicalMaterial color={color} metalness={0.4} roughness={0.05} transparent opacity={0.82} clearcoat={1} clearcoatRoughness={0.1} />
       </mesh>
 
       {/* Tower Top */}
       <mesh position={[0, 0.8, 0]}>
         <cylinderGeometry args={[0.15, 0.2, 0.3, 16]} />
-        <meshStandardMaterial color={color} metalness={0.8} roughness={0.2} />
+        <meshPhysicalMaterial color={color} metalness={0.4} roughness={0.05} transparent opacity={0.82} clearcoat={1} clearcoatRoughness={0.1} />
       </mesh>
 
       {/* Propeller (animated) */}
@@ -94,27 +94,27 @@ export function Submarine3DModel({ tier, color }: Submarine3DModelProps) {
       {/* Side fins */}
       <mesh position={[0.5, -0.3, 0.4]} rotation={[0, 0, Math.PI / 6]}>
         <boxGeometry args={[0.4, 0.05, 0.3]} />
-        <meshStandardMaterial color={color} metalness={0.8} roughness={0.2} />
+        <meshPhysicalMaterial color={color} metalness={0.4} roughness={0.05} transparent opacity={0.82} clearcoat={1} clearcoatRoughness={0.1} />
       </mesh>
       <mesh position={[0.5, -0.3, -0.4]} rotation={[0, 0, Math.PI / 6]}>
         <boxGeometry args={[0.4, 0.05, 0.3]} />
-        <meshStandardMaterial color={color} metalness={0.8} roughness={0.2} />
+        <meshPhysicalMaterial color={color} metalness={0.4} roughness={0.05} transparent opacity={0.82} clearcoat={1} clearcoatRoughness={0.1} />
       </mesh>
 
       {/* Rear fins */}
       <mesh position={[-1.3, 0.3, 0]} rotation={[0, 0, Math.PI / 4]}>
         <boxGeometry args={[0.3, 0.05, 0.3]} />
-        <meshStandardMaterial color={color} metalness={0.8} roughness={0.2} />
+        <meshPhysicalMaterial color={color} metalness={0.4} roughness={0.05} transparent opacity={0.82} clearcoat={1} clearcoatRoughness={0.1} />
       </mesh>
 
-      {/* Windows/Lights */}
+      {/* Windows/Lights - glass look */}
       <mesh position={[0.8, 0.1, 0.35]}>
         <sphereGeometry args={[0.08, 16, 16]} />
-        <meshStandardMaterial color="#00ffff" emissive="#00ffff" emissiveIntensity={2} />
+        <meshPhysicalMaterial color="#00ffff" emissive="#00ffff" emissiveIntensity={2} transparent opacity={0.7} clearcoat={1} clearcoatRoughness={0.05} />
       </mesh>
       <mesh position={[0.8, 0.1, -0.35]}>
         <sphereGeometry args={[0.08, 16, 16]} />
-        <meshStandardMaterial color="#00ffff" emissive="#00ffff" emissiveIntensity={2} />
+        <meshPhysicalMaterial color="#00ffff" emissive="#00ffff" emissiveIntensity={2} transparent opacity={0.7} clearcoat={1} clearcoatRoughness={0.05} />
       </mesh>
 
       {/* Tier indicator lights on tower */}

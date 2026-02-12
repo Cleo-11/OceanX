@@ -17,7 +17,7 @@ export const CustomSubmarine: React.FC<CustomSubmarineProps> = ({
         xmlns="http://www.w3.org/2000/svg"
         className="w-full h-full drop-shadow-2xl"
       >
-        {/* Submarine Main Body */}
+        {/* Submarine Main Body - Glassmorphic hull */}
         <ellipse
           cx="200"
           cy="120"
@@ -25,17 +25,39 @@ export const CustomSubmarine: React.FC<CustomSubmarineProps> = ({
           ry="50"
           fill="url(#submarineGradient)"
           stroke="url(#submarineBorder)"
-          strokeWidth="2"
+          strokeWidth="1.5"
+          opacity="0.85"
+          filter="url(#glassBlur)"
         />
         
-        {/* Metallic highlight overlay for premium look */}
+        {/* Glassmorphic frosted overlay */}
+        <ellipse
+          cx="200"
+          cy="120"
+          rx="158"
+          ry="48"
+          fill="url(#glassOverlay)"
+          opacity="0.25"
+        />
+        
+        {/* Metallic highlight overlay for premium glass look */}
         <ellipse
           cx="200"
           cy="105"
           rx="150"
           ry="35"
           fill="url(#metallicHighlight)"
-          opacity="0.6"
+          opacity="0.5"
+        />
+        
+        {/* Glass edge highlight - top rim */}
+        <ellipse
+          cx="200"
+          cy="78"
+          rx="140"
+          ry="8"
+          fill="url(#glassEdgeHighlight)"
+          opacity="0.35"
         />
         
         {/* Submarine Hull Segments with enhanced depth */}
@@ -193,19 +215,41 @@ export const CustomSubmarine: React.FC<CustomSubmarineProps> = ({
         
         {/* Gradient Definitions */}
         <defs>
-          {/* Premium Metallic Hull - Ocean palette with depth */}
+          {/* Glassmorphic blur filter */}
+          <filter id="glassBlur" x="-5%" y="-5%" width="110%" height="110%">
+            <feGaussianBlur in="SourceGraphic" stdDeviation="0.5" />
+          </filter>
+          
+          {/* Glass overlay gradient - frosted effect */}
+          <linearGradient id="glassOverlay" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stopColor="#ffffff" stopOpacity="0.3" />
+            <stop offset="30%" stopColor="#67e8f9" stopOpacity="0.1" />
+            <stop offset="70%" stopColor="#0891b2" stopOpacity="0.05" />
+            <stop offset="100%" stopColor="#ffffff" stopOpacity="0.15" />
+          </linearGradient>
+          
+          {/* Glass edge highlight */}
+          <linearGradient id="glassEdgeHighlight" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stopColor="rgba(255,255,255,0)" />
+            <stop offset="30%" stopColor="rgba(255,255,255,0.5)" />
+            <stop offset="50%" stopColor="rgba(255,255,255,0.7)" />
+            <stop offset="70%" stopColor="rgba(255,255,255,0.5)" />
+            <stop offset="100%" stopColor="rgba(255,255,255,0)" />
+          </linearGradient>
+          
+          {/* Glassmorphic Hull - Ocean palette with translucency */}
           <linearGradient id="submarineGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" stopColor="#164e63" stopOpacity="0.95" />
-            <stop offset="20%" stopColor="#0e7490" stopOpacity="0.98" />
-            <stop offset="50%" stopColor="#0891b2" />
-            <stop offset="80%" stopColor="#0e7490" stopOpacity="0.98" />
-            <stop offset="100%" stopColor="#155e75" stopOpacity="0.95" />
+            <stop offset="0%" stopColor="#164e63" stopOpacity="0.75" />
+            <stop offset="20%" stopColor="#0e7490" stopOpacity="0.8" />
+            <stop offset="50%" stopColor="#0891b2" stopOpacity="0.85" />
+            <stop offset="80%" stopColor="#0e7490" stopOpacity="0.8" />
+            <stop offset="100%" stopColor="#155e75" stopOpacity="0.75" />
           </linearGradient>
           
           <linearGradient id="submarineBorder" x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" stopColor="#22d3ee" stopOpacity="0.8" />
-            <stop offset="50%" stopColor="#06b6d4" />
-            <stop offset="100%" stopColor="#0891b2" stopOpacity="0.8" />
+            <stop offset="0%" stopColor="#67e8f9" stopOpacity="0.6" />
+            <stop offset="50%" stopColor="#22d3ee" stopOpacity="0.4" />
+            <stop offset="100%" stopColor="#0891b2" stopOpacity="0.6" />
           </linearGradient>
           
           <linearGradient id="hullSegment" x1="0%" y1="0%" x2="0%" y2="100%">
@@ -213,18 +257,20 @@ export const CustomSubmarine: React.FC<CustomSubmarineProps> = ({
             <stop offset="100%" stopColor="#164e63" />
           </linearGradient>
           
-          {/* Metallic Highlight for premium look */}
+          {/* Glassmorphic Highlight for frosted glass look */}
           <linearGradient id="metallicHighlight" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="rgba(255, 255, 255, 0.3)" />
-            <stop offset="50%" stopColor="rgba(255, 255, 255, 0.1)" />
+            <stop offset="0%" stopColor="rgba(255, 255, 255, 0.4)" />
+            <stop offset="25%" stopColor="rgba(103, 232, 249, 0.15)" />
+            <stop offset="50%" stopColor="rgba(255, 255, 255, 0.08)" />
+            <stop offset="75%" stopColor="rgba(103, 232, 249, 0.1)" />
             <stop offset="100%" stopColor="rgba(255, 255, 255, 0)" />
           </linearGradient>
           
-          {/* Command Tower - Darker metallic ocean */}
+          {/* Command Tower - Glassmorphic darker */}
           <linearGradient id="towerGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" stopColor="#083344" />
-            <stop offset="50%" stopColor="#164e63" />
-            <stop offset="100%" stopColor="#0c4a6e" />
+            <stop offset="0%" stopColor="#083344" stopOpacity="0.8" />
+            <stop offset="50%" stopColor="#164e63" stopOpacity="0.75" />
+            <stop offset="100%" stopColor="#0c4a6e" stopOpacity="0.8" />
           </linearGradient>
           
           <linearGradient id="towerBorder" x1="0%" y1="0%" x2="0%" y2="100%">
@@ -242,12 +288,12 @@ export const CustomSubmarine: React.FC<CustomSubmarineProps> = ({
             <stop offset="100%" stopColor="#0ea5e9" stopOpacity="0.6" />
           </linearGradient>
           
-          {/* Enhanced Window Effects - Premium glass with ocean colors */}
+          {/* Enhanced Window Effects - Glassmorphic glass with refraction */}
           <radialGradient id="windowGradient" cx="35%" cy="35%">
-            <stop offset="0%" stopColor="rgba(6, 182, 212, 0.95)" />
-            <stop offset="40%" stopColor="rgba(14, 165, 233, 0.7)" />
-            <stop offset="70%" stopColor="rgba(8, 145, 178, 0.5)" />
-            <stop offset="100%" stopColor="rgba(21, 94, 117, 0.3)" />
+            <stop offset="0%" stopColor="rgba(103, 232, 249, 0.95)" />
+            <stop offset="30%" stopColor="rgba(6, 182, 212, 0.7)" />
+            <stop offset="60%" stopColor="rgba(14, 165, 233, 0.45)" />
+            <stop offset="100%" stopColor="rgba(21, 94, 117, 0.2)" />
           </radialGradient>
           
           <radialGradient id="windowReflection" cx="25%" cy="25%">

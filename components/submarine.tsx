@@ -27,25 +27,59 @@ export function Submarine({ position = [0, 0, 0] }: { position?: [number, number
       {/* Main body */}
       <mesh castShadow>
         <capsuleGeometry args={[0.5, 1.5, 16, 16]} />
-        <meshStandardMaterial color="#fbbf24" roughness={0.3} metalness={0.7} />
+        <meshPhysicalMaterial 
+          color="#fbbf24" 
+          roughness={0.05} 
+          metalness={0.4} 
+          transparent 
+          opacity={0.82} 
+          clearcoat={1} 
+          clearcoatRoughness={0.1}
+          envMapIntensity={1.5}
+        />
       </mesh>
 
       {/* Top fin */}
       <mesh position={[0, 0.5, 0]} castShadow>
         <boxGeometry args={[0.1, 0.4, 0.6]} />
-        <meshStandardMaterial color="#fbbf24" roughness={0.3} metalness={0.7} />
+        <meshPhysicalMaterial 
+          color="#fbbf24" 
+          roughness={0.05} 
+          metalness={0.4} 
+          transparent 
+          opacity={0.82} 
+          clearcoat={1} 
+          clearcoatRoughness={0.1}
+        />
       </mesh>
 
       {/* Viewport */}
       <mesh position={[0.6, 0.1, 0]} castShadow>
         <sphereGeometry args={[0.2, 16, 16, 0, Math.PI * 2, 0, Math.PI / 2]} />
-        <meshStandardMaterial color="#7dd3fc" roughness={0.1} metalness={0.3} />
+        <meshPhysicalMaterial 
+          color="#7dd3fc" 
+          roughness={0.0} 
+          metalness={0.1} 
+          transparent 
+          opacity={0.6} 
+          clearcoat={1} 
+          clearcoatRoughness={0.05}
+          envMapIntensity={2}
+        />
       </mesh>
 
       {/* Propeller housing */}
       <mesh position={[-0.8, 0, 0]} rotation={[0, 0, Math.PI / 2]} castShadow>
         <cylinderGeometry args={[0.2, 0.2, 0.3, 16]} />
-        <meshStandardMaterial color="#fbbf24" roughness={0.3} metalness={0.7} />
+        <meshPhysicalMaterial 
+          color="#fbbf24" 
+          roughness={0.05} 
+          metalness={0.4} 
+          transparent 
+          opacity={0.82} 
+          clearcoat={1} 
+          clearcoatRoughness={0.1}
+        />
       </mesh>
 
       {/* Propeller */}

@@ -167,10 +167,33 @@ function renderSubmarineSVG(tier: number, color: string, size: number) {
 const SubmarineIcon: React.FC<SubmarineIconProps> = ({ tier, size = 40, className }) => {
   const { color } = getTierData(tier)
 
-  // Plain rendering without filters or animated effects
+  // Glassmorphic rendering with frosted glass overlay
   return (
     <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className={className} fill="none" xmlns="http://www.w3.org/2000/svg">
-      {renderSubmarineSVG(tier, color, size)}
+      <defs>
+        {/* Glassmorphic blur filter */}
+        <filter id={`glassBlur-${tier}`} x="-5%" y="-5%" width="110%" height="110%">
+          <feGaussianBlur in="SourceGraphic" stdDeviation="0.3" />
+        </filter>
+        {/* Glass highlight gradient */}
+        <linearGradient id={`glassHighlight-${tier}`} x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stopColor="#ffffff" stopOpacity="0.35" />
+          <stop offset="40%" stopColor="#67e8f9" stopOpacity="0.1" />
+          <stop offset="100%" stopColor="#ffffff" stopOpacity="0.05" />
+        </linearGradient>
+      </defs>
+      <g opacity="0.88">
+        {renderSubmarineSVG(tier, color, size)}
+      </g>
+      {/* Glassmorphic frosted overlay on hull */}
+      <ellipse 
+        cx={size/2} 
+        cy={size*0.42} 
+        rx={size*0.35} 
+        ry={size*0.08} 
+        fill={`url(#glassHighlight-${tier})`} 
+        opacity="0.5"
+      />
     </svg>
   )
 }

@@ -214,18 +214,18 @@ export const HeroSubmarine: React.FC<HeroSubmarineProps> = ({
           fill="none"
           xmlns="http://www.w3.org/2000/svg"
           className="w-[85%] h-auto drop-shadow-2xl relative z-10"
-          style={{ filter: 'drop-shadow(0 25px 50px rgba(0, 0, 0, 0.5))' }}
+          style={{ filter: 'drop-shadow(0 25px 50px rgba(0, 0, 0, 0.4)) drop-shadow(0 0 30px rgba(103, 232, 249, 0.08))' }}
         >
           <defs>
-            {/* Hull Gradient - Weathered Metal */}
+            {/* Hull Gradient - Glassmorphic Weathered Metal */}
             <linearGradient id="hullGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-              <stop offset="0%" stopColor="#3d5a6c" />
-              <stop offset="15%" stopColor="#4a7c8f" />
-              <stop offset="30%" stopColor="#6b7c8d" />
-              <stop offset="50%" stopColor="#5a6b7c" />
-              <stop offset="70%" stopColor="#4a5c6d" />
-              <stop offset="85%" stopColor="#3d4e5c" />
-              <stop offset="100%" stopColor="#2c3e50" />
+              <stop offset="0%" stopColor="#3d5a6c" stopOpacity="0.8" />
+              <stop offset="15%" stopColor="#4a7c8f" stopOpacity="0.75" />
+              <stop offset="30%" stopColor="#6b7c8d" stopOpacity="0.8" />
+              <stop offset="50%" stopColor="#5a6b7c" stopOpacity="0.78" />
+              <stop offset="70%" stopColor="#4a5c6d" stopOpacity="0.8" />
+              <stop offset="85%" stopColor="#3d4e5c" stopOpacity="0.82" />
+              <stop offset="100%" stopColor="#2c3e50" stopOpacity="0.8" />
             </linearGradient>
 
             {/* Secondary Hull - Navy Blue */}
@@ -235,20 +235,38 @@ export const HeroSubmarine: React.FC<HeroSubmarineProps> = ({
               <stop offset="100%" stopColor="#1a2332" />
             </linearGradient>
 
-            {/* Metallic Highlight */}
+            {/* Glassmorphic Metallic Highlight */}
             <linearGradient id="metallicSheen" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="rgba(138, 155, 168, 0.4)" />
-              <stop offset="30%" stopColor="rgba(107, 124, 141, 0.2)" />
-              <stop offset="70%" stopColor="rgba(90, 107, 124, 0.1)" />
-              <stop offset="100%" stopColor="rgba(74, 92, 109, 0.3)" />
+              <stop offset="0%" stopColor="rgba(138, 155, 168, 0.45)" />
+              <stop offset="20%" stopColor="rgba(103, 232, 249, 0.15)" />
+              <stop offset="50%" stopColor="rgba(107, 124, 141, 0.1)" />
+              <stop offset="80%" stopColor="rgba(103, 232, 249, 0.12)" />
+              <stop offset="100%" stopColor="rgba(74, 92, 109, 0.35)" />
             </linearGradient>
 
-            {/* Window Glass - Dark with glow */}
+            {/* Glass Frosted Overlay */}
+            <linearGradient id="glassFrost" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stopColor="#ffffff" stopOpacity="0.2" />
+              <stop offset="30%" stopColor="#67e8f9" stopOpacity="0.08" />
+              <stop offset="60%" stopColor="#0891b2" stopOpacity="0.04" />
+              <stop offset="100%" stopColor="#ffffff" stopOpacity="0.12" />
+            </linearGradient>
+
+            {/* Glass Edge Rim Light */}
+            <linearGradient id="glassRimLight" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stopColor="rgba(255,255,255,0)" />
+              <stop offset="25%" stopColor="rgba(255,255,255,0.3)" />
+              <stop offset="50%" stopColor="rgba(103,232,249,0.4)" />
+              <stop offset="75%" stopColor="rgba(255,255,255,0.3)" />
+              <stop offset="100%" stopColor="rgba(255,255,255,0)" />
+            </linearGradient>
+
+            {/* Window Glass - Glassmorphic with depth */}
             <radialGradient id="windowGlass" cx="30%" cy="30%">
-              <stop offset="0%" stopColor="#4a7c8f" stopOpacity="0.9" />
-              <stop offset="40%" stopColor="#2c3e50" stopOpacity="0.95" />
-              <stop offset="80%" stopColor="#1a2332" stopOpacity="0.98" />
-              <stop offset="100%" stopColor="#0f1720" />
+              <stop offset="0%" stopColor="#67e8f9" stopOpacity="0.6" />
+              <stop offset="30%" stopColor="#4a7c8f" stopOpacity="0.7" />
+              <stop offset="60%" stopColor="#2c3e50" stopOpacity="0.75" />
+              <stop offset="100%" stopColor="#0f1720" stopOpacity="0.85" />
             </radialGradient>
 
             {/* Window Interior Glow */}
@@ -358,6 +376,27 @@ export const HeroSubmarine: React.FC<HeroSubmarineProps> = ({
                  L120 195 
                  Q60 185 60 140 Z"
               fill="url(#scratchPattern)"
+              opacity="0.35"
+            />
+
+            {/* Glassmorphic Frosted Overlay */}
+            <path
+              d="M60 140 
+                 Q60 95 120 85 
+                 L380 85 
+                 Q440 95 445 140 
+                 Q445 185 380 195 
+                 L120 195 
+                 Q60 185 60 140 Z"
+              fill="url(#glassFrost)"
+              opacity="0.6"
+            />
+
+            {/* Glass rim highlight along top edge */}
+            <path
+              d="M120 87 L380 87"
+              stroke="url(#glassRimLight)"
+              strokeWidth="1.5"
               opacity="0.5"
             />
 
