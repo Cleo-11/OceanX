@@ -48,6 +48,8 @@ interface OceanMiningGameProps {
   initialWalletAddress?: string
   // Optional: initial OCX balance from database (avoids Express API dependency)
   initialBalance?: number
+  // Optional: initial submarine tier from database (avoids Express API dependency)
+  initialTier?: number
 }
 
 export function OceanMiningGame({
@@ -63,6 +65,7 @@ export function OceanMiningGame({
   hasCompletedTutorial = false,
   initialWalletAddress = "",
   initialBalance = 0,
+  initialTier = 1,
 }: OceanMiningGameProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const gameLoopRef = useRef<number>(0)
@@ -96,7 +99,7 @@ export function OceanMiningGame({
   })
 
   // Player stats and resources
-  const [playerTier, setPlayerTier] = useState<number>(1)
+  const [playerTier, setPlayerTier] = useState<number>(initialTier)
   const [sessionId, setSessionId] = useState<string | null>(null)
   // Multiplayer disabled: Only single player state is used
   // const [otherPlayers, setOtherPlayers] = useState<OtherPlayer[]>([])
@@ -114,6 +117,19 @@ export function OceanMiningGame({
       manganese: 0,
     },
   })
+
+  // Keep playerStats in sync when tier changes (e.g. restored from DB on login)
+  useEffect(() => {
+    const newSubData = getSubmarineByTier(playerTier)
+    setPlayerStats((prev) => ({
+      ...prev,
+      ...newSubData.baseStats,
+      energy: prev.energy, // preserve current energy
+      capacity: prev.capacity, // preserve current cargo
+      maxCapacity: newSubData.baseStats.maxCapacity,
+      tier: playerTier,
+    }))
+  }, [playerTier])
 
   const [resources, setResources] = useState<PlayerResources>({
     nickel: initialResources?.nickel ?? 0,
@@ -410,6 +426,17 @@ export function OceanMiningGame({
       const currentWalletAddress = walletManager.getConnection()?.address;
       console.log("Current wallet address:", currentWalletAddress);
       console.log("All players in state:", state.players);
+      
+      // Restore submarine tier from server game-state for the current player
+      if (currentWalletAddress) {
+        const myPlayer = state.players.find(
+          (p: any) => p.id?.toLowerCase() === currentWalletAddress.toLowerCase()
+        );
+        if (myPlayer?.submarineTier && myPlayer.submarineTier > 1) {
+          console.log("✅ Restoring submarine tier from game-state:", myPlayer.submarineTier);
+          setPlayerTier(myPlayer.submarineTier);
+        }
+      }
       
       // Note: Multiplayer disabled - otherPlayersData computed but not used
       
@@ -1500,26 +1527,10 @@ export function OceanMiningGame({
         return;
       }
 
-      const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
-      const { ethers } = await import("ethers");
-      
-      // Generate auth signature for the backend
-      const provider = new ethers.BrowserProvider(window.ethereum);
-      const signer = await provider.getSigner();
-      const address = await signer.getAddress();
-      const authMessage = `AbyssX claim\nWallet: ${address}\nTimestamp: ${Date.now()}\nNetwork: sepolia`;
-      const authSignature = await signer.signMessage(authMessage);
-      
-      // Call off-chain trade endpoint (no blockchain tx needed)
-      const response = await fetch(`${BACKEND_URL}/marketplace/trade-resources`, {
+      // Use Next.js API route with JWT cookie auth — NO MetaMask popup needed
+      const response = await fetch('/api/marketplace/trade-resources', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          walletAddress: address,
-          address: address,
-          authMessage,
-          authSignature,
-        }),
       });
 
       if (!response.ok) {
@@ -1748,25 +1759,26 @@ export function OceanMiningGame({
         }
       }
 
-      // Step 2: MetaMask-signed authorization + server-side DB upgrade
-      // This ensures MetaMask popup always appears (for the signature) even if on-chain tx was skipped
-      const upgradePayload = await createSignaturePayload(connection.address, "upgrade submarine")
-
       let upgradeResponse: any = { success: false }
-      
-      try {
-        upgradeResponse = await apiClient.upgradeSubmarine(
-          walletAddress,
-          upgradePayload.signature,
-          upgradePayload.message,
-          targetTier,
-        )
-      } catch (expressErr) {
-        console.warn("Express upgrade API failed, trying Next.js API:", expressErr)
-      }
 
-      // Fallback: Next.js API route (uses JWT cookie auth)
-      if (!upgradeResponse.success) {
+      if (onChainSuccess) {
+        // On-chain succeeded — only sync tier in DB (tokens already deducted on-chain)
+        try {
+          const resp = await fetch("/api/submarine/sync-tier", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ targetTier }),
+          })
+          const data = await resp.json()
+          if (resp.ok && data.success) {
+            upgradeResponse = data
+          }
+        } catch (syncErr) {
+          console.warn("Tier sync after on-chain upgrade failed:", syncErr)
+        }
+      } else {
+        // On-chain failed — use server-side DB deduction (no blockchain tx)
+        // Use Next.js API route with JWT cookie auth (no MetaMask popup)
         try {
           const resp = await fetch("/api/submarine/upgrade", {
             method: "POST",

@@ -137,6 +137,7 @@ export default function GameClient({ userId, playerData, walletAddress }: GameCl
             hasCompletedTutorial={playerData?.has_completed_tutorial ?? false}
             initialWalletAddress={walletAddress}
             initialBalance={playerData?.total_ocx_earned ?? 0}
+            initialTier={playerData?.submarine_tier ?? 1}
             initialResources={{
               nickel: playerData?.nickel ?? 0,
               cobalt: playerData?.cobalt ?? 0,

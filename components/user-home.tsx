@@ -451,7 +451,7 @@ export function UserHome({ playerData, onPlayClick, onSubmarineStoreClick }: Use
                 <div className="text-left">
                   <div className="text-[10px] text-slate-500 uppercase tracking-wider">Balance</div>
                   <div className="text-lg font-bold text-cyan-300">
-                    {balanceLoading ? '...' : (ocxBalance ?? '0')} <span className="text-sm text-slate-400">{ocxSymbol}</span>
+                    {balanceLoading ? '...' : (ocxBalance ?? String(syncedOcxEarned ?? 0))} <span className="text-sm text-slate-400">{ocxSymbol}</span>
                   </div>
                 </div>
               </div>

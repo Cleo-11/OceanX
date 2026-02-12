@@ -100,7 +100,7 @@ export default async function ProfilePage({
       userId: playerData.user_id,
     },
     tokenInfo: {
-      ocxBalance: playerData.coins || 0,
+      ocxBalance: Number(playerData.total_ocx_earned) || 0,
       totalEarned: Number(playerData.total_ocx_earned) || 0,
       totalMined: playerData.total_resources_mined || 0,
       coins: playerData.coins || 0,

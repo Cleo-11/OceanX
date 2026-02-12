@@ -53,7 +53,7 @@ export default async function GamePage() {
         is_active: true,
         last_login: new Date().toISOString(),
       })
-      .select("wallet_address, nickel, cobalt, copper, manganese, has_completed_tutorial")
+      .select("wallet_address, nickel, cobalt, copper, manganese, total_ocx_earned, submarine_tier, has_completed_tutorial")
       .single()
 
     if (createError) {

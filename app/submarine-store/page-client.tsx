@@ -48,78 +48,46 @@ export default function SubmarineStoreClient({ currentTier, resources, balance: 
       const txResult = await tryOnChainUpgrade(targetTier)
 
       if (txResult) {
-        // On-chain succeeded — confirm with server using txHash
+        // On-chain succeeded — sync tier in DB only (tokens already deducted on-chain)
         console.log('Transaction hash:', txResult.txHash)
         try {
-          const EXPRESS_URL = process.env.NEXT_PUBLIC_GAME_SERVER_URL || 'https://oceanx.onrender.com'
-          const serverResp = await fetch(`${EXPRESS_URL}/submarine/upgrade`, {
+          const syncResp = await fetch('/api/submarine/sync-tier', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              walletAddress: connection.address,
               targetTier,
               txHash: txResult.txHash,
             }),
           })
-          if (serverResp.ok) {
-            const data = await serverResp.json()
-            const newBalance = data.balance ?? data.coins ?? balance
-            setBalance(typeof newBalance === 'number' ? newBalance : parseFloat(newBalance) || 0)
+          if (syncResp.ok) {
+            const data = await syncResp.json()
+            if (data.success && data.data) {
+              const newBalance = data.data.balance ?? data.data.coins ?? balance
+              setBalance(typeof newBalance === 'number' ? newBalance : parseFloat(newBalance) || 0)
+            }
           }
-        } catch (serverErr) {
-          console.warn('Server confirmation with txHash failed:', serverErr)
+        } catch (syncErr) {
+          console.warn('Server tier sync failed:', syncErr)
         }
       } else {
-        // On-chain failed (no on-chain tokens) — fall back to MetaMask-signed authorization
-        const message = `Authorize submarine upgrade to Tier ${targetTier} for account ${connection.address}`
-        const signer = connection.signer
-        const signature = await signer.signMessage(message)
-
-        // Try Express API with signed auth
-        let serverSuccess = false
-        try {
-          const EXPRESS_URL = process.env.NEXT_PUBLIC_GAME_SERVER_URL || 'https://oceanx.onrender.com'
-          const serverResp = await fetch(`${EXPRESS_URL}/submarine/upgrade`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'x-wallet-address': connection.address,
-              'x-auth-signature': signature,
-              'x-auth-message': message,
-            },
-            body: JSON.stringify({
-              walletAddress: connection.address,
-              targetTier,
-            }),
-          })
-          if (serverResp.ok) {
-            const data = await serverResp.json()
-            const newBalance = data.balance ?? data.coins ?? balance
+        // On-chain failed (no on-chain tokens) — use server-side DB deduction
+        // Use Next.js API with JWT cookie auth (no MetaMask popup)
+        const resp = await fetch('/api/submarine/upgrade', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            targetTier,
+          }),
+        })
+        if (resp.ok) {
+          const data = await resp.json()
+          if (data.success && data.data) {
+            const newBalance = data.data.balance ?? data.data.coins ?? balance
             setBalance(typeof newBalance === 'number' ? newBalance : parseFloat(newBalance) || 0)
-            serverSuccess = true
           }
-        } catch (expressErr) {
-          console.warn('Express signed upgrade failed:', expressErr)
-        }
-
-        if (!serverSuccess) {
-          // Fallback to Next.js API
-          const resp = await fetch('/api/submarine/upgrade', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              walletAddress: connection.address,
-              targetTier,
-            }),
-          })
-          if (resp.ok) {
-            const data = await resp.json()
-            const newBalance = data.balance ?? data.coins ?? balance
-            setBalance(typeof newBalance === 'number' ? newBalance : parseFloat(newBalance) || 0)
-          } else {
-            const errData = await resp.json().catch(() => ({}))
-            throw new Error(errData.error || 'Upgrade failed on server')
-          }
+        } else {
+          const errData = await resp.json().catch(() => ({}))
+          throw new Error(errData.error || 'Upgrade failed on server')
         }
       }
 
