@@ -658,7 +658,7 @@ export function OceanMiningGame({
     return () => {
       cancelAnimationFrame(gameLoopRef.current)
     }
-  }, [walletConnected, playerPosition, movementKeys, gameState, resourceNodes, playerStats.speed])
+  }, [walletConnected, playerPosition, movementKeys, gameState, resourceNodes, playerStats.speed, playerTier])
 
   // Initialize canvas
   useEffect(() => {
