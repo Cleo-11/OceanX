@@ -1,39 +1,23 @@
 import { NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
-import { createServerClient } from "@supabase/ssr"
-import { cookies } from "next/headers"
+import { getAuthFromCookies } from "@/lib/jwt-auth"
 import type { Database } from "@/lib/types"
 
 export async function POST() {
   try {
+    // Authenticate using JWT
+    const auth = await getAuthFromCookies()
+    if (!auth || !auth.isValid) {
+      return NextResponse.json({ error: "Not authenticated" }, { status: 401 })
+    }
+
     // Service role client for bypassing RLS
     const supabaseAdmin = createClient<Database>(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     )
 
-    // Get user session from cookies
-    const cookieStore = cookies()
-    const supabase = createServerClient<Database>(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          get(name: string) {
-            return cookieStore.get(name)?.value
-          },
-        },
-      }
-    )
-    const {
-      data: { session },
-    } = await supabase.auth.getSession()
-
-    if (!session) {
-      return NextResponse.json({ error: "Not authenticated" }, { status: 401 })
-    }
-
-    const userId = session.user.id
+    const userId = auth.userId
 
     console.info("[api/player/complete-tutorial] Marking tutorial as complete:", {
       userId,

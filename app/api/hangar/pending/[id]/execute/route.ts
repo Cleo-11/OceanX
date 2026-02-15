@@ -5,14 +5,17 @@ import { CONTRACT_ADDRESSES, UPGRADE_MANAGER_ABI } from '@/lib/contracts'
 import { ethers } from 'ethers'
 import { env } from '@/lib/env'
 import { randomUUID } from 'crypto'
+import { getAuthFromRequest } from '@/lib/jwt-auth'
 
-export async function POST(_req: Request, { params }: { params: { id: string } }) {
+export async function POST(req: Request, { params }: { params: { id: string } }) {
   try {
-    const supabase = await createSupabaseServerClient()
+    // Authenticate using JWT
+    const auth = getAuthFromRequest(req)
+    if (!auth || !auth.isValid) {
+      return NextResponse.json({ error: 'Unauthenticated' }, { status: 401 })
+    }
 
-    // Ensure user is authenticated
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return NextResponse.json({ error: 'Unauthenticated' }, { status: 401 })
+    const supabase = await createSupabaseServerClient()
 
     const pendingId = params.id
 
@@ -30,7 +33,7 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
       .eq('id', pendingId)
       .eq('status', 'pending') // Only claim if still pending
       .is('execution_token', null) // Only claim if not already claimed
-      .eq('user_id', user.id) // Ensure user owns this action
+      .eq('user_id', auth.userId) // Ensure user owns this action
       .select()
       .single()
 
@@ -132,11 +135,8 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
         return NextResponse.json({ error: 'invalid_event_args' }, { status: 400 })
       }
 
-      // Get user ID (should exist at this point since we passed blockchain verification)
-      const userId = user?.id
-      if (!userId) {
-        return NextResponse.json({ error: 'Unauthenticated' }, { status: 401 })
-      }
+      // Get user ID from JWT auth
+      const userId = auth.userId
 
       // If player's linked wallet exists, confirm it matches tx.from or event player
       const { data: playerRecord } = await supabase.from('players').select('wallet_address').eq('user_id', userId).maybeSingle()

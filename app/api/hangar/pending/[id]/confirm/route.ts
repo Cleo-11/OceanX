@@ -1,11 +1,16 @@
 import { NextResponse } from 'next/server'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
+import { getAuthFromRequest } from '@/lib/jwt-auth'
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   try {
+    // Authenticate using JWT
+    const auth = getAuthFromRequest(req)
+    if (!auth || !auth.isValid) {
+      return NextResponse.json({ error: 'Unauthenticated' }, { status: 401 })
+    }
+
     const supabase = await createSupabaseServerClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return NextResponse.json({ error: 'Unauthenticated' }, { status: 401 })
 
     const pendingId = params.id
     const body = await req.json()
@@ -25,7 +30,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     if (fetchErr) return NextResponse.json({ error: fetchErr.message }, { status: 500 })
     if (!pending) return NextResponse.json({ error: 'Not found' }, { status: 404 })
     
-    if (pending.user_id !== user.id) {
+    if (pending.user_id !== auth.userId) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 

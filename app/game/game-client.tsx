@@ -145,7 +145,20 @@ export default function GameClient({ userId, playerData, walletAddress }: GameCl
               manganese: playerData?.manganese ?? 0,
             }}
             onResourcesChange={(res) => {
+              // Calculate deltas (only send increments, never absolute values)
+              const prev = latestResourcesRef.current
+              const deltas = {
+                nickel: Math.max(0, res.nickel - prev.nickel),
+                cobalt: Math.max(0, res.cobalt - prev.cobalt),
+                copper: Math.max(0, res.copper - prev.copper),
+                manganese: Math.max(0, res.manganese - prev.manganese),
+              }
+
               latestResourcesRef.current = res
+
+              // Skip if no positive deltas
+              const totalDelta = deltas.nickel + deltas.cobalt + deltas.copper + deltas.manganese
+              if (totalDelta <= 0) return
 
               // Clear any existing timeout
               if (saveTimeoutRef.current) {
@@ -159,24 +172,17 @@ export default function GameClient({ userId, playerData, walletAddress }: GameCl
                 savingRef.current = true
                 setIsSaving(true)
                 try {
-                  const totals = res.nickel + res.cobalt + res.copper + res.manganese
-
-                  console.info("[GameClient] 💾 Saving resources to database", {
+                  console.info("[GameClient] 💾 Saving resource deltas to database", {
                     userId,
-                    resources: res,
-                    total: totals,
+                    deltas,
+                    totalDelta,
                   })
 
-                  // Use API route to bypass RLS
+                  // Send validated deltas (not raw values) to server
                   const response = await fetch("/api/player/save-resources", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                      nickel: res.nickel,
-                      cobalt: res.cobalt,
-                      copper: res.copper,
-                      manganese: res.manganese,
-                    }),
+                    body: JSON.stringify({ deltas }),
                   })
 
                   const result = await response.json()
@@ -192,7 +198,7 @@ export default function GameClient({ userId, playerData, walletAddress }: GameCl
                   savingRef.current = false
                   setIsSaving(false)
                 }
-              }, 500) // 500ms debounce for faster saves
+              }, 2500) // 2.5s debounce aligns with server rate limit
             }}
           />
         </div>

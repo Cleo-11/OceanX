@@ -6,9 +6,11 @@ interface PlayerHUDProps {
   stats: PlayerStats;
   tier: number;
   resources?: PlayerResources; // Live resources for instant UI updates
+  energyRegenTimeRemaining?: number; // Seconds until energy is full
+  resourceSaveStatus?: 'idle' | 'saving' | 'saved' | 'error';
 }
 
-export function PlayerHUD({ stats, tier, resources }: PlayerHUDProps) {
+export function PlayerHUD({ stats, tier, resources, energyRegenTimeRemaining = 0, resourceSaveStatus = 'idle' }: PlayerHUDProps) {
   const submarineData = getSubmarineByTier(tier);
   return (
     <motion.div
@@ -35,10 +37,24 @@ export function PlayerHUD({ stats, tier, resources }: PlayerHUDProps) {
           maxValue={submarineData.baseStats.energy} 
           color={stats.energy <= 0 ? "bg-red-500" : stats.energy <= 20 ? "bg-orange-500" : "bg-yellow-500"} 
           pulse={stats.energy <= 0}
+          regenTime={energyRegenTimeRemaining}
         />
         
         <div className="mt-4 border-t border-cyan-400/20 pt-2">
-          <h3 className="mb-2 text-sm font-bold text-cyan-400">CARGO</h3>
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-sm font-bold text-cyan-400">CARGO</h3>
+            {resourceSaveStatus !== 'idle' && (
+              <span className={`text-xs font-mono ${
+                resourceSaveStatus === 'saving' ? 'text-yellow-400 animate-pulse' :
+                resourceSaveStatus === 'saved' ? 'text-green-400' :
+                'text-red-400'
+              }`}>
+                {resourceSaveStatus === 'saving' ? '⟳ Syncing...' :
+                 resourceSaveStatus === 'saved' ? '✓ Saved' :
+                 '✗ Error'}
+              </span>
+            )}
+          </div>
           <div className="grid grid-cols-2 gap-2">
             <ResourceBar
               label="NICKEL"
@@ -95,10 +111,19 @@ interface StatBarProps {
   maxValue: number
   color: string
   pulse?: boolean
+  regenTime?: number
 }
 
-function StatBar({ label, value, maxValue, color, pulse = false }: StatBarProps) {
+function StatBar({ label, value, maxValue, color, pulse = false, regenTime = 0 }: StatBarProps) {
   const percentage = Math.min(100, Math.max(0, (value / maxValue) * 100))
+  
+  // Format regen time as mm:ss
+  const formatTime = (seconds: number) => {
+    if (seconds <= 0) return ''
+    const mins = Math.floor(seconds / 60)
+    const secs = Math.floor(seconds % 60)
+    return `${mins}:${secs.toString().padStart(2, '0')}`
+  }
 
   return (
     <div className="space-y-1">
@@ -106,6 +131,11 @@ function StatBar({ label, value, maxValue, color, pulse = false }: StatBarProps)
         <span className="text-sm text-slate-300">{label}</span>
         <span className="font-mono text-sm text-cyan-400">
           {value}/{maxValue}
+          {regenTime > 0 && (
+            <span className="ml-2 text-xs text-yellow-400 animate-pulse">
+              ⟳ {formatTime(regenTime)}
+            </span>
+          )}
         </span>
       </div>
       <div className="h-2 w-full rounded-full bg-slate-700">

@@ -96,7 +96,14 @@ export function OceanMiningGame({
     backward: false,
     left: false,
     right: false,
+    up: false,
+    down: false,
   })
+
+  // State for energy regen countdown and resource save status
+  const [energyRegenTimeRemaining, setEnergyRegenTimeRemaining] = useState<number>(0)
+  const [isRegeneratingFromEmpty, setIsRegeneratingFromEmpty] = useState<boolean>(false)
+  const [resourceSaveStatus, setResourceSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
 
   // Player stats and resources
   const [playerTier, setPlayerTier] = useState<number>(initialTier)
@@ -140,9 +147,18 @@ export function OceanMiningGame({
 
   // Notify parent when resources change (lightweight autosave hook)
   useEffect(() => {
-    if (onResourcesChange) {
-      onResourcesChange(resources)
-    }
+    if (!onResourcesChange) return
+    
+    setResourceSaveStatus('saving')
+    onResourcesChange(resources)
+    
+    // Show "Saved" feedback after 1 second (parent handles actual save with debounce)
+    const timer = setTimeout(() => {
+      setResourceSaveStatus('saved')
+      setTimeout(() => setResourceSaveStatus('idle'), 2000)
+    }, 1000)
+    
+    return () => clearTimeout(timer)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resources])
 
@@ -495,30 +511,58 @@ export function OceanMiningGame({
     }
   }, [playerStats.energy])
 
-  // Energy regeneration over time
+  // Energy regeneration over time with timer countdown (only shows when depleted)
   useEffect(() => {
-    if (playerStats.energy > 0) return; // Only start regen when energy is 0
+    const maxEnergy = submarineData.baseStats.energy
+    
+    // Start regen cycle when energy hits 0
+    if (playerStats.energy <= 0) {
+      setIsRegeneratingFromEmpty(true)
+    }
+    
+    // End regen cycle when energy is full
+    if (playerStats.energy >= maxEnergy) {
+      setIsRegeneratingFromEmpty(false)
+      setEnergyRegenTimeRemaining(0)
+      return
+    }
+    
+    // Only regenerate and show timer if we're in a depletion regen cycle
+    if (!isRegeneratingFromEmpty && playerStats.energy > 0) {
+      setEnergyRegenTimeRemaining(0)
+      return
+    }
+    
     // Calculate fill time in seconds for this tier
     const minFill = 20 * 60 // 20 min
     const maxFill = 45 * 60 // 45 min
     const tier = submarineData.baseStats.tier
     const fillTime = minFill + ((maxFill - minFill) * (tier - 1) / 14) // linear interpolation
-    const regenRate = submarineData.baseStats.energy / fillTime // energy per second
+    const regenRate = maxEnergy / fillTime // energy per second
+
+    // Calculate time remaining based on current energy
+    const energyDeficit = maxEnergy - playerStats.energy
+    const timeToFull = energyDeficit / regenRate
+    setEnergyRegenTimeRemaining(timeToFull)
 
     const energyRegenInterval = setInterval(() => {
       setPlayerStats((prev) => {
-        const maxEnergy = submarineData.baseStats.energy
         if (prev.energy < maxEnergy) {
+          const newEnergy = Math.min(prev.energy + regenRate, maxEnergy)
+          const newDeficit = maxEnergy - newEnergy
+          setEnergyRegenTimeRemaining(newDeficit / regenRate)
           return {
             ...prev,
-            energy: Math.min(prev.energy + regenRate, maxEnergy),
+            energy: newEnergy,
           }
         }
-        return prev;
+        setEnergyRegenTimeRemaining(0)
+        setIsRegeneratingFromEmpty(false)
+        return prev
       })
     }, 1000)
     return () => clearInterval(energyRegenInterval)
-  }, [playerStats.energy, submarineData.baseStats.energy, submarineData.baseStats.tier])
+  }, [playerStats.energy, submarineData.baseStats.energy, submarineData.baseStats.tier, isRegeneratingFromEmpty])
 
   // Handle keyboard input for submarine movement
   useEffect(() => {
@@ -529,11 +573,11 @@ export function OceanMiningGame({
       switch (e.key.toLowerCase()) {
         case "w":
         case "arrowup":
-          setMovementKeys((prev) => ({ ...prev, forward: true }))
+          setMovementKeys((prev) => ({ ...prev, forward: true, up: true }))
           break
         case "s":
         case "arrowdown":
-          setMovementKeys((prev) => ({ ...prev, backward: true }))
+          setMovementKeys((prev) => ({ ...prev, backward: true, down: true }))
           break
         case "a":
         case "arrowleft":
@@ -564,11 +608,11 @@ export function OceanMiningGame({
       switch (e.key.toLowerCase()) {
         case "w":
         case "arrowup":
-          setMovementKeys((prev) => ({ ...prev, forward: false }))
+          setMovementKeys((prev) => ({ ...prev, forward: false, up: false }))
           break
         case "s":
         case "arrowdown":
-          setMovementKeys((prev) => ({ ...prev, backward: false }))
+          setMovementKeys((prev) => ({ ...prev, backward: false, down: false }))
           break
         case "a":
         case "arrowleft":
@@ -648,6 +692,18 @@ export function OceanMiningGame({
     if (movementKeys.right) {
       newRotation += 0.05
     }
+    
+    // Vertical movement (W/S for dive/surface)
+    if (movementKeys.up) {
+      newY -= speed * 0.5 // Surface (move up)
+      newY = Math.max(50, newY) // Don't go above water surface
+    }
+    if (movementKeys.down) {
+      const maxDepth = playerStats.depth // Tier-based max depth
+      const maxY = (maxDepth / 10) * 100 // Convert meters to pixels
+      newY += speed * 0.5 // Dive (move down)
+      newY = Math.min(maxY, newY) // Don't exceed max depth
+    }
     if (movementKeys.forward) {
       newX += Math.cos(newRotation) * speed
       newY += Math.sin(newRotation) * speed
@@ -662,6 +718,12 @@ export function OceanMiningGame({
 
     const newPosition = { x: newX, y: newY, rotation: newRotation }
     setPlayerPosition(newPosition)
+    
+    // Update depth stat based on Y position
+    const newDepth = Math.floor(newY / 100) * 10
+    if (newDepth !== playerStats.depth) {
+      setPlayerStats(prev => ({ ...prev, depth: newDepth }))
+    }
 
     // Send position update to server if connected
     const connection = walletManager.getConnection()
@@ -1447,6 +1509,12 @@ export function OceanMiningGame({
   const handleMine = async (node: ResourceNode) => {
     if (!walletConnected || gameState !== "idle" || !targetNode) return
 
+    // SECURITY: Require WebSocket connection for mining — prevents client-only resource injection
+    if (connectionStatus !== "connected" || !walletAddress || !sessionId) {
+      console.warn("⚠️ Mining requires server connection. Please wait for reconnection.")
+      return
+    }
+
     setGameState("mining")
 
     // Check if player has enough storage
@@ -1462,18 +1530,16 @@ export function OceanMiningGame({
     }
 
     try {
-      // Send mining request to server if connected
-      if (connectionStatus === "connected" && walletAddress && sessionId) {
-        wsManager.mineResource({
-          nodeId: node.id,
-          sessionId: sessionId,
-          walletAddress: walletAddress,
-          amount: amountToMine,
-          resourceType: node.type,
-        })
-      }
+      // Send mining request to server for authoritative validation
+      wsManager.mineResource({
+        nodeId: node.id,
+        sessionId: sessionId,
+        walletAddress: walletAddress,
+        amount: amountToMine,
+        resourceType: node.type,
+      })
 
-      // Update local state optimistically
+      // Update local state optimistically (server will correct if invalid)
       setResources((prev) => ({
         ...prev,
         [node.type]: prev[node.type] + amountToMine,
@@ -1895,7 +1961,13 @@ export function OceanMiningGame({
           )}
 
           {/* Player Stats HUD */}
-          <PlayerHUD stats={playerStats} tier={playerTier} resources={resources} />
+          <PlayerHUD 
+            stats={playerStats} 
+            tier={playerTier} 
+            resources={resources} 
+            energyRegenTimeRemaining={energyRegenTimeRemaining}
+            resourceSaveStatus={resourceSaveStatus}
+          />
 
           {/* Sonar/Mini-map at bottom left */}
           <div className="absolute left-4 bottom-4 z-20">

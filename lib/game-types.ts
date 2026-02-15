@@ -75,6 +75,8 @@ export interface MovementKeys {
   backward: boolean;
   left: boolean;
   right: boolean;
+  up: boolean;
+  down: boolean;
 }
 
 export interface GameStateHandlerData {

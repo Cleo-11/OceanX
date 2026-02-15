@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getAuthFromCookies, createSupabaseAdmin } from "@/lib/supabase-server"
+import { ethers } from "ethers"
+import UpgradeManagerABI from "@/server/abis/UpgradeManager.json"
 
 export const dynamic = "force-dynamic"
+
+// Contract address
+const UPGRADE_MANAGER_ADDRESS = process.env.NEXT_PUBLIC_UPGRADE_MANAGER_ADDRESS || "0x2C491a2914Fe827462c831D7BABad7B2c42Ca34d"
 
 /**
  * POST /api/submarine/sync-tier
@@ -45,6 +50,46 @@ export async function POST(req: NextRequest) {
         { error: "Submarines must be upgraded sequentially" },
         { status: 409 }
       )
+    }
+
+    // SECURITY: Verify tier on-chain before syncing to DB (anti-cheat)
+    try {
+      const rpcUrl = process.env.NEXT_PUBLIC_RPC_URL || "https://sepolia.infura.io/v3/YOUR_KEY"
+      const provider = new ethers.JsonRpcProvider(rpcUrl)
+      const upgradeManager = new ethers.Contract(UPGRADE_MANAGER_ADDRESS, UpgradeManagerABI, provider)
+      
+      const onChainTier = await upgradeManager.getCurrentTier(player.wallet_address)
+      const contractTier = Number(onChainTier)
+
+      console.info("[submarine/sync-tier] On-chain verification:", {
+        wallet: player.wallet_address,
+        dbTier: currentTier,
+        contractTier,
+        targetTier,
+      })
+
+      // Verify contract tier matches target tier (user already upgraded on-chain)
+      if (contractTier !== targetTier) {
+        console.warn("[submarine/sync-tier] ⚠️ Tier mismatch detected:", {
+          wallet: player.wallet_address,
+          contractTier,
+          targetTier,
+          txHash,
+        })
+        return NextResponse.json(
+          { 
+            error: `Tier verification failed: contract shows tier ${contractTier}, but you requested tier ${targetTier}. Please refresh and try again.`,
+            contractTier,
+            targetTier,
+          },
+          { status: 409 }
+        )
+      }
+    } catch (verifyError: any) {
+      console.error("[submarine/sync-tier] On-chain verification failed:", verifyError)
+      // Log but don't block (network issues shouldn't prevent legitimate upgrades)
+      // In production, you might want to require verification
+      console.warn("[submarine/sync-tier] Proceeding without verification due to RPC error")
     }
 
     // Update tier only — tokens were already deducted on-chain

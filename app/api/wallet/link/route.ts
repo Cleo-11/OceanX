@@ -1,29 +1,25 @@
 import { NextResponse } from "next/server"
-import { cookies } from "next/headers"
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs"
-import type { Database } from "@/lib/types"
+import { createSupabaseServerClient } from "@/lib/supabase-server"
+import { getAuthFromRequest } from "@/lib/jwt-auth"
 
 /**
  * POST /api/wallet/link
  * 
  * Links a wallet address to the authenticated user's player account.
- * Uses service role to ensure the player record exists and can be updated.
+ * Uses JWT authentication and service role for database operations.
  */
 export async function POST(request: Request) {
   try {
-    const supabase = createRouteHandlerClient<Database>({ cookies })
-    
-    // Verify user is authenticated
-    const {
-      data: { session },
-    } = await supabase.auth.getSession()
-
-    if (!session) {
+    // Authenticate using JWT
+    const auth = getAuthFromRequest(request)
+    if (!auth || !auth.isValid) {
       return NextResponse.json(
         { error: "Unauthorized" },
         { status: 401 }
       )
     }
+
+    const supabase = await createSupabaseServerClient()
 
     const body = await request.json()
     const { walletAddress, username } = body
@@ -42,7 +38,7 @@ export async function POST(request: Request) {
       .eq("wallet_address", walletAddress)
       .maybeSingle()
 
-    if (existingPlayer && existingPlayer.user_id !== session.user.id) {
+    if (existingPlayer && existingPlayer.user_id !== auth.userId) {
       return NextResponse.json(
         {
           error: `This wallet is already linked to another account (${existingPlayer.username || 'Unknown User'}). Please use a different wallet.`,
@@ -57,11 +53,11 @@ export async function POST(request: Request) {
       .from("players")
       .update({
         wallet_address: walletAddress,
-        username: username || session.user.email?.split("@")[0] || "Captain",
+        username: username || `Captain-${auth.wallet.slice(0, 6)}`,
         last_login: new Date().toISOString(),
         is_active: true,
       })
-      .eq("user_id", session.user.id)
+      .eq("user_id", auth.userId)
       .select()
       .single()
 
@@ -82,7 +78,7 @@ export async function POST(request: Request) {
     }
 
     console.info("[wallet/link] Wallet linked successfully", {
-      userId: session.user.id,
+      userId: auth.userId,
       walletAddress: walletAddress.slice(0, 10) + "...",
     })
 

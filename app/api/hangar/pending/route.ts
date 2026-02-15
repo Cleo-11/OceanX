@@ -1,17 +1,18 @@
 import { NextResponse } from 'next/server'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
+import { getAuthFromRequest } from '@/lib/jwt-auth'
 
 export async function POST(req: Request) {
   try {
+    // Authenticate using JWT
+    const auth = getAuthFromRequest(req)
+    if (!auth || !auth.isValid) {
+      return NextResponse.json({ error: 'Unauthenticated' }, { status: 401 })
+    }
+
     const supabase = await createSupabaseServerClient()
     const body = await req.json()
     const { actionType, payload } = body
-
-    // Ensure user is authenticated server-side
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthenticated' }, { status: 401 })
-    }
 
     // Basic validation
     if (!actionType || typeof actionType !== 'string') {
@@ -19,7 +20,7 @@ export async function POST(req: Request) {
     }
 
     const insert = await supabase.from('pending_actions').insert({
-      user_id: user.id,
+      user_id: auth.userId,
       action_type: actionType,
       payload: payload ?? {},
       status: 'pending',

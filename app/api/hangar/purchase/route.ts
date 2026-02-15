@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
+import { getAuthFromRequest } from '@/lib/jwt-auth'
 import { ethers } from 'ethers'
 import UpgradeManagerABI from '@/server/abis/UpgradeManager.json'
 
@@ -18,6 +19,7 @@ interface PurchaseRequest {
  * Verifies on-chain submarine upgrade transaction and updates Supabase
  * 
  * Security:
+ * - Requires JWT authentication
  * - Verifies transaction exists on blockchain
  * - Validates transaction sender matches player
  * - Checks transaction calls correct contract method
@@ -27,6 +29,15 @@ interface PurchaseRequest {
  */
 export async function POST(req: NextRequest) {
   try {
+    // Authenticate using JWT
+    const auth = getAuthFromRequest(req)
+    if (!auth || !auth.isValid) {
+      return NextResponse.json(
+        { error: 'Unauthorized - Please sign in' },
+        { status: 401 }
+      )
+    }
+
     const body: PurchaseRequest = await req.json()
     const { txHash, playerAddress, targetTier } = body
 
@@ -42,6 +53,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         { error: 'Invalid player address' },
         { status: 400 }
+      )
+    }
+
+    // Verify the playerAddress matches the authenticated user's wallet
+    if (playerAddress.toLowerCase() !== auth.wallet.toLowerCase()) {
+      return NextResponse.json(
+        { error: 'Player address does not match authenticated wallet' },
+        { status: 403 }
       )
     }
 
@@ -208,7 +227,7 @@ export async function POST(req: NextRequest) {
     // Find player by wallet address (supabase already initialized)
     const { data: player, error: fetchError } = await supabase
       .from('players')
-      .select('id, tier, wallet_address')
+      .select('id, submarine_tier, wallet_address')
       .eq('wallet_address', playerAddress.toLowerCase())
       .single()
 
@@ -220,9 +239,9 @@ export async function POST(req: NextRequest) {
     }
 
     // Verify database tier matches contract previous tier
-    if (player.tier !== previousTier) {
+    if (player.submarine_tier !== previousTier) {
       console.warn(
-        `Tier mismatch: DB tier=${player.tier}, contract previousTier=${previousTier}`
+        `Tier mismatch: DB tier=${player.submarine_tier}, contract previousTier=${previousTier}`
       )
       // Continue anyway but log warning (contract is source of truth)
     }
@@ -231,7 +250,7 @@ export async function POST(req: NextRequest) {
     const { error: updateError } = await supabase
       .from('players')
       .update({
-        tier: newTier,
+        submarine_tier: newTier,
         updated_at: new Date().toISOString(),
       })
       .eq('id', player.id)
