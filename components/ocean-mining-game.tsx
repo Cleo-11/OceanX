@@ -52,6 +52,38 @@ interface OceanMiningGameProps {
   initialTier?: number
 }
 
+// ── Build submarine SVG string (pixel-identical to SubmarineIcon.tsx) ────────
+function buildSubmarineSVG(tier: number, color: string): string {
+  const highlight = `<path d="M22 24 Q50 18 82 24" stroke="rgba(255,255,255,0.35)" stroke-width="1.2" fill="none" stroke-linecap="round"/>`
+  const tower = (y = 14, w = 10, h = 12) =>
+    `<rect x="${48 - w / 2}" y="${y}" width="${w}" height="${h}" rx="2" fill="${color}" stroke="rgba(0,0,0,0.3)" stroke-width="0.6"/>`
+  const viewport = (cx = 68, cy = 30, r = 4.5) =>
+    `<circle cx="${cx}" cy="${cy}" r="${r}" fill="url(#vp)" stroke="rgba(0,40,60,0.6)" stroke-width="0.8"/>` +
+    `<circle cx="${cx - 1}" cy="${cy - 1}" r="${r * 0.45}" fill="rgba(255,255,255,0.35)"/>`
+  const propeller = (x = 10) =>
+    `<g transform="translate(${x}, 30)"><ellipse rx="2" ry="7" fill="rgba(80,80,100,0.7)"/><circle r="2" fill="rgba(60,60,80,0.8)"/></g>`
+  let body = ''
+  switch (tier) {
+    case 1:  body = `<g><path d="M14 30 Q14 18 30 16 L72 16 Q88 18 88 30 Q88 42 72 44 L30 44 Q14 42 14 30Z" fill="${color}" stroke="rgba(0,0,0,0.25)" stroke-width="1"/>${highlight}${tower()}${viewport()}${propeller()}</g>`; break
+    case 2:  body = `<g><path d="M12 30 Q12 17 32 15 L74 15 Q90 17 90 30 Q90 43 74 45 L32 45 Q12 43 12 30Z" fill="${color}" stroke="rgba(0,0,0,0.25)" stroke-width="1"/><path d="M52 15 L56 6 L60 15" fill="${color}" stroke="rgba(0,0,0,0.2)" stroke-width="0.7"/>${highlight}${tower(8,12,10)}${viewport()}${propeller()}<path d="M12 22 L6 16 L6 44 L12 38" fill="${color}" stroke="rgba(0,0,0,0.2)" stroke-width="0.5"/></g>`; break
+    case 3:  body = `<g><path d="M12 30 Q12 16 34 14 L70 14 Q90 16 90 30 Q90 44 70 46 L34 46 Q12 44 12 30Z" fill="${color}" stroke="rgba(0,0,0,0.3)" stroke-width="1.2"/><line x1="35" y1="14" x2="35" y2="46" stroke="rgba(255,255,255,0.15)" stroke-width="1.5"/><line x1="55" y1="14" x2="55" y2="46" stroke="rgba(255,255,255,0.15)" stroke-width="1.5"/>${highlight}${tower(10,12,10)}${viewport()}${propeller()}<path d="M30 46 L70 46 L65 50 L35 50Z" fill="${color}" stroke="rgba(0,0,0,0.2)" stroke-width="0.5" opacity="0.7"/></g>`; break
+    case 4:  body = `<g><path d="M12 28 Q12 14 34 12 L72 12 Q92 14 92 28 Q92 42 72 44 L34 44 Q12 42 12 28Z" fill="${color}" stroke="rgba(0,0,0,0.3)" stroke-width="1.2"/><rect x="32" y="44" width="36" height="8" rx="3" fill="${color}" stroke="rgba(0,0,0,0.25)" stroke-width="0.8" opacity="0.85"/><line x1="44" y1="44" x2="44" y2="52" stroke="rgba(0,0,0,0.15)" stroke-width="0.6"/><line x1="56" y1="44" x2="56" y2="52" stroke="rgba(0,0,0,0.15)" stroke-width="0.6"/>${highlight}${tower(6,14,10)}${viewport(72,28)}${viewport(62,28,3)}${propeller()}</g>`; break
+    case 5:  body = `<g><ellipse cx="50" cy="30" rx="44" ry="22" fill="url(#heatGlow)" opacity="0.4"/><path d="M14 30 Q14 16 34 14 L72 14 Q88 16 88 30 Q88 44 72 46 L34 46 Q14 44 14 30Z" fill="${color}" stroke="rgba(0,0,0,0.3)" stroke-width="1.2"/><path d="M30 16 L30 44" stroke="rgba(255,100,0,0.25)" stroke-width="2"/><path d="M50 15 L50 45" stroke="rgba(255,100,0,0.25)" stroke-width="2"/><path d="M70 16 L70 44" stroke="rgba(255,100,0,0.25)" stroke-width="2"/>${highlight}${tower(8,12,10)}${viewport()}${propeller()}</g>`; break
+    case 6:  body = `<g><path d="M10 30 Q10 14 34 12 L72 12 Q92 14 92 30 Q92 46 72 48 L34 48 Q10 46 10 30Z" fill="${color}" stroke="rgba(0,0,0,0.3)" stroke-width="1.5"/><ellipse cx="32" cy="30" rx="4" ry="15" fill="none" stroke="rgba(0,255,255,0.2)" stroke-width="1.2"/><ellipse cx="50" cy="30" rx="4" ry="16" fill="none" stroke="rgba(0,255,255,0.2)" stroke-width="1.2"/><ellipse cx="68" cy="30" rx="4" ry="15" fill="none" stroke="rgba(0,255,255,0.2)" stroke-width="1.2"/>${highlight}${tower(6,14,10)}${viewport(76,30)}${propeller(8)}</g>`; break
+    case 7:  body = `<g><ellipse cx="50" cy="30" rx="46" ry="24" fill="url(#energyField)" opacity="0.3"/><path d="M12 30 Q12 15 38 12 L68 12 Q88 12 92 26 L92 30 Q92 45 68 48 L38 48 Q12 45 12 30Z" fill="${color}" stroke="rgba(0,255,255,0.3)" stroke-width="1"/><path d="M38 12 L34 30 L38 48" stroke="rgba(0,255,255,0.25)" stroke-width="0.8" fill="none"/><path d="M68 12 L72 30 L68 48" stroke="rgba(0,255,255,0.25)" stroke-width="0.8" fill="none"/>${highlight}<path d="M44 12 L48 4 L56 4 L60 12" fill="${color}" stroke="rgba(0,255,255,0.3)" stroke-width="0.7"/>${viewport(78,28,4)}${propeller(8)}<circle cx="30" cy="22" r="1.2" fill="#67e8f9" opacity="0.8"/><circle cx="70" cy="38" r="1" fill="#67e8f9" opacity="0.6"/></g>`; break
+    case 8:  body = `<g><path d="M10 30 Q10 12 36 10 L70 10 Q92 10 94 26 L94 34 Q92 50 70 50 L36 50 Q10 48 10 30Z" fill="${color}" stroke="rgba(0,0,0,0.35)" stroke-width="1.5"/><rect x="25" y="12" width="22" height="36" rx="1" fill="none" stroke="rgba(255,255,255,0.12)" stroke-width="1"/><rect x="50" y="11" width="22" height="38" rx="1" fill="none" stroke="rgba(255,255,255,0.12)" stroke-width="1"/><path d="M20 20 Q50 14 85 20" stroke="rgba(255,255,255,0.3)" stroke-width="1.5" fill="none" stroke-linecap="round"/><path d="M20 22 Q50 16 85 22" stroke="rgba(255,255,255,0.15)" stroke-width="0.8" fill="none" stroke-linecap="round"/>${tower(4,16,10)}${viewport(80,28,5)}${viewport(70,28,3.5)}${propeller(6)}</g>`; break
+    case 9:  body = `<g><path d="M6 30 Q6 10 34 8 L72 8 Q96 10 96 30 Q96 50 72 52 L34 52 Q6 50 6 30Z" fill="${color}" stroke="rgba(0,0,0,0.35)" stroke-width="1.8"/><line x1="30" y1="10" x2="30" y2="50" stroke="rgba(255,255,255,0.1)" stroke-width="1"/><line x1="50" y1="9" x2="50" y2="51" stroke="rgba(255,255,255,0.1)" stroke-width="1"/><line x1="70" y1="10" x2="70" y2="50" stroke="rgba(255,255,255,0.1)" stroke-width="1"/>${highlight}${tower(2,18,10)}${viewport(80,26,5.5)}${viewport(80,38,4)}${propeller(4)}<path d="M30 52 L70 52 L65 56 L35 56Z" fill="${color}" opacity="0.6"/></g>`; break
+    case 10: body = `<g><path d="M8 30 Q8 10 34 8 L72 8 Q94 10 94 30 Q94 50 72 52 L34 52 Q8 50 8 30Z" fill="${color}" stroke="rgba(0,0,0,0.35)" stroke-width="1.8"/><rect x="24" y="4" width="8" height="8" rx="1.5" fill="rgba(100,100,120,0.8)" stroke="rgba(0,0,0,0.3)" stroke-width="0.7"/><rect x="24" y="2" width="8" height="3" rx="1" fill="rgba(80,80,100,0.7)"/><rect x="64" y="4" width="8" height="8" rx="1.5" fill="rgba(100,100,120,0.8)" stroke="rgba(0,0,0,0.3)" stroke-width="0.7"/><rect x="64" y="2" width="8" height="3" rx="1" fill="rgba(80,80,100,0.7)"/><path d="M20 18 Q50 12 84 18" stroke="rgba(255,255,255,0.2)" stroke-width="1.2" fill="none"/>${tower(0,16,8)}${viewport(82,26,5)}${propeller(4)}</g>`; break
+    case 11: body = `<g><path d="M14 30 Q14 14 36 12 L70 12 Q90 14 90 30 Q90 46 70 48 L36 48 Q14 46 14 30Z" fill="${color}" stroke="rgba(0,0,0,0.3)" stroke-width="1.2"/><path d="M30 48 Q26 54 22 56 Q20 58 24 56 Q28 54 32 50" stroke="${color}" stroke-width="1.5" fill="none" stroke-linecap="round"/><path d="M50 48 Q48 56 44 58 Q42 60 46 58 Q50 54 52 50" stroke="${color}" stroke-width="1.5" fill="none" stroke-linecap="round"/><path d="M68 48 Q66 54 62 56 Q60 58 64 56 Q68 52 70 48" stroke="${color}" stroke-width="1.5" fill="none" stroke-linecap="round"/><path d="M36 12 Q40 8 50 7 Q60 8 64 12" fill="${color}" stroke="rgba(0,0,0,0.2)" stroke-width="0.7"/>${highlight}${viewport(76,30,5)}${propeller(10)}</g>`; break
+    case 12: body = `<g><ellipse cx="50" cy="30" rx="48" ry="26" fill="url(#voidAura)" opacity="0.5"/><path d="M12 30 Q12 13 36 10 L70 10 Q90 13 90 30 Q90 47 70 50 L36 50 Q12 47 12 30Z" fill="${color}" stroke="rgba(168,85,247,0.4)" stroke-width="1.2"/><ellipse cx="50" cy="30" rx="30" ry="14" fill="rgba(168,85,247,0.08)"/><path d="M24 22 Q50 16 80 22" stroke="rgba(168,85,247,0.3)" stroke-width="1" fill="none"/><path d="M42 10 L46 2 L58 2 L62 10" fill="${color}" stroke="rgba(168,85,247,0.3)" stroke-width="0.7"/>${viewport(78,28,5)}${propeller(8)}</g>`; break
+    case 13: body = `<g><ellipse cx="50" cy="30" rx="46" ry="24" fill="url(#starGlow)" opacity="0.3"/><path d="M12 30 Q12 14 36 12 L70 12 Q90 14 90 30 Q90 46 70 48 L36 48 Q12 46 12 30Z" fill="${color}" stroke="rgba(0,0,0,0.3)" stroke-width="1.2"/><polygon points="50,4 52,10 58,10 53,14 55,20 50,16 45,20 47,14 42,10 48,10" fill="#fef08a" opacity="0.8"/>${highlight}${viewport(76,28,5)}${propeller(8)}</g>`; break
+    case 14: body = `<g><ellipse cx="50" cy="30" rx="48" ry="10" fill="none" stroke="rgba(168,85,247,0.3)" stroke-width="1" transform="rotate(-12 50 30)"/><ellipse cx="50" cy="30" rx="44" ry="8" fill="none" stroke="rgba(168,85,247,0.2)" stroke-width="0.7" transform="rotate(8 50 30)"/><path d="M10 30 Q10 12 36 10 L70 10 Q92 12 92 30 Q92 48 70 50 L36 50 Q10 48 10 30Z" fill="${color}" stroke="rgba(168,85,247,0.4)" stroke-width="1.2"/>${highlight}<path d="M42 10 L44 0 L56 0 L58 10" fill="${color}" stroke="rgba(168,85,247,0.35)" stroke-width="0.7"/>${viewport(80,28,5.5)}${propeller(6)}</g>`; break
+    case 15: body = `<g><ellipse cx="50" cy="30" rx="50" ry="28" fill="url(#leviathanAura)" opacity="0.3"/><path d="M4 30 Q4 8 32 6 L74 6 Q98 8 98 30 Q98 52 74 54 L32 54 Q4 52 4 30Z" fill="${color}" stroke="rgba(0,0,0,0.4)" stroke-width="2"/><polygon points="40,6 42,0 44,6" fill="rgba(255,255,255,0.7)"/><polygon points="48,6 50,-2 52,6" fill="rgba(255,255,255,0.85)"/><polygon points="56,6 58,0 60,6" fill="rgba(255,255,255,0.7)"/>${viewport(70,24,5)}${viewport(82,24,5)}${viewport(76,36,4)}<path d="M18 18 Q50 10 88 18" stroke="rgba(255,255,255,0.3)" stroke-width="1.5" fill="none" stroke-linecap="round"/>${propeller(2)}<path d="M28 54 L72 54 L66 58 L34 58Z" fill="${color}" opacity="0.5"/></g>`; break
+    default: body = `<g><path d="M14 30 Q14 18 30 16 L72 16 Q88 18 88 30 Q88 42 72 44 L30 44 Q14 42 14 30Z" fill="${color}" stroke="rgba(0,0,0,0.25)" stroke-width="1"/>${highlight}${viewport()}${propeller()}</g>`
+  }
+  return `<svg width="100" height="60" viewBox="0 0 100 60" xmlns="http://www.w3.org/2000/svg" fill="none"><defs><radialGradient id="vp" cx="35%" cy="35%"><stop offset="0%" stop-color="#a5f3fc" stop-opacity="0.95"/><stop offset="50%" stop-color="#22d3ee" stop-opacity="0.7"/><stop offset="100%" stop-color="#0e7490" stop-opacity="0.4"/></radialGradient><radialGradient id="heatGlow" cx="50%" cy="50%"><stop offset="0%" stop-color="#f97316" stop-opacity="0.5"/><stop offset="100%" stop-color="#f97316" stop-opacity="0"/></radialGradient><radialGradient id="energyField" cx="50%" cy="50%"><stop offset="0%" stop-color="#22d3ee" stop-opacity="0.4"/><stop offset="100%" stop-color="#22d3ee" stop-opacity="0"/></radialGradient><radialGradient id="voidAura" cx="50%" cy="50%"><stop offset="0%" stop-color="#a855f7" stop-opacity="0.35"/><stop offset="100%" stop-color="#a855f7" stop-opacity="0"/></radialGradient><radialGradient id="starGlow" cx="50%" cy="50%"><stop offset="0%" stop-color="#fef08a" stop-opacity="0.4"/><stop offset="100%" stop-color="#fef08a" stop-opacity="0"/></radialGradient><radialGradient id="leviathanAura" cx="50%" cy="50%"><stop offset="0%" stop-color="#7e22ce" stop-opacity="0.35"/><stop offset="70%" stop-color="#7e22ce" stop-opacity="0.1"/><stop offset="100%" stop-color="#7e22ce" stop-opacity="0"/></radialGradient></defs>${body}</svg>`
+}
+
 export function OceanMiningGame({
   walletConnected,
   gameState,
@@ -70,6 +102,7 @@ export function OceanMiningGame({
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const gameLoopRef = useRef<number>(0)
   const lastTimeRef = useRef<number>(0)
+  const subImgCacheRef = useRef<Record<string, HTMLImageElement>>({})
 
   // --- CINEMATIC FEEDBACK STATE ---
   const [screenShake, setScreenShake] = useState<ScreenShake>({ 
@@ -635,6 +668,21 @@ export function OceanMiningGame({
     return () => window.removeEventListener("resize", handleResize)
   }, [])
 
+  // Preload submarine SVG image for the current tier into cache
+  useEffect(() => {
+    const cacheKey = `${playerTier}-${submarineData.color}`
+    if (subImgCacheRef.current[cacheKey]) return
+    const svgStr = buildSubmarineSVG(playerTier, submarineData.color)
+    const blob = new Blob([svgStr], { type: 'image/svg+xml;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const img = new window.Image()
+    img.onload = () => {
+      subImgCacheRef.current[cacheKey] = img
+      URL.revokeObjectURL(url)
+    }
+    img.src = url
+  }, [playerTier, submarineData.color])
+
   const updatePlayerPosition = (deltaTime: number) => {
     if (playerStats.energy === 0) return; // Block movement when energy is 0
     const speed = playerStats.speed * 0.2 * (deltaTime / 16)
@@ -911,438 +959,21 @@ export function OceanMiningGame({
     // Scale factor to make submarines larger on canvas (SVG uses size 40, we want ~80-100 on canvas)
     const size = 80
     
-    // Drop shadow
-    ctx.globalAlpha = 0.25
-    ctx.beginPath()
-    ctx.ellipse(8, 18, 32, 12, 0, 0, Math.PI * 2)
-    ctx.fillStyle = '#000'
-    ctx.filter = 'blur(4px)'
-    ctx.fill()
-    ctx.filter = 'none'
-    ctx.globalAlpha = 1
-    
-    // Draw submarine EXACTLY as in SubmarineIcon.tsx, matching each tier's SVG
-    switch (tier) {
-      case 1:
-        // Basic capsule with viewport
-        ctx.fillStyle = color
-        ctx.strokeStyle = '#333'
-        ctx.lineWidth = 1
-        ctx.beginPath()
-        ctx.ellipse(0, 0, size*0.4, size*0.18, 0, 0, Math.PI * 2)
-        ctx.fill()
-        ctx.stroke()
-        // Viewport
-        ctx.fillStyle = '#7dd3fc'
-        ctx.strokeStyle = '#222'
-        ctx.lineWidth = 0.5
-        ctx.beginPath()
-        ctx.arc(size*0.2, 0, size*0.09, 0, Math.PI * 2)
-        ctx.fill()
-        ctx.stroke()
-        break
-        
-      case 2:
-        // Add a fin
-        ctx.fillStyle = color
-        ctx.strokeStyle = '#333'
-        ctx.lineWidth = 1
-        ctx.beginPath()
-        ctx.ellipse(0, 0, size*0.4, size*0.18, 0, 0, Math.PI * 2)
-        ctx.fill()
-        ctx.stroke()
-        // Fin
-        ctx.fillRect(-size*0.05, -size*0.32, size*0.1, size*0.18)
-        ctx.strokeRect(-size*0.05, -size*0.32, size*0.1, size*0.18)
-        // Viewport
-        ctx.fillStyle = '#7dd3fc'
-        ctx.strokeStyle = '#222'
-        ctx.lineWidth = 0.5
-        ctx.beginPath()
-        ctx.arc(size*0.2, 0, size*0.09, 0, Math.PI * 2)
-        ctx.fill()
-        ctx.stroke()
-        break
-        
-      case 3:
-        // Reinforced hull (double outline)
-        ctx.fillStyle = color
-        ctx.strokeStyle = '#333'
-        ctx.lineWidth = 2
-        ctx.beginPath()
-        ctx.ellipse(0, 0, size*0.4, size*0.18, 0, 0, Math.PI * 2)
-        ctx.fill()
-        ctx.stroke()
-        // Inner outline
-        ctx.strokeStyle = '#fff'
-        ctx.lineWidth = 1
-        ctx.globalAlpha = 0.3
-        ctx.beginPath()
-        ctx.ellipse(0, 0, size*0.36, size*0.15, 0, 0, Math.PI * 2)
-        ctx.stroke()
-        ctx.globalAlpha = 1
-        // Viewport
-        ctx.fillStyle = '#7dd3fc'
-        ctx.strokeStyle = '#222'
-        ctx.lineWidth = 0.5
-        ctx.beginPath()
-        ctx.arc(size*0.2, 0, size*0.09, 0, Math.PI * 2)
-        ctx.fill()
-        ctx.stroke()
-        break
-        
-      case 4:
-        // Heavy-duty: add cargo box
-        ctx.fillStyle = color
-        ctx.strokeStyle = '#333'
-        ctx.lineWidth = 2
-        ctx.beginPath()
-        ctx.ellipse(0, 0, size*0.4, size*0.18, 0, 0, Math.PI * 2)
-        ctx.fill()
-        ctx.stroke()
-        // Cargo box
-        ctx.fillRect(-size*0.35, size*0.1, size*0.2, size*0.1)
-        ctx.strokeRect(-size*0.35, size*0.1, size*0.2, size*0.1)
-        // Viewport
-        ctx.fillStyle = '#7dd3fc'
-        ctx.strokeStyle = '#222'
-        ctx.lineWidth = 0.5
-        ctx.beginPath()
-        ctx.arc(size*0.2, 0, size*0.09, 0, Math.PI * 2)
-        ctx.fill()
-        ctx.stroke()
-        break
-        
-      case 5:
-        // Heat-resistant: add red/orange glow
-        // Glow first (behind)
-        ctx.fillStyle = 'orange'
-        ctx.globalAlpha = 0.2
-        ctx.beginPath()
-        ctx.ellipse(0, 0, size*0.45, size*0.22, 0, 0, Math.PI * 2)
-        ctx.fill()
-        ctx.globalAlpha = 1
-        // Body
-        ctx.fillStyle = color
-        ctx.strokeStyle = '#333'
-        ctx.lineWidth = 2
-        ctx.beginPath()
-        ctx.ellipse(0, 0, size*0.4, size*0.18, 0, 0, Math.PI * 2)
-        ctx.fill()
-        ctx.stroke()
-        // Viewport
-        ctx.fillStyle = '#7dd3fc'
-        ctx.strokeStyle = '#222'
-        ctx.lineWidth = 0.5
-        ctx.beginPath()
-        ctx.arc(size*0.2, 0, size*0.09, 0, Math.PI * 2)
-        ctx.fill()
-        ctx.stroke()
-        break
-        
-      case 6:
-        // Pressure hull: add extra ring
-        ctx.fillStyle = color
-        ctx.strokeStyle = '#333'
-        ctx.lineWidth = 2
-        ctx.beginPath()
-        ctx.ellipse(0, 0, size*0.4, size*0.18, 0, 0, Math.PI * 2)
-        ctx.fill()
-        ctx.stroke()
-        // Pressure ring
-        ctx.strokeStyle = '#0ff'
-        ctx.lineWidth = 1
-        ctx.globalAlpha = 0.4
-        ctx.beginPath()
-        ctx.ellipse(0, 0, size*0.32, size*0.13, 0, 0, Math.PI * 2)
-        ctx.stroke()
-        ctx.globalAlpha = 1
-        // Viewport
-        ctx.fillStyle = '#7dd3fc'
-        ctx.strokeStyle = '#222'
-        ctx.lineWidth = 0.5
-        ctx.beginPath()
-        ctx.arc(size*0.2, 0, size*0.09, 0, Math.PI * 2)
-        ctx.fill()
-        ctx.stroke()
-        break
-        
-      case 7:
-        // Quantum: add sparkles
-        ctx.fillStyle = color
-        ctx.strokeStyle = '#333'
-        ctx.lineWidth = 2
-        ctx.beginPath()
-        ctx.ellipse(0, 0, size*0.4, size*0.18, 0, 0, Math.PI * 2)
-        ctx.fill()
-        ctx.stroke()
-        // Sparkles
-        ctx.fillStyle = '#0ff'
-        ctx.globalAlpha = 0.7
-        ctx.beginPath()
-        ctx.arc(-size*0.2, -size*0.2, 1.5, 0, Math.PI * 2)
-        ctx.fill()
-        ctx.fillStyle = '#fff'
-        ctx.beginPath()
-        ctx.arc(size*0.2, size*0.2, 1.5, 0, Math.PI * 2)
-        ctx.fill()
-        ctx.globalAlpha = 1
-        // Viewport
-        ctx.fillStyle = '#7dd3fc'
-        ctx.strokeStyle = '#222'
-        ctx.lineWidth = 0.5
-        ctx.beginPath()
-        ctx.arc(size*0.2, 0, size*0.09, 0, Math.PI * 2)
-        ctx.fill()
-        ctx.stroke()
-        break
-        
-      case 8:
-        // Titanium: metallic shine
-        ctx.fillStyle = color
-        ctx.strokeStyle = '#333'
-        ctx.lineWidth = 2
-        ctx.beginPath()
-        ctx.ellipse(0, 0, size*0.4, size*0.18, 0, 0, Math.PI * 2)
-        ctx.fill()
-        ctx.stroke()
-        // Metallic shine
-        ctx.fillStyle = '#fff'
-        ctx.globalAlpha = 0.2
-        ctx.fillRect(-size*0.3, -size*0.075, size*0.6, size*0.05)
-        ctx.globalAlpha = 1
-        // Viewport
-        ctx.fillStyle = '#7dd3fc'
-        ctx.strokeStyle = '#222'
-        ctx.lineWidth = 0.5
-        ctx.beginPath()
-        ctx.arc(size*0.2, 0, size*0.09, 0, Math.PI * 2)
-        ctx.fill()
-        ctx.stroke()
-        break
-        
-      case 9:
-        // Behemoth: extra large, double viewport
-        ctx.fillStyle = color
-        ctx.strokeStyle = '#333'
-        ctx.lineWidth = 2
-        ctx.beginPath()
-        ctx.ellipse(0, 0, size*0.45, size*0.22, 0, 0, Math.PI * 2)
-        ctx.fill()
-        ctx.stroke()
-        // First viewport
-        ctx.fillStyle = '#7dd3fc'
-        ctx.strokeStyle = '#222'
-        ctx.lineWidth = 0.5
-        ctx.beginPath()
-        ctx.arc(size*0.15, 0, size*0.09, 0, Math.PI * 2)
-        ctx.fill()
-        ctx.stroke()
-        // Second viewport
-        ctx.beginPath()
-        ctx.arc(size*0.3, 0, size*0.07, 0, Math.PI * 2)
-        ctx.fill()
-        ctx.stroke()
-        break
-        
-      case 10:
-        // Fortress: add turrets/armor
-        ctx.fillStyle = color
-        ctx.strokeStyle = '#333'
-        ctx.lineWidth = 2
-        ctx.beginPath()
-        ctx.ellipse(0, 0, size*0.45, size*0.22, 0, 0, Math.PI * 2)
-        ctx.fill()
-        ctx.stroke()
-        // Left turret
-        ctx.fillStyle = '#888'
-        ctx.fillRect(-size*0.35, -size*0.35, size*0.1, size*0.1)
-        ctx.strokeRect(-size*0.35, -size*0.35, size*0.1, size*0.1)
-        // Right turret
-        ctx.fillRect(size*0.25, -size*0.35, size*0.1, size*0.1)
-        ctx.strokeRect(size*0.25, -size*0.35, size*0.1, size*0.1)
-        // Viewport
-        ctx.fillStyle = '#7dd3fc'
-        ctx.strokeStyle = '#222'
-        ctx.lineWidth = 0.5
-        ctx.beginPath()
-        ctx.arc(size*0.2, 0, size*0.09, 0, Math.PI * 2)
-        ctx.fill()
-        ctx.stroke()
-        break
-        
-      case 11:
-        // Kraken's Bane: tentacle motif
-        ctx.fillStyle = color
-        ctx.strokeStyle = '#333'
-        ctx.lineWidth = 2
-        ctx.beginPath()
-        ctx.ellipse(0, 0, size*0.45, size*0.22, 0, 0, Math.PI * 2)
-        ctx.fill()
-        ctx.stroke()
-        // Tentacle decoration
-        ctx.strokeStyle = '#7c2d12'
-        ctx.lineWidth = 1.5
-        ctx.beginPath()
-        ctx.moveTo(-size*0.3, size*0.2)
-        ctx.quadraticCurveTo(-size*0.2, size*0.4, -size*0.1, size*0.2)
-        ctx.stroke()
-        // Viewport
-        ctx.fillStyle = '#7dd3fc'
-        ctx.strokeStyle = '#222'
-        ctx.lineWidth = 0.5
-        ctx.beginPath()
-        ctx.arc(size*0.2, 0, size*0.09, 0, Math.PI * 2)
-        ctx.fill()
-        ctx.stroke()
-        break
-        
-      case 12:
-        // Void: black, with purple glow
-        // Purple glow first (behind)
-        ctx.fillStyle = '#a855f7'
-        ctx.globalAlpha = 0.15
-        ctx.beginPath()
-        ctx.ellipse(0, 0, size*0.5, size*0.25, 0, 0, Math.PI * 2)
-        ctx.fill()
-        ctx.globalAlpha = 1
-        // Body
-        ctx.fillStyle = color
-        ctx.strokeStyle = '#333'
-        ctx.lineWidth = 2
-        ctx.beginPath()
-        ctx.ellipse(0, 0, size*0.45, size*0.22, 0, 0, Math.PI * 2)
-        ctx.fill()
-        ctx.stroke()
-        // Viewport
-        ctx.fillStyle = '#7dd3fc'
-        ctx.strokeStyle = '#222'
-        ctx.lineWidth = 0.5
-        ctx.beginPath()
-        ctx.arc(size*0.2, 0, size*0.09, 0, Math.PI * 2)
-        ctx.fill()
-        ctx.stroke()
-        break
-        
-      case 13:
-        // Stellar: star motif
-        ctx.fillStyle = color
-        ctx.strokeStyle = '#333'
-        ctx.lineWidth = 2
-        ctx.beginPath()
-        ctx.ellipse(0, 0, size*0.45, size*0.22, 0, 0, Math.PI * 2)
-        ctx.fill()
-        ctx.stroke()
-        // Star emblem
-        ctx.fillStyle = '#fff59d'
-        ctx.globalAlpha = 0.7
-        ctx.beginPath()
-        // 10-point star (5 outer, 5 inner)
-        for (let i = 0; i < 10; i++) {
-          const angle = (i * Math.PI) / 5 - Math.PI / 2
-          const radius = i % 2 === 0 ? size*0.1 : size*0.05
-          const px = radius * Math.cos(angle)
-          const py = -size*0.32 + radius * Math.sin(angle)
-          if (i === 0) ctx.moveTo(px, py)
-          else ctx.lineTo(px, py)
-        }
-        ctx.closePath()
-        ctx.fill()
-        ctx.globalAlpha = 1
-        // Viewport
-        ctx.fillStyle = '#7dd3fc'
-        ctx.strokeStyle = '#222'
-        ctx.lineWidth = 0.5
-        ctx.beginPath()
-        ctx.arc(size*0.2, 0, size*0.09, 0, Math.PI * 2)
-        ctx.fill()
-        ctx.stroke()
-        break
-        
-      case 14:
-        // Cosmic: alien glow, rings
-        // Cosmic glow first (behind)
-        ctx.fillStyle = '#a855f7'
-        ctx.globalAlpha = 0.2
-        ctx.beginPath()
-        ctx.ellipse(0, 0, size*0.55, size*0.28, 0, 0, Math.PI * 2)
-        ctx.fill()
-        ctx.globalAlpha = 1
-        // Body
-        ctx.fillStyle = color
-        ctx.strokeStyle = '#333'
-        ctx.lineWidth = 2
-        ctx.beginPath()
-        ctx.ellipse(0, 0, size*0.45, size*0.22, 0, 0, Math.PI * 2)
-        ctx.fill()
-        ctx.stroke()
-        // Viewport
-        ctx.fillStyle = '#7dd3fc'
-        ctx.strokeStyle = '#222'
-        ctx.lineWidth = 0.5
-        ctx.beginPath()
-        ctx.arc(size*0.2, 0, size*0.09, 0, Math.PI * 2)
-        ctx.fill()
-        ctx.stroke()
-        break
-        
-      case 15:
-        // Leviathan: huge, triple viewport, crown
-        ctx.fillStyle = color
-        ctx.strokeStyle = '#333'
-        ctx.lineWidth = 2
-        ctx.beginPath()
-        ctx.ellipse(0, 0, size*0.5, size*0.25, 0, 0, Math.PI * 2)
-        ctx.fill()
-        ctx.stroke()
-        // First viewport
-        ctx.fillStyle = '#7dd3fc'
-        ctx.strokeStyle = '#222'
-        ctx.lineWidth = 0.5
-        ctx.beginPath()
-        ctx.arc(size*0.1, 0, size*0.09, 0, Math.PI * 2)
-        ctx.fill()
-        ctx.stroke()
-        // Second viewport
-        ctx.beginPath()
-        ctx.arc(size*0.25, 0, size*0.09, 0, Math.PI * 2)
-        ctx.fill()
-        ctx.stroke()
-        // Third viewport
-        ctx.beginPath()
-        ctx.arc(size*0.4, 0, size*0.07, 0, Math.PI * 2)
-        ctx.fill()
-        ctx.stroke()
-        // Crown
-        ctx.fillStyle = '#fff'
-        ctx.globalAlpha = 0.8
-        ctx.beginPath()
-        ctx.moveTo(0, -size*0.4)
-        ctx.lineTo(size*0.03, -size*0.32)
-        ctx.lineTo(-size*0.03, -size*0.32)
-        ctx.closePath()
-        ctx.fill()
-        ctx.globalAlpha = 1
-        break
-        
-      default:
-        // Fallback: basic
-        ctx.fillStyle = color
-        ctx.strokeStyle = '#333'
-        ctx.lineWidth = 1
-        ctx.beginPath()
-        ctx.ellipse(0, 0, size*0.4, size*0.18, 0, 0, Math.PI * 2)
-        ctx.fill()
-        ctx.stroke()
-        // Viewport
-        ctx.fillStyle = '#7dd3fc'
-        ctx.strokeStyle = '#222'
-        ctx.lineWidth = 0.5
-        ctx.beginPath()
-        ctx.arc(size*0.2, 0, size*0.09, 0, Math.PI * 2)
-        ctx.fill()
-        ctx.stroke()
-        break
+    // Draw submarine using preloaded SVG image (exact replica of SubmarineIcon.tsx)
+    const cacheKey = `${tier}-${color}`
+    const cachedImg = subImgCacheRef.current[cacheKey]
+    if (cachedImg && cachedImg.complete) {
+      ctx.drawImage(cachedImg, -50, -30, 100, 60)
+    } else {
+      // Fallback while image loads (simple hull shape)
+      ctx.fillStyle = color
+      ctx.beginPath()
+      ctx.ellipse(0, 0, 38, 18, 0, 0, Math.PI * 2)
+      ctx.fill()
+      ctx.fillStyle = '#7dd3fc'
+      ctx.beginPath()
+      ctx.arc(18, 0, 6, 0, Math.PI * 2)
+      ctx.fill()
     }
     
     // Engine glow when moving (positioned behind submarine based on tier size)
