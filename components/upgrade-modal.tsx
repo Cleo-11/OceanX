@@ -159,11 +159,6 @@ export function UpgradeModal({ currentTier, resources, balance, onUpgrade, onClo
                 </span>
               </div>
             </div>
-            {selectedSubmarine.specialAbility && (
-              <div className="mt-3 rounded-md bg-cyan-900/30 p-2 text-xs text-cyan-300">
-                <span className="font-bold">SPECIAL:</span> {selectedSubmarine.specialAbility}
-              </div>
-            )}
           </div>
         </div>
         {/* Tier selection dropdown */}

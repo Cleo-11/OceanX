@@ -10,7 +10,7 @@ import { typographyVariants } from '@/lib/design-system/typography';
 import { getResourceColor } from '@/lib/resource-utils';
 import type { PlayerStats } from '@/lib/types';
 import { getSubmarineByTier } from '@/lib/submarine-tiers';
-import { Battery, Zap, AlertTriangle, TrendingUp } from 'lucide-react';
+import { Battery, AlertTriangle, TrendingUp } from 'lucide-react';
 
 interface EnhancedPlayerHUDProps {
   stats: PlayerStats;
@@ -341,30 +341,6 @@ export function EnhancedPlayerHUD({ stats, tier, className }: EnhancedPlayerHUDP
           ))}
         </div>
 
-        {/* Special Ability */}
-        <AnimatePresence>
-          {submarineData.specialAbility && (
-            <motion.div
-              className="p-3 rounded-lg border border-purple-500/30 bg-purple-500/10"
-              variants={animationVariants.staggerItem}
-              whileHover={{ scale: 1.02 }}
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              exit={{ opacity: 0, height: 0 }}
-            >
-              <div className="flex items-center space-x-2 mb-1">
-                <Zap className="w-4 h-4 text-purple-400" />
-                <span
-                  className="text-xs font-bold text-purple-400 uppercase tracking-wider"
-                  style={{ fontFamily: typographyVariants.stats.fontFamily }}
-                >
-                  SPECIAL ABILITY
-                </span>
-              </div>
-              <p className="text-xs text-purple-300">{submarineData.specialAbility}</p>
-            </motion.div>
-          )}
-        </AnimatePresence>
       </motion.div>
 
       {/* Critical Alerts */}

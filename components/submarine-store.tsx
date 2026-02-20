@@ -277,13 +277,7 @@ export function SubmarineStore({
                         )}
                       </div>
 
-                      {/* Special Ability */}
-                      {submarine.specialAbility && (
-                        <div className="mt-3 rounded-md bg-gradient-to-r from-cyan-900/30 to-blue-900/30 p-3">
-                          <h4 className="mb-1 text-xs font-semibold text-cyan-400">SPECIAL ABILITY</h4>
-                          <p className="text-sm text-cyan-300">{submarine.specialAbility}</p>
-                        </div>
-                      )}
+
 
                       {/* Status */}
                       <div className="mt-3 flex items-center justify-between">

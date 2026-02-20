@@ -394,16 +394,6 @@ export function UserHome({ playerData, onPlayClick, onSubmarineStoreClick }: Use
                       </div>
                     </div>
                   </div>
-                  
-                  {/* Special Ability Badge */}
-                  {currentSubmarine.specialAbility && (
-                    <div className="mt-6 text-center">
-                      <div className="inline-flex items-center gap-2 bg-gradient-to-r from-emerald-500/20 to-teal-500/20 rounded-full px-4 py-2 border border-emerald-400/30 shadow-lg">
-                        <div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse"></div>
-                        <span className="text-emerald-200 font-semibold text-sm">SPECIAL ABILITY READY</span>
-                      </div>
-                    </div>
-                  )}
                 </div>
               </div>
             </div>
@@ -587,8 +577,7 @@ export function UserHome({ playerData, onPlayClick, onSubmarineStoreClick }: Use
                 </div>
                 
                 <p className="text-slate-300 text-sm italic leading-relaxed font-medium">
-                  "The abyss beckons, Captain. Your {currentSubmarine.name} awaits your command.
-                  {currentSubmarine.specialAbility ? ` Special abilities are primed and ready for deployment.` : ' The depths hold untold treasures for those brave enough to seek them.'}"
+                  &quot;The abyss beckons, Captain. Your {currentSubmarine.name} awaits your command. The depths hold untold treasures for those brave enough to seek them.&quot;
                 </p>
                 
                 <div className="mt-4 flex items-center justify-center gap-1">

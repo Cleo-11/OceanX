@@ -9,7 +9,6 @@ export interface SubmarineTier {
     tokens: number
   }
   color: string
-  specialAbility?: string
 }
 
 export const SUBMARINE_TIERS: SubmarineTier[] = [
@@ -186,7 +185,6 @@ export const SUBMARINE_TIERS: SubmarineTier[] = [
       tokens: 1000,
     },
     color: "#78350f",
-    specialAbility: "Pressure Resistance: Immune to depth damage",
   },
   {
     tier: 7,
@@ -216,7 +214,6 @@ export const SUBMARINE_TIERS: SubmarineTier[] = [
       tokens: 1500,
     },
     color: "#1e40af",
-    specialAbility: "Quantum Scanning: Reveals hidden resource nodes",
   },
   {
     tier: 8,
@@ -246,7 +243,6 @@ export const SUBMARINE_TIERS: SubmarineTier[] = [
       tokens: 2000,
     },
     color: "#1e3a8a",
-    specialAbility: "Titanium Plating: 25% damage reduction",
   },
   {
     tier: 9,
@@ -276,7 +272,6 @@ export const SUBMARINE_TIERS: SubmarineTier[] = [
       tokens: 2750,
     },
     color: "#312e81",
-    specialAbility: "Auto-Processing: Resources are refined automatically",
   },
   {
     tier: 10,
@@ -306,7 +301,6 @@ export const SUBMARINE_TIERS: SubmarineTier[] = [
       tokens: 3500,
     },
     color: "#581c87",
-    specialAbility: "Fortress Mode: Immobile but 3x mining rate",
   },
   {
     tier: 11,
@@ -336,7 +330,6 @@ export const SUBMARINE_TIERS: SubmarineTier[] = [
       tokens: 4500,
     },
     color: "#7c2d12",
-    specialAbility: "Kraken Slayer: Immune to all environmental hazards",
   },
   {
     tier: 12,
@@ -366,7 +359,6 @@ export const SUBMARINE_TIERS: SubmarineTier[] = [
       tokens: 6000,
     },
     color: "#0c0a09",
-    specialAbility: "Void Phase: Can teleport short distances",
   },
   {
     tier: 13,
@@ -396,7 +388,6 @@ export const SUBMARINE_TIERS: SubmarineTier[] = [
       tokens: 7500,
     },
     color: "#fbbf24",
-    specialAbility: "Stellar Power: Unlimited energy in sunlight zones",
   },
   {
     tier: 14,
@@ -426,7 +417,6 @@ export const SUBMARINE_TIERS: SubmarineTier[] = [
       tokens: 9000,
     },
     color: "#a855f7",
-    specialAbility: "Cosmic Resonance: Attracts rare resources",
   },
   {
     tier: 15,
@@ -456,7 +446,6 @@ export const SUBMARINE_TIERS: SubmarineTier[] = [
       tokens: 0,
     },
     color: "#7e22ce",
-    specialAbility: "Omnimining: Can mine all resources simultaneously",
   },
 ]
 

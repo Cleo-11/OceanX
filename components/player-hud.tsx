@@ -78,11 +78,7 @@ export function PlayerHUD({ stats, tier, resources }: PlayerHUDProps) {
           <span className="text-sm text-slate-300">MINING RATE</span>
           <span className="font-mono text-sm text-cyan-400">x{stats.miningRate.toFixed(1)}</span>
         </motion.div>
-        {submarineData.specialAbility && (
-          <motion.div className="mt-2 rounded-md bg-cyan-900/30 p-2 text-xs text-cyan-300" whileHover={{ scale: 1.05 }}>
-            <span className="font-bold">SPECIAL:</span> {submarineData.specialAbility}
-          </motion.div>
-        )}
+
       </div>
     </motion.div>
 

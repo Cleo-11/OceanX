@@ -7,7 +7,6 @@ import { SonarRadar } from "./sonar-radar"
 import { ResourceSidebar } from "./resource-sidebar"
 import { MineButton } from "./mine-button"
 import { UpgradeModal } from "./upgrade-modal"
-import { SubmarineStore } from "./submarine-store"
 import { StorageFullAlert } from "./storage-full-alert"
 import { EnergyDepletedAlert } from "./energy-depleted-alert"
 import { apiClient, type SubmarineUpgradeResult } from "@/lib/api"
@@ -181,7 +180,6 @@ export function OceanMiningGame({
 
   const [balance, setBalance] = useState<number>(initialBalance)
   const [showUpgradeModal, setShowUpgradeModal] = useState<boolean>(false)
-  const [showSubmarineStore, setShowSubmarineStore] = useState<boolean>(false)
   const [targetNode, setTargetNode] = useState<ResourceNode | null>(null)
   const [resourceNodes, setResourceNodes] = useState<ResourceNode[]>([])
   const [showStorageAlert, setShowStorageAlert] = useState<boolean>(false)
@@ -582,9 +580,7 @@ export function OceanMiningGame({
         case "u":
           setShowUpgradeModal(true)
           break
-        case "p":
-          setShowSubmarineStore(true)
-          break
+        // case "p": submarine store removed from game page
         case "i":
           setSidebarOpen((prev) => !prev)
           break
@@ -1558,28 +1554,7 @@ export function OceanMiningGame({
             </svg>
           </button>
 
-          {/* Submarine Store Button */}
-          <button
-            onClick={() => setShowSubmarineStore(true)}
-            className="pointer-events-auto absolute right-4 top-28 z-50 rounded-lg bg-gradient-to-r from-cyan-600/80 to-blue-600/80 p-2 text-white backdrop-blur-sm transition-all hover:from-cyan-500/80 hover:to-blue-500/80"
-            title="Open Submarine Store (Press P)"
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="24"
-              height="24"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <circle cx="9" cy="21" r="1" />
-              <circle cx="20" cy="21" r="1" />
-              <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6" />
-            </svg>
-          </button>
+
 
   {/* Compass removed */}
 
@@ -1652,19 +1627,6 @@ export function OceanMiningGame({
         {/* Wallet connection is optional in gameplay; overlay removed */}
         </div> {/* Close HUD Overlay div */}
       </div> {/* Close main container div */}
-
-      {/* Submarine Store Modal */}
-      {showSubmarineStore && (
-        <SubmarineStore
-          isOpen={showSubmarineStore}
-          onClose={() => setShowSubmarineStore(false)}
-          currentTier={playerTier}
-          resources={resources}
-          balance={balance}
-          onPurchase={handleUpgradeSubmarine}
-          gameState={gameState}
-        />
-      )}
 
       {/* Upgrade Modal */}
       {showUpgradeModal && (

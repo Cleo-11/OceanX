@@ -158,21 +158,7 @@ export function SubmarineCard3D({
                 <p className="text-sm text-slate-400 mt-1">{submarine.description}</p>
               </div>
 
-              {/* Special Ability */}
-              {submarine.specialAbility && (
-                <motion.div
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.3 }}
-                  className="mt-4 p-4 rounded-xl bg-gradient-to-r from-cyan-900/30 to-blue-900/30 border border-cyan-500/30"
-                >
-                  <div className="flex items-center gap-2 mb-2">
-                    <Zap className="w-4 h-4 text-cyan-400" />
-                    <span className="text-xs font-bold text-cyan-400 uppercase tracking-wider">Special Ability</span>
-                  </div>
-                  <p className="text-sm text-cyan-300">{submarine.specialAbility}</p>
-                </motion.div>
-              )}
+
             </div>
 
             {/* Right Column - Stats and Actions */}

@@ -218,12 +218,6 @@ export function SubmarineSelection({
                                       </div>
                                     </div>
                                   </div>
-                                  {submarine.specialAbility && (
-                                    <div className="w-full mt-1" data-testid={`submarine-addon-tier-${submarine.tier}`}> 
-                                      <span className="text-xs text-gray-400">SPECIAL</span>
-                                      <p className="text-xs text-cyan-300">{submarine.specialAbility}</p>
-                                    </div>
-                                  )}
                                 </CardFooter>
                               </Card>
                             </div>

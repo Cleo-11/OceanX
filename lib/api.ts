@@ -44,7 +44,6 @@ export interface SubmarineUpgradePayload extends SubmarineData {
   tier: number
   description?: string
   color?: string
-  specialAbility?: string
   baseStats?: {
     health?: number
     energy?: number
