@@ -8,10 +8,10 @@ import type { PlayerResources } from "@/lib/types"
 import {
   tryOnChainUpgrade,
   getUpgradeCostForTier,
-  getPlayerOCXBalance,
   getOCXBalanceReadOnly,
 } from "@/lib/contracts"
 import { walletManager } from "@/lib/wallet"
+import { supabase } from "@/lib/supabase"
 
 type SubmarineStoreClientProps = {
   currentTier: number
@@ -23,11 +23,11 @@ type SubmarineStoreClientProps = {
 export default function SubmarineStoreClient({ currentTier, resources, balance: initialBalance, walletAddress }: SubmarineStoreClientProps) {
   const router = useRouter()
   const [balance, setBalance] = useState(initialBalance)
+  const [dbBalance, setDbBalance] = useState(initialBalance)
   const [isUpgrading, setIsUpgrading] = useState(false)
 
   /**
-   * Fetch on-chain balance from connected wallet
-   * This ensures we always have the actual spendable balance
+   * Fetch both wallet and database balances
    */
   const fetchWalletBalance = async (walletAddress: string) => {
     try {
@@ -35,6 +35,22 @@ export default function SubmarineStoreClient({ currentTier, resources, balance: 
       const onChainBalance = parseFloat(onChainStr) || 0
       console.log(`✅ Wallet balance fetched: ${onChainBalance} OCX`)
       setBalance(onChainBalance)
+      
+      // Also fetch DB balance
+      try {
+        const { data } = await supabase
+          .from("players")
+          .select("total_ocx_earned")
+          .ilike("wallet_address", walletAddress.toLowerCase())
+          .single()
+        
+        if (data?.total_ocx_earned !== undefined) {
+          setDbBalance(data.total_ocx_earned)
+        }
+      } catch (dbErr) {
+        console.warn("Failed to fetch DB balance:", dbErr)
+      }
+      
       return onChainBalance
     } catch (err) {
       console.warn('Failed to fetch wallet balance:', err)
@@ -77,21 +93,23 @@ export default function SubmarineStoreClient({ currentTier, resources, balance: 
       const costNum = parseFloat(costInOCX) || 0
       console.log(`Upgrade to Tier ${targetTier} costs ${costInOCX} OCX`)
 
-      // Step 2.5: Verify on-chain OCX balance BEFORE attempting the transaction
-      let playerOnChainBalance: number
-      try {
-        const balStr = await getPlayerOCXBalance(connection.address)
-        playerOnChainBalance = parseFloat(balStr) || 0
-      } catch {
-        const balStr = await getOCXBalanceReadOnly(connection.address)
-        playerOnChainBalance = parseFloat(balStr) || 0
-      }
-
-      if (playerOnChainBalance < costNum) {
-        throw new Error(
-          `Insufficient on-chain OCX tokens. You have ${playerOnChainBalance.toFixed(1)} OCX on the blockchain but need ${costNum.toFixed(1)} OCX. ` +
-          `Go to the Marketplace and use "Claim OCX" to transfer your earned tokens on-chain before upgrading.`
-        )
+      // Step 2.5: Verify wallet balance BEFORE attempting the transaction
+      if (balance < costNum) {
+        // Check if user has earned but unclaimed OCX
+        const unclaimedOCX = Math.max(0, dbBalance - balance)
+        
+        if (unclaimedOCX > 0) {
+          throw new Error(
+            `Insufficient on-chain OCX tokens. You have ${balance.toFixed(1)} OCX in your wallet but need ${costNum.toFixed(1)} OCX. ` +
+            `You have ${unclaimedOCX.toFixed(1)} OCX earned but not yet claimed. ` +
+            `Go to the Marketplace and click "Claim OCX" to transfer your earned tokens to your wallet, then try upgrading again.`
+          )
+        } else {
+          throw new Error(
+            `Insufficient OCX tokens. You have ${balance.toFixed(1)} OCX but need ${costNum.toFixed(1)} OCX. ` +
+            `Go to the Marketplace to trade resources and earn more OCX.`
+          )
+        }
       }
 
       // Step 3: Try on-chain blockchain transaction first

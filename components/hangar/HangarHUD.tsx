@@ -18,6 +18,7 @@ import { getSubmarineByTier } from "@/lib/submarine-tiers"
 
 interface HangarHUDProps {
   balance: number
+  dbBalance?: number // Optional: earned balance (may contain unclaimed OCX)
   resources: PlayerResources
   currentTier: number
   walletAddress: string
@@ -25,12 +26,13 @@ interface HangarHUDProps {
   onRefreshBalance?: () => void
 }
 
-export function HangarHUD({ balance, resources, currentTier, walletAddress, onClose, onRefreshBalance }: HangarHUDProps) {
+export function HangarHUD({ balance, dbBalance, resources, currentTier, walletAddress, onClose, onRefreshBalance }: HangarHUDProps) {
   const currentSubmarine = getSubmarineByTier(currentTier)
   
   // Calculate total resources
-  const totalResources = resources.nickel + resources.cobalt + resources.copper + resources.manganese
-
+  const totalResources = resources.nickel + resources.cobalt + resources.copper + resources.manganese  
+  // Calculate unclaimed OCX
+  const unclaimedOCX = dbBalance !== undefined ? Math.max(0, dbBalance - balance) : 0
   return (
     <div className="w-full pointer-events-none">
       <div className="w-full px-6 py-6">
@@ -97,7 +99,14 @@ export function HangarHUD({ balance, resources, currentTier, walletAddress, onCl
                       )}
                     </div>
                     <div className="text-xs text-green-400 mt-1">
-                      On-chain balance (ready to spend)
+                      {unclaimedOCX > 0 ? (
+                        <div className="text-amber-400">
+                          ⚠️ {unclaimedOCX.toFixed(1)} OCX unclaimed
+                          <a href="/marketplace" className="ml-2 underline hover:text-amber-300">Claim now</a>
+                        </div>
+                      ) : (
+                        "Ready to spend"
+                      )}
                     </div>
                   </div>
 
