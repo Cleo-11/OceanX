@@ -12,7 +12,6 @@ import {
   tryOnChainUpgrade, 
   getUpgradeCostForTier,
   getOCXBalanceReadOnly,
-  getPlayerOCXBalance,
 } from "@/lib/contracts"
 import { walletManager } from "@/lib/wallet"
 import { supabase } from "@/lib/supabase"
@@ -48,57 +47,40 @@ export default function SubmarineHangarClient({
 }: SubmarineHangarClientProps) {
   const router = useRouter()
   const [balance, setBalance] = useState(initialBalance)
-  const [onChainBalance, setOnChainBalance] = useState<number | null>(null)
   const [isUpgrading, setIsUpgrading] = useState(false)
   const [upgradeStatus, setUpgradeStatus] = useState<string | null>(null)
   const [upgradeError, setUpgradeError] = useState<string | null>(null)
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
   /**
-   * Fetch on-chain OCX token balance directly from the connected wallet.
+   * Fetch wallet balance directly from the connected wallet.
    * This is the source of truth for spendable tokens.
    */
-  const fetchOnChainBalance = async () => {
+  const fetchBalance = async () => {
     try {
       const onChainStr = await getOCXBalanceReadOnly(walletAddress)
       const onChainVal = parseFloat(onChainStr) || 0
-      setOnChainBalance(onChainVal)
-      // Use on-chain balance as the primary balance (source of truth)
+      // Wallet balance is the source of truth
       setBalance(onChainVal)
+      
+      // Optionally sync to database for record-keeping
+      try {
+        await supabase
+          .from("players")
+          .update({ total_ocx_earned: onChainVal })
+          .ilike("wallet_address", walletAddress.toLowerCase())
+      } catch (syncErr) {
+        console.warn("DB sync failed (non-critical):", syncErr)
+      }
+      
       return onChainVal
     } catch (err) {
-      console.warn('Failed to fetch on-chain balance:', err)
+      console.warn('Failed to fetch wallet balance:', err)
       return null
     }
   }
 
-  /**
-   * Fetch balance - prioritizes wallet balance over database
-   */
-  const fetchBalance = async () => {
-    try {
-      // Always fetch from the connected wallet (MetaMask/WalletConnect)
-      // This ensures we have the actual spendable balance after purchases
-      const onChainVal = await fetchOnChainBalance()
-      
-      if (onChainVal !== null) {
-        // Successfully got wallet balance - this is our source of truth
-        console.log(`✅ Using wallet balance: ${onChainVal} OCX`)
-        
-        // Optionally sync to database for record-keeping
-        try {
-          await supabase
-            .from("players")
-            .update({ total_ocx_earned: onChainVal })
-            .ilike("wallet_address", walletAddress.toLowerCase())
-        } catch (syncErr) {
-          console.warn("DB sync failed (non-critical):", syncErr)
-        }
-      }
-    } catch (error) {
-      console.error('Failed to fetch balance:', error)
-    }
-  }
+
 
   /**
    * Setup polling for balance updates
@@ -162,25 +144,13 @@ export default function SubmarineHangarClient({
       const costNum = parseFloat(costInOCX) || 0
       console.log(`Upgrade to Tier ${targetTier} costs ${costInOCX} OCX`)
 
-      // Step 2.5: Verify on-chain OCX balance BEFORE attempting the transaction
-      setUpgradeStatus('Verifying on-chain OCX balance...')
-      let playerOnChainBalance: number
-      try {
-        const balStr = await getPlayerOCXBalance(connection.address)
-        playerOnChainBalance = parseFloat(balStr) || 0
-        setOnChainBalance(playerOnChainBalance)
-      } catch {
-        // Fallback to read-only provider
-        const balStr = await getOCXBalanceReadOnly(connection.address)
-        playerOnChainBalance = parseFloat(balStr) || 0
-        setOnChainBalance(playerOnChainBalance)
-      }
-
-      if (playerOnChainBalance < costNum) {
+      // Step 2.5: Verify wallet balance BEFORE attempting the transaction
+      setUpgradeStatus('Verifying wallet balance...')
+      
+      if (balance < costNum) {
         throw new Error(
-          `Insufficient on-chain OCX tokens. You have ${playerOnChainBalance.toFixed(1)} OCX on the blockchain but need ${costNum.toFixed(1)} OCX. ` +
-          `Your wallet shows ${balance} OCX earned in-game, but these must be claimed to the blockchain first. ` +
-          `Go to the Marketplace and use "Claim OCX" to transfer your earned tokens on-chain before upgrading.`
+          `Insufficient OCX tokens. You have ${balance.toFixed(1)} OCX but need ${costNum.toFixed(1)} OCX. ` +
+          `Go to the Marketplace and trade resources or claim OCX to increase your balance.`
         )
       }
 
@@ -276,7 +246,6 @@ export default function SubmarineHangarClient({
           {/* Dock HUD (now part of page flow) */}
           <HangarHUD
             balance={balance}
-            onChainBalance={onChainBalance}
             resources={resources}
             currentTier={currentTier}
             walletAddress={walletAddress}
