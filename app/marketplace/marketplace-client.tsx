@@ -82,38 +82,7 @@ export default function MarketplaceClient({ playerData }: MarketplaceClientProps
   const [txHash, setTxHash] = useState<string>("")
   const [tradeError, setTradeError] = useState<string>("")
 
-  // Sync on-chain OCX balance to database (catches pre-fix claims)
-  const syncOnChainBalanceToDB = useCallback(async () => {
-    if (!playerData.wallet_address) return
-    try {
-      const walletManager = WalletManager.getInstance()
-      const connection = walletManager.getConnection()
-      if (!connection) return
-
-      // Read on-chain balance
-      const onChainBalance = parseFloat(await walletManager.getBalance())
-      const dbBalance = playerData.total_ocx_earned || 0
-
-      // If on-chain balance is higher than DB, update DB to match
-      if (onChainBalance > dbBalance) {
-        console.log(`🔄 Syncing OCX: on-chain ${onChainBalance} > DB ${dbBalance}. Updating DB...`)
-        const { error } = await supabase
-          .from("players")
-          .update({ total_ocx_earned: onChainBalance })
-          .ilike("wallet_address", playerData.wallet_address.toLowerCase())
-
-        if (error) {
-          console.error("❌ Failed to sync on-chain OCX to DB:", error)
-        } else {
-          console.log(`✅ DB synced: total_ocx_earned = ${onChainBalance} (was ${dbBalance})`)
-        }
-      }
-    } catch (error) {
-      console.error("Error syncing on-chain balance:", error)
-    }
-  }, [playerData.wallet_address, playerData.total_ocx_earned])
-
-  // Fetch OCX balance
+  // Fetch OCX balance - prioritizes on-chain wallet balance
   const fetchOCXBalance = useCallback(async () => {
     if (!playerData.wallet_address) return
 
@@ -121,26 +90,43 @@ export default function MarketplaceClient({ playerData }: MarketplaceClientProps
     try {
       const walletManager = WalletManager.getInstance()
       
-      // Try to get balance - if not connected, will show 0
+      // Try to get on-chain balance from connected wallet (source of truth)
       const connection = walletManager.getConnection()
       if (connection && connection.address.toLowerCase() === playerData.wallet_address.toLowerCase()) {
-        const balance = await walletManager.getBalance()
-        setOcxBalance(balance)
+        // Fetch actual wallet balance (reflects purchases/spends)
+        const walletBalance = await walletManager.getBalance()
+        const walletBalanceNum = parseFloat(walletBalance)
+        
+        console.log(`✅ Using wallet balance: ${walletBalanceNum} OCX`)
+        setOcxBalance(walletBalance)
 
-        // Auto-sync on-chain balance to DB if it's higher (captures pre-fix claims)
-        await syncOnChainBalanceToDB()
+        // Optionally sync to database for record-keeping
+        try {
+          const dbBalance = playerData.total_ocx_earned || 0
+          // Only update DB if values differ significantly (avoid unnecessary writes)
+          if (Math.abs(walletBalanceNum - dbBalance) > 0.01) {
+            await supabase
+              .from("players")
+              .update({ total_ocx_earned: walletBalanceNum })
+              .ilike("wallet_address", playerData.wallet_address.toLowerCase())
+            console.log(`🔄 Synced wallet balance to DB: ${walletBalanceNum} (was ${dbBalance})`)
+          }
+        } catch (syncErr) {
+          console.warn("DB sync failed (non-critical):", syncErr)
+        }
       } else {
-        // If wallet not connected or different address, show player's earned OCX
+        // If wallet not connected or different address, show database value as fallback
+        console.log("⚠️ Wallet not connected, using DB balance as fallback")
         setOcxBalance(playerData.total_ocx_earned.toString())
       }
     } catch (error) {
       console.error("Error fetching OCX balance:", error)
-      // Fallback to database value
+      // Fallback to database value on error
       setOcxBalance(playerData.total_ocx_earned.toString())
     } finally {
       setBalanceLoading(false)
     }
-  }, [playerData.wallet_address, playerData.total_ocx_earned, syncOnChainBalanceToDB])
+  }, [playerData.wallet_address, playerData.total_ocx_earned])
 
   // Fetch player's actual resources from database with OCX rates matching backend
   useEffect(() => {
@@ -339,23 +325,8 @@ export default function MarketplaceClient({ playerData }: MarketplaceClientProps
       }
       setRecentTrades([trade, ...recentTrades.slice(0, 9)])
 
-      // Update OCX balance in database
-      // Use wallet_address with ilike for reliability (case-insensitive match)
-      const newOcxTotal = (playerData.total_ocx_earned || 0) + result.ocxReceived;
-      const { error: updateError } = await supabase
-        .from("players")
-        .update({
-          total_ocx_earned: newOcxTotal,
-        })
-        .ilike("wallet_address", playerData.wallet_address.toLowerCase())
-      
-      if (updateError) {
-        console.error("❌ Failed to update total_ocx_earned:", updateError);
-      } else {
-        console.log(`✅ Database updated: total_ocx_earned = ${newOcxTotal}`);
-      }
-
-      // Refresh balance
+      // Refresh balance from wallet (on-chain trade already completed)
+      // The wallet balance is now the source of truth
       await fetchOCXBalance()
 
       // Keep modal open to show success message with tx link

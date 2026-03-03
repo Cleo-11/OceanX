@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { SubmarineStore } from "@/components/submarine-store"
 import { StyleWrapper } from "@/components/style-wrapper"
@@ -8,6 +8,8 @@ import type { PlayerResources } from "@/lib/types"
 import {
   tryOnChainUpgrade,
   getUpgradeCostForTier,
+  getPlayerOCXBalance,
+  getOCXBalanceReadOnly,
 } from "@/lib/contracts"
 import { walletManager } from "@/lib/wallet"
 
@@ -18,10 +20,40 @@ type SubmarineStoreClientProps = {
   walletAddress?: string
 }
 
-export default function SubmarineStoreClient({ currentTier, resources, balance: initialBalance }: SubmarineStoreClientProps) {
+export default function SubmarineStoreClient({ currentTier, resources, balance: initialBalance, walletAddress }: SubmarineStoreClientProps) {
   const router = useRouter()
   const [balance, setBalance] = useState(initialBalance)
   const [isUpgrading, setIsUpgrading] = useState(false)
+
+  /**
+   * Fetch on-chain balance from connected wallet
+   * This ensures we always have the actual spendable balance
+   */
+  const fetchWalletBalance = async (walletAddress: string) => {
+    try {
+      const onChainStr = await getOCXBalanceReadOnly(walletAddress)
+      const onChainBalance = parseFloat(onChainStr) || 0
+      console.log(`✅ Wallet balance fetched: ${onChainBalance} OCX`)
+      setBalance(onChainBalance)
+      return onChainBalance
+    } catch (err) {
+      console.warn('Failed to fetch wallet balance:', err)
+      return null
+    }
+  }
+
+  // Fetch wallet balance on mount and when wallet address changes
+  useEffect(() => {
+    const loadBalance = async () => {
+      const connection = await walletManager.ensureConnected()
+      if (connection?.address) {
+        await fetchWalletBalance(connection.address)
+      } else if (walletAddress) {
+        await fetchWalletBalance(walletAddress)
+      }
+    }
+    loadBalance()
+  }, [walletAddress])
 
   const handlePurchase = async (targetTier: number) => {
     if (isUpgrading) return
@@ -42,7 +74,25 @@ export default function SubmarineStoreClient({ currentTier, resources, balance: 
 
       // Step 2: Get upgrade cost
       const costInOCX = await getUpgradeCostForTier(targetTier)
+      const costNum = parseFloat(costInOCX) || 0
       console.log(`Upgrade to Tier ${targetTier} costs ${costInOCX} OCX`)
+
+      // Step 2.5: Verify on-chain OCX balance BEFORE attempting the transaction
+      let playerOnChainBalance: number
+      try {
+        const balStr = await getPlayerOCXBalance(connection.address)
+        playerOnChainBalance = parseFloat(balStr) || 0
+      } catch {
+        const balStr = await getOCXBalanceReadOnly(connection.address)
+        playerOnChainBalance = parseFloat(balStr) || 0
+      }
+
+      if (playerOnChainBalance < costNum) {
+        throw new Error(
+          `Insufficient on-chain OCX tokens. You have ${playerOnChainBalance.toFixed(1)} OCX on the blockchain but need ${costNum.toFixed(1)} OCX. ` +
+          `Go to the Marketplace and use "Claim OCX" to transfer your earned tokens on-chain before upgrading.`
+        )
+      }
 
       // Step 3: Try on-chain blockchain transaction first
       const txResult = await tryOnChainUpgrade(targetTier)
@@ -63,14 +113,13 @@ export default function SubmarineStoreClient({ currentTier, resources, balance: 
         }),
       })
       if (syncResp.ok) {
-        const data = await syncResp.json()
-        if (data.success && data.data) {
-          const newBalance = data.data.balance ?? data.data.coins ?? balance
-          setBalance(typeof newBalance === 'number' ? newBalance : parseFloat(newBalance) || 0)
-        }
+        console.log('✅ Tier synced to database')
       } else {
         console.warn('Server tier sync failed but blockchain transaction succeeded. Tier will sync on next load.')
       }
+
+      // Refresh balance from wallet (source of truth after purchase)
+      await fetchWalletBalance(connection.address)
 
       // Redirect to game with new submarine
       router.push('/game')

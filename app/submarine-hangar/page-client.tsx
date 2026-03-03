@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
+import Link from "next/link"
 import { StyleWrapper } from "@/components/style-wrapper"
 import type { PlayerResources } from "@/lib/types"
 import { HangarHeader } from "@/components/hangar/HangarHeader"
@@ -11,6 +12,7 @@ import {
   tryOnChainUpgrade, 
   getUpgradeCostForTier,
   getOCXBalanceReadOnly,
+  getPlayerOCXBalance,
 } from "@/lib/contracts"
 import { walletManager } from "@/lib/wallet"
 import { supabase } from "@/lib/supabase"
@@ -46,37 +48,51 @@ export default function SubmarineHangarClient({
 }: SubmarineHangarClientProps) {
   const router = useRouter()
   const [balance, setBalance] = useState(initialBalance)
+  const [onChainBalance, setOnChainBalance] = useState<number | null>(null)
   const [isUpgrading, setIsUpgrading] = useState(false)
   const [upgradeStatus, setUpgradeStatus] = useState<string | null>(null)
   const [upgradeError, setUpgradeError] = useState<string | null>(null)
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
   /**
-   * Fetch updated balance from the server
+   * Fetch on-chain OCX token balance directly from the connected wallet.
+   * This is the source of truth for spendable tokens.
+   */
+  const fetchOnChainBalance = async () => {
+    try {
+      const onChainStr = await getOCXBalanceReadOnly(walletAddress)
+      const onChainVal = parseFloat(onChainStr) || 0
+      setOnChainBalance(onChainVal)
+      // Use on-chain balance as the primary balance (source of truth)
+      setBalance(onChainVal)
+      return onChainVal
+    } catch (err) {
+      console.warn('Failed to fetch on-chain balance:', err)
+      return null
+    }
+  }
+
+  /**
+   * Fetch balance - prioritizes wallet balance over database
    */
   const fetchBalance = async () => {
     try {
-      // First, sync on-chain balance to DB (captures pre-fix OCX)
-      try {
-        const onChainStr = await getOCXBalanceReadOnly(walletAddress)
-        const onChainBalance = parseFloat(onChainStr) || 0
-        if (onChainBalance > balance) {
+      // Always fetch from the connected wallet (MetaMask/WalletConnect)
+      // This ensures we have the actual spendable balance after purchases
+      const onChainVal = await fetchOnChainBalance()
+      
+      if (onChainVal !== null) {
+        // Successfully got wallet balance - this is our source of truth
+        console.log(`✅ Using wallet balance: ${onChainVal} OCX`)
+        
+        // Optionally sync to database for record-keeping
+        try {
           await supabase
             .from("players")
-            .update({ total_ocx_earned: onChainBalance })
+            .update({ total_ocx_earned: onChainVal })
             .ilike("wallet_address", walletAddress.toLowerCase())
-          setBalance(onChainBalance)
-          return // Already have the freshest value
-        }
-      } catch (syncErr) {
-        console.warn("On-chain sync failed, falling back to API:", syncErr)
-      }
-      
-      const response = await fetch('/api/player/balance')
-      if (response.ok) {
-        const data = await response.json()
-        if (typeof data.balance === 'number') {
-          setBalance(data.balance)
+        } catch (syncErr) {
+          console.warn("DB sync failed (non-critical):", syncErr)
         }
       }
     } catch (error) {
@@ -143,7 +159,30 @@ export default function SubmarineHangarClient({
       // Step 2: Get upgrade cost and display to user
       setUpgradeStatus('Fetching upgrade cost...')
       const costInOCX = await getUpgradeCostForTier(targetTier)
+      const costNum = parseFloat(costInOCX) || 0
       console.log(`Upgrade to Tier ${targetTier} costs ${costInOCX} OCX`)
+
+      // Step 2.5: Verify on-chain OCX balance BEFORE attempting the transaction
+      setUpgradeStatus('Verifying on-chain OCX balance...')
+      let playerOnChainBalance: number
+      try {
+        const balStr = await getPlayerOCXBalance(connection.address)
+        playerOnChainBalance = parseFloat(balStr) || 0
+        setOnChainBalance(playerOnChainBalance)
+      } catch {
+        // Fallback to read-only provider
+        const balStr = await getOCXBalanceReadOnly(connection.address)
+        playerOnChainBalance = parseFloat(balStr) || 0
+        setOnChainBalance(playerOnChainBalance)
+      }
+
+      if (playerOnChainBalance < costNum) {
+        throw new Error(
+          `Insufficient on-chain OCX tokens. You have ${playerOnChainBalance.toFixed(1)} OCX on the blockchain but need ${costNum.toFixed(1)} OCX. ` +
+          `Your wallet shows ${balance} OCX earned in-game, but these must be claimed to the blockchain first. ` +
+          `Go to the Marketplace and use "Claim OCX" to transfer your earned tokens on-chain before upgrading.`
+        )
+      }
 
       // Step 3: Try on-chain blockchain transaction first (MetaMask popup)
       setUpgradeStatus(`Requesting approval for ${costInOCX} OCX...`)
@@ -167,16 +206,12 @@ export default function SubmarineHangarClient({
         }),
       })
       if (syncResp.ok) {
-        const data = await syncResp.json()
-        if (data.success && data.data) {
-          const newBalance = data.data.balance ?? data.data.coins ?? balance
-          setBalance(typeof newBalance === 'number' ? newBalance : parseFloat(newBalance) || 0)
-        }
+        console.log('✅ Tier synced to database')
       } else {
         console.warn('Server tier sync failed but blockchain transaction succeeded. Tier will sync on next load.')
       }
 
-      // Refresh balance from chain
+      // Refresh balance from wallet (source of truth)
       await fetchBalance()
 
       // Success — redirect to game
@@ -196,10 +231,12 @@ export default function SubmarineHangarClient({
         errorMessage = 'Transaction cancelled by user'
       } else if (errorMessage.includes('insufficient funds')) {
         errorMessage = 'Insufficient ETH for gas fees'
-      } else if (errorMessage.includes('Insufficient OCX') || errorMessage.includes('Not enough')) {
-        errorMessage = 'Insufficient OCX tokens for upgrade'
       } else if (errorMessage.includes('No Web3 wallet') || errorMessage.includes('MetaMask')) {
         errorMessage = 'Please install MetaMask or another Web3 wallet'
+      } else if (errorMessage.includes('claim your tokens') || errorMessage.includes('Claim OCX') || errorMessage.includes('on-chain OCX tokens')) {
+        // Keep the full descriptive message for claim-related errors
+      } else if (errorMessage.includes('Insufficient OCX') || errorMessage.includes('Not enough')) {
+        errorMessage = 'Insufficient OCX tokens for upgrade'
       }
 
       setUpgradeError(errorMessage)
@@ -239,6 +276,7 @@ export default function SubmarineHangarClient({
           {/* Dock HUD (now part of page flow) */}
           <HangarHUD
             balance={balance}
+            onChainBalance={onChainBalance}
             resources={resources}
             currentTier={currentTier}
             walletAddress={walletAddress}
@@ -271,12 +309,23 @@ export default function SubmarineHangarClient({
               {upgradeError && (
                 <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/30 backdrop-blur-sm">
                   <div className="flex items-center gap-3">
-                    <svg className="w-5 h-5 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <svg className="w-5 h-5 text-red-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                     </svg>
                     <div>
                       <p className="text-red-300 font-medium">Upgrade Failed</p>
                       <p className="text-red-200/80 text-sm mt-1">{upgradeError}</p>
+                      {(upgradeError.includes('claim') || upgradeError.includes('Claim') || upgradeError.includes('on-chain')) && (
+                        <Link
+                          href="/marketplace"
+                          className="inline-flex items-center gap-1.5 mt-2 px-4 py-2 rounded-lg bg-cyan-600/20 border border-cyan-500/40 text-cyan-300 text-sm font-medium hover:bg-cyan-600/30 transition-colors"
+                        >
+                          Go to Marketplace to Claim OCX
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                          </svg>
+                        </Link>
+                      )}
                     </div>
                   </div>
                 </div>
