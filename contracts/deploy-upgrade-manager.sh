@@ -1,4 +1,4 @@
-#!/bin/bash
+f#!/bin/bash
 # Deploy UpgradeManager Contract
 
 set -e

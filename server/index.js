@@ -1037,7 +1037,7 @@ const SUBMARINE_TIERS = [
       miningRate: 1,
       tier: 1,
     },
-    upgradeCost: { tokens: 100 },
+    upgradeCost: { tokens: 0 },
     color: "#fbbf24",
   },
   {
@@ -1054,7 +1054,7 @@ const SUBMARINE_TIERS = [
       miningRate: 1.2,
       tier: 2,
     },
-    upgradeCost: { tokens: 200 },
+    upgradeCost: { tokens: 100 },
     color: "#f59e0b",
   },
   {
@@ -1071,7 +1071,7 @@ const SUBMARINE_TIERS = [
       miningRate: 1.4,
       tier: 3,
     },
-    upgradeCost: { tokens: 350 },
+    upgradeCost: { tokens: 200 },
     color: "#d97706",
   },
   {
@@ -1088,7 +1088,7 @@ const SUBMARINE_TIERS = [
       miningRate: 1.6,
       tier: 4,
     },
-    upgradeCost: { tokens: 500 },
+    upgradeCost: { tokens: 350 },
     color: "#b45309",
   },
   {
@@ -1105,7 +1105,7 @@ const SUBMARINE_TIERS = [
       miningRate: 1.8,
       tier: 5,
     },
-    upgradeCost: { tokens: 750 },
+    upgradeCost: { tokens: 500 },
     color: "#92400e",
   },
   {
@@ -1122,7 +1122,7 @@ const SUBMARINE_TIERS = [
       miningRate: 2.0,
       tier: 6,
     },
-    upgradeCost: { tokens: 1000 },
+    upgradeCost: { tokens: 750 },
     color: "#78350f",
   },
   {
@@ -1139,7 +1139,7 @@ const SUBMARINE_TIERS = [
       miningRate: 2.2,
       tier: 7,
     },
-    upgradeCost: { tokens: 1500 },
+    upgradeCost: { tokens: 1000 },
     color: "#1e40af",
   },
   {
@@ -1156,7 +1156,7 @@ const SUBMARINE_TIERS = [
       miningRate: 2.4,
       tier: 8,
     },
-    upgradeCost: { tokens: 2000 },
+    upgradeCost: { tokens: 1500 },
     color: "#1e3a8a",
   },
   {
@@ -1173,7 +1173,7 @@ const SUBMARINE_TIERS = [
       miningRate: 2.6,
       tier: 9,
     },
-    upgradeCost: { tokens: 2750 },
+    upgradeCost: { tokens: 2000 },
     color: "#312e81",
   },
   {
@@ -1190,7 +1190,7 @@ const SUBMARINE_TIERS = [
       miningRate: 2.8,
       tier: 10,
     },
-    upgradeCost: { tokens: 3500 },
+    upgradeCost: { tokens: 2750 },
     color: "#581c87",
   },
   {
@@ -1207,7 +1207,7 @@ const SUBMARINE_TIERS = [
       miningRate: 3.0,
       tier: 11,
     },
-    upgradeCost: { tokens: 4500 },
+    upgradeCost: { tokens: 3500 },
     color: "#7c2d12",
   },
   {
@@ -1224,7 +1224,7 @@ const SUBMARINE_TIERS = [
       miningRate: 3.2,
       tier: 12,
     },
-    upgradeCost: { tokens: 6000 },
+    upgradeCost: { tokens: 4500 },
     color: "#0c0a09",
   },
   {
@@ -1241,7 +1241,7 @@ const SUBMARINE_TIERS = [
       miningRate: 3.4,
       tier: 13,
     },
-    upgradeCost: { tokens: 7500 },
+    upgradeCost: { tokens: 6000 },
     color: "#fbbf24",
   },
   {
@@ -1258,7 +1258,7 @@ const SUBMARINE_TIERS = [
       miningRate: 3.6,
       tier: 14,
     },
-    upgradeCost: { tokens: 9000 },
+    upgradeCost: { tokens: 7500 },
     color: "#a855f7",
   },
   {

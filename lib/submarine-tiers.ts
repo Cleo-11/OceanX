@@ -37,7 +37,7 @@ export const SUBMARINE_TIERS: SubmarineTier[] = [
       tier: 1,
     },
     upgradeCost: {
-      tokens: 100,
+      tokens: 0,
     },
     color: "#fbbf24",
   },
@@ -66,7 +66,7 @@ export const SUBMARINE_TIERS: SubmarineTier[] = [
       tier: 2,
     },
     upgradeCost: {
-      tokens: 200,
+      tokens: 100,
     },
     color: "#f59e0b",
   },
@@ -95,7 +95,7 @@ export const SUBMARINE_TIERS: SubmarineTier[] = [
       tier: 3,
     },
     upgradeCost: {
-      tokens: 350,
+      tokens: 200,
     },
     color: "#d97706",
   },
@@ -124,7 +124,7 @@ export const SUBMARINE_TIERS: SubmarineTier[] = [
       tier: 4,
     },
     upgradeCost: {
-      tokens: 500,
+      tokens: 350,
     },
     color: "#b45309",
   },
@@ -153,7 +153,7 @@ export const SUBMARINE_TIERS: SubmarineTier[] = [
       tier: 5,
     },
     upgradeCost: {
-      tokens: 750,
+      tokens: 500,
     },
     color: "#92400e",
   },
@@ -182,7 +182,7 @@ export const SUBMARINE_TIERS: SubmarineTier[] = [
       tier: 6,
     },
     upgradeCost: {
-      tokens: 1000,
+      tokens: 750,
     },
     color: "#78350f",
   },
@@ -211,7 +211,7 @@ export const SUBMARINE_TIERS: SubmarineTier[] = [
       tier: 7,
     },
     upgradeCost: {
-      tokens: 1500,
+      tokens: 1000,
     },
     color: "#1e40af",
   },
@@ -240,7 +240,7 @@ export const SUBMARINE_TIERS: SubmarineTier[] = [
       tier: 8,
     },
     upgradeCost: {
-      tokens: 2000,
+      tokens: 1500,
     },
     color: "#1e3a8a",
   },
@@ -269,7 +269,7 @@ export const SUBMARINE_TIERS: SubmarineTier[] = [
       tier: 9,
     },
     upgradeCost: {
-      tokens: 2750,
+      tokens: 2000,
     },
     color: "#312e81",
   },
@@ -298,7 +298,7 @@ export const SUBMARINE_TIERS: SubmarineTier[] = [
       tier: 10,
     },
     upgradeCost: {
-      tokens: 3500,
+      tokens: 2750,
     },
     color: "#581c87",
   },
@@ -327,7 +327,7 @@ export const SUBMARINE_TIERS: SubmarineTier[] = [
       tier: 11,
     },
     upgradeCost: {
-      tokens: 4500,
+      tokens: 3500,
     },
     color: "#7c2d12",
   },
@@ -356,7 +356,7 @@ export const SUBMARINE_TIERS: SubmarineTier[] = [
       tier: 12,
     },
     upgradeCost: {
-      tokens: 6000,
+      tokens: 4500,
     },
     color: "#0c0a09",
   },
@@ -385,7 +385,7 @@ export const SUBMARINE_TIERS: SubmarineTier[] = [
       tier: 13,
     },
     upgradeCost: {
-      tokens: 7500,
+      tokens: 6000,
     },
     color: "#fbbf24",
   },
@@ -414,7 +414,7 @@ export const SUBMARINE_TIERS: SubmarineTier[] = [
       tier: 14,
     },
     upgradeCost: {
-      tokens: 9000,
+      tokens: 7500,
     },
     color: "#a855f7",
   },
