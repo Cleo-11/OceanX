@@ -115,7 +115,7 @@ async function fetchWalletOcxEarningsBaseUnits(
   pageSize: number,
   maxPages: number
 ): Promise<bigint> {
-  let total = 0n
+  let total = BigInt(0)
 
   for (let page = 1; page <= maxPages; page++) {
     const params = new URLSearchParams({
