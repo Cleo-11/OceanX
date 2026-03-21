@@ -47,11 +47,7 @@ export function Leaderboard({ currentUsername }: LeaderboardProps) {
     return () => clearInterval(interval)
   }, [])
 
-  const formatOCX = (amount: number) => {
-    if (amount >= 1000000) return `${(amount / 1000000).toFixed(1)}M`
-    if (amount >= 1000) return `${(amount / 1000).toFixed(1)}K`
-    return amount.toLocaleString()
-  }
+  const formatOCX = (amount: number) => amount.toLocaleString()
 
   const getRankStyle = (rank: number) => {
     switch (rank) {
