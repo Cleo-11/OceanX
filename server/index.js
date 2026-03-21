@@ -287,6 +287,83 @@ function isValidMovement(previousPosition, newPosition, deltaTime) {
   return { valid: true, reason: "ok" };
 }
 
+// ==========================================
+// 🏆 IN-MEMORY LEADERBOARD
+// ==========================================
+/**
+ * Maintains a sorted in-memory leaderboard that is updated on every OCX state
+ * change. One-time DB hydration happens at startup so leaderboard requests never
+ * need to hit the database or explorer APIs.
+ */
+class LeaderboardManager {
+  constructor() {
+    this._players = new Map(); // wallet (lowercase) -> { username, ocxEarned, submarineTier }
+    this._hydrated = false;
+  }
+
+  /** Partial update — only provided fields are changed; others are preserved. */
+  updatePlayer(wallet, { username, ocxEarned, submarineTier } = {}) {
+    if (!wallet) return;
+    const key = wallet.toLowerCase();
+    const existing = this._players.get(key) || {};
+    this._players.set(key, {
+      username: username !== undefined ? username : existing.username,
+      ocxEarned: typeof ocxEarned === "number" ? ocxEarned : (existing.ocxEarned ?? 0),
+      submarineTier: submarineTier !== undefined ? submarineTier : (existing.submarineTier ?? 1),
+    });
+  }
+
+  /** Returns top-N players sorted by ocxEarned descending. */
+  getTop(n = 15) {
+    return [...this._players.entries()]
+      .filter(([, p]) => p.username && (p.ocxEarned ?? 0) > 0)
+      .sort(([, a], [, b]) => (b.ocxEarned ?? 0) - (a.ocxEarned ?? 0))
+      .slice(0, n)
+      .map(([, p], i) => ({
+        rank: i + 1,
+        username: p.username,
+        ocxEarned: p.ocxEarned ?? 0,
+        submarineTier: p.submarineTier ?? 1,
+      }));
+  }
+
+  /** One-time DB hydration — populates the map from current player records. */
+  async hydrate(supabaseClient) {
+    if (this._hydrated || !supabaseClient) return;
+    try {
+      const { data, error } = await supabaseClient
+        .from("players")
+        .select("wallet_address, username, total_ocx_earned, submarine_tier")
+        .not("username", "is", null)
+        .not("wallet_address", "is", null)
+        .not("username", "like", "Captain-%")
+        .limit(500);
+
+      if (error) {
+        console.warn("[leaderboard] Hydration query failed:", error.message);
+        return;
+      }
+
+      for (const row of data || []) {
+        if (row.wallet_address && row.username) {
+          this.updatePlayer(row.wallet_address, {
+            username: row.username,
+            ocxEarned: Number(row.total_ocx_earned) || 0,
+            submarineTier: row.submarine_tier || 1,
+          });
+        }
+      }
+
+      this._hydrated = true;
+      console.log(`[leaderboard] Hydrated with ${this._players.size} players`);
+    } catch (err) {
+      console.warn("[leaderboard] Hydration error:", err.message);
+    }
+  }
+}
+
+const leaderboard = new LeaderboardManager();
+
 // Initialize express app BEFORE using it
 const app = express();
 const server = http.createServer(app);
@@ -864,6 +941,12 @@ app.post("/submarine/upgrade", sensitiveActionLimiter, requireSubmarineUpgradeAu
       timestamp,
       message: `Submarine upgraded to tier ${targetTier}`,
     });
+
+    // Update in-memory leaderboard: reflect new OCX balance and tier
+    leaderboard.updatePlayer(normalizedWallet, {
+      ocxEarned: Number.isFinite(updatedOcxValue) ? updatedOcxValue : newBalance,
+      submarineTier: targetTier,
+    });
   } catch (error) {
     logServerError("submarine-upgrade-persist", error, {
       wallet: normalizedWallet,
@@ -966,6 +1049,8 @@ try {
   } else {
     supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
     console.log("✅ Supabase client initialized with service role key");
+    // Hydrate in-memory leaderboard after a short delay to let other init finish
+    setTimeout(() => leaderboard.hydrate(supabase).catch((e) => console.warn("[leaderboard] Hydration failed:", e.message)), 3000);
   }
 } catch (error) {
   console.error("❌ Failed to initialize Supabase:", error);
@@ -1939,6 +2024,20 @@ app.get("/", (req, res) => {
     res.json({ message: "🌊 OceanX Backend API is running" });
 });
 
+// Leaderboard endpoint — served entirely from in-memory state, no DB or Explorer API hit
+const leaderboardLimiter = createRateLimiter({
+  windowMs: 60 * 1000,
+  max: 60,
+  message: "Too many leaderboard requests.",
+  code: "LEADERBOARD_RATE_LIMIT",
+});
+
+app.get("/leaderboard", leaderboardLimiter, (req, res) => {
+  const n = Math.min(parseInt(req.query.limit) || 15, 50);
+  const data = leaderboard.getTop(n);
+  res.json({ success: true, data, source: "server-memory" });
+});
+
 // Health check endpoint
 app.get("/health", async (req, res) => {
     let registeredPlayers = 0;
@@ -2114,7 +2213,7 @@ app.post("/marketplace/trade-resources", sensitiveActionLimiter, requireClaimAut
         // Fetch current player data
         const { data: player, error: playerError } = await supabase
             .from("players")
-            .select("id, wallet_address, submarine_tier, coins, total_ocx_earned, nickel, cobalt, copper, manganese")
+            .select("id, wallet_address, username, submarine_tier, coins, total_ocx_earned, nickel, cobalt, copper, manganese")
             .ilike("wallet_address", wallet)
             .single();
 
@@ -2175,6 +2274,13 @@ app.post("/marketplace/trade-resources", sensitiveActionLimiter, requireClaimAut
         }
 
         console.log(`✅ Off-chain trade: ${wallet} traded resources for ${totalOcxEarned} OCX (new balance: ${newOcxBalance})`);
+
+        // Update in-memory leaderboard immediately — no DB read needed on next leaderboard request
+        leaderboard.updatePlayer(wallet, {
+            username: player.username,
+            ocxEarned: newOcxBalance,
+            submarineTier: player.submarine_tier,
+        });
 
         res.json({
             success: true,
@@ -2374,6 +2480,9 @@ app.post("/marketplace/claim-ocx", claimLimiter, requireClaimAuth, async (req, r
         if (deductError) {
             logServerError("claim-ocx-deduct", deductError, { wallet });
             // Don't fail — signature already issued. Log for manual reconciliation.
+        } else {
+            // Update in-memory leaderboard to reflect deducted balance
+            leaderboard.updatePlayer(wallet, { ocxEarned: Math.max(0, availableOcx - claimAmount) });
         }
 
         res.json({
