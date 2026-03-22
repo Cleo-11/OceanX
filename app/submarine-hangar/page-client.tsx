@@ -10,7 +10,6 @@ import { SubmarineCarousel } from "@/components/hangar/SubmarineCarousel"
 import { HangarHUD } from "@/components/hangar/HangarHUD"
 import { 
   tryOnChainUpgrade, 
-  getUpgradeCostForTier,
   getOCXBalanceReadOnly,
 } from "@/lib/contracts"
 import { walletManager } from "@/lib/wallet"
@@ -46,8 +45,10 @@ export default function SubmarineHangarClient({
   walletAddress,
 }: SubmarineHangarClientProps) {
   const router = useRouter()
-  const [balance, setBalance] = useState(initialBalance)
-  const [dbBalance, setDbBalance] = useState(initialBalance) // Earned OCX in database
+  // balance  = on-chain OCX in wallet (always starts at 0; fetched from chain client-side)
+  // dbBalance = off-chain earned OCX in DB (total_ocx_earned; starts from server prop)
+  const [balance, setBalance] = useState(0)
+  const [dbBalance, setDbBalance] = useState(initialBalance)
   const [isUpgrading, setIsUpgrading] = useState(false)
   const [upgradeStatus, setUpgradeStatus] = useState<string | null>(null)
   const [upgradeError, setUpgradeError] = useState<string | null>(null)
@@ -83,6 +84,8 @@ export default function SubmarineHangarClient({
       return onChainVal
     } catch (err) {
       console.warn('Failed to fetch wallet balance:', err)
+      // Explicitly set on-chain balance to 0 so it doesn't fall back to the off-chain DB value
+      setBalance(0)
       return null
     }
   }
@@ -117,96 +120,110 @@ export default function SubmarineHangarClient({
   }, [initialBalance])
 
   /**
-   * Handle submarine purchase/upgrade
-   * 
-   * Full blockchain flow:
-   * 1. Connect wallet and verify player address
-   * 2. Execute on-chain upgrade transaction
-   * 3. Wait for transaction confirmation
-   * 4. Send transaction hash to server for verification
-   * 5. Server verifies on-chain and updates Supabase
-   * 6. Redirect to game with new submarine
+   * OCX cost to upgrade to each tier.
+   * Must match UpgradeManager._bootstrapCosts and server/index.js SUBMARINE_TIERS.
+   */
+  const UPGRADE_COSTS: Record<number, number> = {
+    2: 100, 3: 200, 4: 350, 5: 500, 6: 750, 7: 1000, 8: 1500,
+    9: 2000, 10: 2750, 11: 3500, 12: 4500, 13: 6000, 14: 7500, 15: 0,
+  }
+
+  /**
+   * Handle submarine purchase/upgrade.
+   *
+   * Primary path: off-chain upgrade via /api/submarine/upgrade
+   *   - Deducts from total_ocx_earned (pending OCX earned in-game)
+   *   - No MetaMask required; uses JWT cookie auth
+   *
+   * On-chain path (attempted second if off-chain fails for non-budget reasons):
+   *   - Requires on-chain OCX in wallet + UpgradeManager registered as transferAgent
+   *   - Will fail until the contract owner calls OCXToken.setTransferAgent(upgradeManagerAddr, true)
    */
   const handlePurchase = async (targetTier: number) => {
     try {
       setIsUpgrading(true)
       setUpgradeError(null)
-      setUpgradeStatus('Connecting wallet...')
+      setUpgradeStatus('Verifying balance...')
 
-      // Step 1: Ensure wallet is connected — auto-reconnects or prompts MetaMask
-      let connection
-      try {
-        connection = await walletManager.ensureConnected()
-      } catch (err) {
-        throw new Error('Please connect MetaMask or WalletConnect to authorize this transaction.')
-      }
-
-      if (!connection?.address) {
-        throw new Error('Wallet not connected. Please connect MetaMask to proceed.')
-      }
-
-      // Step 2: Get upgrade cost and display to user
-      setUpgradeStatus('Fetching upgrade cost...')
-      const costInOCX = await getUpgradeCostForTier(targetTier)
-      const costNum = parseFloat(costInOCX) || 0
-      console.log(`Upgrade to Tier ${targetTier} costs ${costInOCX} OCX`)
-
-      // Step 2.5: Verify wallet balance BEFORE attempting the transaction
-      setUpgradeStatus('Verifying wallet balance...')
-      
-      if (balance < costNum) {
-        // Check if user has earned but unclaimed OCX
-        const unclaimedOCX = Math.max(0, dbBalance - balance)
-        
-        if (unclaimedOCX > 0) {
-          throw new Error(
-            `Insufficient on-chain OCX tokens. You have ${balance.toFixed(1)} OCX in your wallet but need ${costNum.toFixed(1)} OCX. ` +
-            `You have ${unclaimedOCX.toFixed(1)} OCX earned but not yet claimed. ` +
-            `Go to the Marketplace and click "Claim OCX" to transfer your earned tokens to your wallet, then try upgrading again.`
-          )
-        } else {
-          throw new Error(
-            `Insufficient OCX tokens. You have ${balance.toFixed(1)} OCX but need ${costNum.toFixed(1)} OCX. ` +
-            `Go to the Marketplace to trade resources and earn more OCX.`
-          )
-        }
-      }
-
-      // Step 3: Try on-chain blockchain transaction first (MetaMask popup)
-      setUpgradeStatus(`Requesting approval for ${costInOCX} OCX...`)
-      const txResult = await tryOnChainUpgrade(targetTier)
-
-      // On-chain transaction is mandatory — no database fallback
-      if (!txResult) {
-        throw new Error('Blockchain transaction failed. Ensure you have on-chain OCX tokens and sufficient ETH for gas.')
-      }
-
-      // On-chain succeeded — sync tier in DB (tokens already deducted on-chain)
-      setUpgradeStatus('Transaction confirmed on blockchain! Syncing upgrade...')
-      console.log('Transaction hash:', txResult.txHash)
-
-      const syncResp = await fetch('/api/submarine/sync-tier', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          targetTier,
-          txHash: txResult.txHash,
-        }),
-      })
-      if (syncResp.ok) {
-        console.log('✅ Tier synced to database')
-      } else {
-        console.warn('Server tier sync failed but blockchain transaction succeeded. Tier will sync on next load.')
-      }
-
-      // Refresh balance from wallet (source of truth)
+      // Refresh balances before checking
       await fetchBalance()
 
-      // Success — redirect to game
-      setUpgradeStatus('Upgrade complete! Loading your new submarine...')
-      await new Promise(resolve => setTimeout(resolve, 1500))
-      router.push('/game')
-      router.refresh()
+      const costNum = UPGRADE_COSTS[targetTier] ?? 0
+      console.log(`Upgrade to Tier ${targetTier} costs ${costNum} OCX`)
+
+      // ── Primary path: off-chain upgrade (deducts from total_ocx_earned) ──────
+      if (dbBalance >= costNum) {
+        setUpgradeStatus(`Upgrading to Tier ${targetTier}...`)
+
+        const upgradeResp = await fetch('/api/submarine/upgrade', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ targetTier }),
+        })
+
+        if (upgradeResp.ok) {
+          const result = await upgradeResp.json()
+          if (result.success) {
+            setDbBalance(result.newOcxBalance)
+            setUpgradeStatus('Upgrade complete! Loading your new submarine...')
+            await new Promise(resolve => setTimeout(resolve, 1500))
+            router.push('/game')
+            router.refresh()
+            return
+          }
+          // Server returned success:false — treat as error below
+          throw new Error(result.error || 'Upgrade failed')
+        }
+
+        const errBody = await upgradeResp.json().catch(() => ({ error: 'Upgrade failed' }))
+        throw new Error(errBody.error || `Server error ${upgradeResp.status}`)
+      }
+
+      // ── Fallback: on-chain upgrade (requires OCX in wallet + transferAgent setup) ──
+      // Check if user has enough on-chain OCX instead
+      if (balance >= costNum) {
+        setUpgradeStatus('Connecting wallet...')
+        let connection
+        try {
+          connection = await walletManager.ensureConnected()
+        } catch {
+          throw new Error('Please connect MetaMask or WalletConnect to authorise this transaction.')
+        }
+        if (!connection?.address) {
+          throw new Error('Wallet not connected. Please connect MetaMask to proceed.')
+        }
+
+        setUpgradeStatus(`Requesting on-chain approval for ${costNum} OCX...`)
+        const txResult = await tryOnChainUpgrade(targetTier)
+
+        if (!txResult) {
+          throw new Error('Blockchain transaction failed. Ensure you have on-chain OCX tokens and sufficient ETH for gas.')
+        }
+
+        setUpgradeStatus('Transaction confirmed on blockchain! Syncing...')
+        const syncResp = await fetch('/api/submarine/sync-tier', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ targetTier, txHash: txResult.txHash }),
+        })
+        if (!syncResp.ok) {
+          console.warn('Server tier sync failed but blockchain tx succeeded. Tier will sync on next load.')
+        }
+
+        await fetchBalance()
+        setUpgradeStatus('Upgrade complete! Loading your new submarine...')
+        await new Promise(resolve => setTimeout(resolve, 1500))
+        router.push('/game')
+        router.refresh()
+        return
+      }
+
+      // ── Insufficient balance on both paths ────────────────────────────────────
+      throw new Error(
+        `Insufficient OCX. You need ${costNum} OCX to upgrade to Tier ${targetTier}, ` +
+        `but you only have ${dbBalance.toFixed(0)} OCX. ` +
+        `Mine resources and trade them in the game to earn more OCX.`
+      )
     } catch (error) {
       console.error('Purchase failed:', error)
 
@@ -221,10 +238,6 @@ export default function SubmarineHangarClient({
         errorMessage = 'Insufficient ETH for gas fees'
       } else if (errorMessage.includes('No Web3 wallet') || errorMessage.includes('MetaMask')) {
         errorMessage = 'Please install MetaMask or another Web3 wallet'
-      } else if (errorMessage.includes('claim your tokens') || errorMessage.includes('Claim OCX') || errorMessage.includes('on-chain OCX tokens')) {
-        // Keep the full descriptive message for claim-related errors
-      } else if (errorMessage.includes('Insufficient OCX') || errorMessage.includes('Not enough')) {
-        errorMessage = 'Insufficient OCX tokens for upgrade'
       }
 
       setUpgradeError(errorMessage)

@@ -99,21 +99,10 @@ export default function MarketplaceClient({ playerData }: MarketplaceClientProps
         
         console.log(`✅ Using wallet balance: ${walletBalanceNum} OCX`)
         setOcxBalance(walletBalance)
-
-        // Optionally sync to database for record-keeping
-        try {
-          const dbBalance = playerData.total_ocx_earned || 0
-          // Only update DB if values differ significantly (avoid unnecessary writes)
-          if (Math.abs(walletBalanceNum - dbBalance) > 0.01) {
-            await supabase
-              .from("players")
-              .update({ total_ocx_earned: walletBalanceNum })
-              .ilike("wallet_address", playerData.wallet_address.toLowerCase())
-            console.log(`🔄 Synced wallet balance to DB: ${walletBalanceNum} (was ${dbBalance})`)
-          }
-        } catch (syncErr) {
-          console.warn("DB sync failed (non-critical):", syncErr)
-        }
+        // NOTE: Do NOT write wallet balance back to total_ocx_earned.
+        // total_ocx_earned tracks *unclaimed* off-chain OCX (pending claim).
+        // Overwriting it with the on-chain balance would undo the deduction
+        // performed by /marketplace/claim-ocx and cause double-claiming.
       } else {
         // If wallet not connected or different address, show database value as fallback
         console.log("⚠️ Wallet not connected, using DB balance as fallback")
