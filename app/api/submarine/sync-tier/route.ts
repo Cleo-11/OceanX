@@ -1,45 +1,18 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getAuthFromCookies, createSupabaseAdmin } from "@/lib/supabase-server"
-import { ethers } from "ethers"
 
 export const dynamic = "force-dynamic"
 
 /**
- * Helper: Get on-chain OCX balance for a wallet address
- */
-async function getOnChainOCXBalance(walletAddress: string): Promise<number | null> {
-  try {
-    const rpcUrl = process.env.NEXT_PUBLIC_BASE_SEPOLIA_RPC_URL || process.env.NEXT_PUBLIC_RPC_URL
-    const tokenAddress = process.env.NEXT_PUBLIC_OCEAN_X_TOKEN_ADDRESS || process.env.NEXT_PUBLIC_TOKEN_CONTRACT_ADDRESS
-    
-    if (!rpcUrl || !tokenAddress) {
-      console.warn("[sync-tier] Missing RPC or token address config")
-      return null
-    }
-
-    const provider = new ethers.JsonRpcProvider(rpcUrl)
-    const tokenABI = ["function balanceOf(address) view returns (uint256)"]
-    const tokenContract = new ethers.Contract(tokenAddress, tokenABI, provider)
-    
-    const balanceWei = await tokenContract.balanceOf(walletAddress)
-    const balanceOCX = parseFloat(ethers.formatEther(balanceWei))
-    
-    return balanceOCX
-  } catch (error) {
-    console.error("[sync-tier] Failed to fetch on-chain balance:", error)
-    return null
-  }
-}
-
-/**
  * POST /api/submarine/sync-tier
  *
- * Updates the player's submarine tier in the DB and syncs on-chain OCX balance.
- * Used after a successful on-chain upgrade where tokens were already
- * transferred on the blockchain via the UpgradeManager contract.
+ * Updates the player's submarine tier in the DB after a successful on-chain
+ * upgrade where tokens were already transferred via the UpgradeManager contract.
  *
- * This fixes the bug where purchasing submarines didn't update total_ocx_earned,
- * causing inflated balances on subsequent claims.
+ * IMPORTANT: Does NOT touch total_ocx_earned. The submarine purchase was paid
+ * with on-chain tokens (wallet balance), which is a separate ledger from
+ * total_ocx_earned (unclaimed off-chain credits). Writing the on-chain balance
+ * into total_ocx_earned would let the player "claim" tokens they already hold.
  *
  * Body: { targetTier: number, txHash?: string }
  */
@@ -78,32 +51,16 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // Fetch on-chain OCX balance to sync with database
-    const onChainBalance = await getOnChainOCXBalance(player.wallet_address)
-    const oldDbBalance = Number(player.total_ocx_earned ?? 0)
-
-    // Update tier AND sync on-chain balance to prevent double-claiming
+    // Only update the tier — total_ocx_earned is untouched because the purchase
+    // was paid on-chain (wallet tokens), not from off-chain credits.
     const timestamp = new Date().toISOString()
-    const updateData: any = {
-      submarine_tier: targetTier,
-      updated_at: timestamp,
-    }
-
-    // Only update total_ocx_earned if we successfully fetched on-chain balance
-    // This ensures DB reflects actual spendable tokens after purchase
-    if (onChainBalance !== null) {
-      updateData.total_ocx_earned = onChainBalance
-      console.info("[submarine/sync-tier] � Syncing on-chain balance to DB:", {
-        wallet: auth.walletAddress,
-        oldDbBalance,
-        onChainBalance,
-        difference: oldDbBalance - onChainBalance,
-      })
-    }
 
     const { data: updated, error: updateErr } = await supabase
       .from("players")
-      .update(updateData)
+      .update({
+        submarine_tier: targetTier,
+        updated_at: timestamp,
+      })
       .eq("id", player.id)
       .select("id, submarine_tier, total_ocx_earned")
       .single()
@@ -113,13 +70,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Failed to sync tier" }, { status: 500 })
     }
 
-    const finalBalance = Number(updated.total_ocx_earned ?? 0)
+    // Return the unchanged total_ocx_earned so the frontend shows the correct
+    // claimable amount (unclaimed off-chain credits only).
+    const unclaimedOcx = Number(updated.total_ocx_earned ?? 0)
 
-    console.info("[submarine/sync-tier] ✅ Tier synced + balance updated:", {
+    console.info("[submarine/sync-tier] ✅ Tier synced:", {
       wallet: auth.walletAddress,
       newTier: targetTier,
-      balanceSynced: onChainBalance !== null,
-      finalBalance,
+      unclaimedOcx,
       txHash,
     })
 
@@ -130,11 +88,10 @@ export async function POST(req: NextRequest) {
         wallet: auth.walletAddress,
         previousTier: currentTier,
         newTier: updated.submarine_tier,
-        balance: finalBalance,
-        coins: finalBalance,
+        balance: unclaimedOcx,
+        coins: unclaimedOcx,
         txHash,
         onChain: true,
-        balanceSynced: onChainBalance !== null,
         timestamp,
       },
     })
