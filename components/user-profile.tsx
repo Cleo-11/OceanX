@@ -138,25 +138,12 @@ export function UserProfile({ walletAddress, resources }: UserProfileProps) {
         }
         console.log("[DEBUG] Wallet Address:", walletAddress, "On-chain OCX:", onChainAmount, "DB OCX:", player.total_ocx_earned);
 
-        // Use whichever is higher: on-chain balance or DB total_ocx_earned
-        const dbAmount = player.total_ocx_earned || 0
-        const effectiveBalance = Math.max(onChainAmount, dbAmount)
-        setOcxBalance(effectiveBalance.toString())
+        // Display on-chain wallet balance (tokens the player actually holds)
+        setOcxBalance(onChainAmount.toString())
 
-        // Sync on-chain balance to DB if it's higher (captures pre-fix claims)
-        if (onChainAmount > dbAmount) {
-          console.log(`🔄 Syncing OCX: on-chain ${onChainAmount} > DB ${dbAmount}. Updating...`)
-          const { error: syncError } = await supabase
-            .from("players")
-            .update({ total_ocx_earned: onChainAmount })
-            .eq("id", player.id)
-          if (syncError) {
-            console.error("❌ Failed to sync on-chain OCX to DB:", syncError)
-          } else {
-            console.log(`✅ DB synced: total_ocx_earned = ${onChainAmount}`)
-            setPlayerData({ ...player, total_ocx_earned: onChainAmount })
-          }
-        }
+        // NOTE: Do NOT sync on-chain balance into total_ocx_earned.
+        // total_ocx_earned tracks unclaimed off-chain credits only.
+        // The on-chain balance is a separate ledger (tokens already in wallet).
       } catch (balanceError) {
         console.error("Error loading OCX balance:", balanceError)
         // Fall back to DB balance instead of showing 0
