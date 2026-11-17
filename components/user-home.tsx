@@ -183,7 +183,7 @@ export function UserHome({ playerData, onPlayClick, onSubmarineStoreClick }: Use
         <div
           aria-hidden
           className="pointer-events-none absolute inset-0"
-          style={{ background: "linear-gradient(90deg, rgba(4,22,26,0.94) 0%, rgba(4,22,26,0.5) 42%, rgba(4,22,26,0) 70%), linear-gradient(0deg, rgba(4,22,26,1) 0%, rgba(4,22,26,0) 30%)" }}
+          style={{ background: "linear-gradient(90deg, rgba(8,36,42,0.9) 0%, rgba(8,36,42,0.42) 42%, rgba(8,36,42,0) 70%), linear-gradient(0deg, rgba(8,36,42,1) 0%, rgba(8,36,42,0) 30%)" }}
         />
 
         <header className="absolute inset-x-0 top-0 z-10 flex flex-wrap items-center justify-between gap-3 px-6 py-5 sm:px-10">

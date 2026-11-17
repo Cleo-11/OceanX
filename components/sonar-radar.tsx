@@ -45,7 +45,7 @@ export function SonarRadar({ playerPosition, resourceNodes, otherPlayers }: Sona
       ctx.save()
       ctx.beginPath()
       ctx.arc(c, c, R, 0, Math.PI * 2)
-      ctx.fillStyle = "rgba(4, 20, 23, 0.86)"
+      ctx.fillStyle = "rgba(9, 34, 39, 0.86)"
       ctx.fill()
       ctx.clip()
 

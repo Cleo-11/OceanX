@@ -53,7 +53,7 @@ export function UpgradeModal({ currentTier, balance, onUpgrade, onClose, gameSta
     : []
 
   return (
-    <div className="dive-hud fixed inset-0 z-[70] flex items-center justify-center bg-[rgba(2,10,12,0.7)] p-4">
+    <div className="dive-hud fixed inset-0 z-[70] flex items-center justify-center bg-[rgba(4,18,21,0.62)] p-4">
       <div
         ref={dialogRef}
         tabIndex={-1}

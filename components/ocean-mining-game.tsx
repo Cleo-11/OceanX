@@ -35,7 +35,7 @@ import dynamic from "next/dynamic"
 // WebGL only exists in the browser.
 const DeepSeaScene = dynamic(() => import("./game3d/deep-sea-scene").then((m) => m.DeepSeaScene), {
   ssr: false,
-  loading: () => <div className="absolute inset-0" style={{ background: "#04161a" }} />,
+  loading: () => <div className="absolute inset-0" style={{ background: "#08242a" }} />,
 })
 
 interface OceanMiningGameProps {

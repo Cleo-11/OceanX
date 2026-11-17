@@ -115,7 +115,7 @@ export default function LandingPage() {
         <div
           aria-hidden
           className="pointer-events-none absolute inset-0"
-          style={{ background: "linear-gradient(90deg, rgba(4,22,26,0.92) 0%, rgba(4,22,26,0.55) 38%, rgba(4,22,26,0) 70%)" }}
+          style={{ background: "linear-gradient(90deg, rgba(8,36,42,0.88) 0%, rgba(8,36,42,0.45) 38%, rgba(8,36,42,0) 70%)" }}
         />
 
         <header className="absolute inset-x-0 top-0 z-10 flex items-center justify-between px-6 py-5 sm:px-10">

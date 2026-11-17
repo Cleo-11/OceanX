@@ -36,7 +36,7 @@ export function ScubaDiverGuide({ onFinish }: { onFinish: () => void }) {
   }, [step])
 
   return (
-    <div className="dive-hud fixed inset-0 z-[80] flex items-end justify-center bg-[rgba(2,10,12,0.55)] p-4 sm:items-center">
+    <div className="dive-hud fixed inset-0 z-[80] flex items-end justify-center bg-[rgba(4,18,21,0.5)] p-4 sm:items-center">
       <div
         ref={panelRef}
         tabIndex={-1}

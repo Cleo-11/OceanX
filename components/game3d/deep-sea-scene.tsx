@@ -14,14 +14,16 @@
  */
 
 import { Canvas, useFrame, useThree } from "@react-three/fiber"
+import { RoundedBox } from "@react-three/drei"
 import { useEffect, useMemo, useRef, type MutableRefObject, type ReactNode } from "react"
 import * as THREE from "three"
 import type { PlayerPosition, ResourceNode, ResourceType } from "@/lib/types"
+import { makeBoulderGeometry, makeNoduleGeometry } from "./procedural"
 
 export const WORLD_SCALE = 1 / 20 // 2000 world units -> 100 scene units
 
 export const PALETTE = {
-  abyss: "#04161a",
+  abyss: "#08242a",
   silt: "#5c5a4c",
   siltDark: "#2b2c25",
   rock: "#2a2c28",
@@ -30,10 +32,10 @@ export const PALETTE = {
 }
 
 const DEPOSIT_COLORS: Record<ResourceType, { base: string; accent: string }> = {
-  nickel: { base: "#4f5a51", accent: "#69756a" },
-  cobalt: { base: "#34476b", accent: "#4b5f86" },
-  copper: { base: "#8a4524", accent: "#3f7a67" }, // oxidised: rust with verdigris
-  manganese: { base: "#2e2722", accent: "#4a3d33" },
+  nickel: { base: "#47514a", accent: "#7a8576" },
+  cobalt: { base: "#2b3a5a", accent: "#5a6f99" },
+  copper: { base: "#6a3219", accent: "#2f6b5a" }, // oxidised: rust with verdigris
+  manganese: { base: "#24201c", accent: "#4a3d33" },
 }
 
 // ── deterministic noise ─────────────────────────────────────────────────────
@@ -129,26 +131,22 @@ function Seabed() {
 }
 
 /** Scattered boulders and a few extinct vent chimneys, placed once. */
+const BOULDER_VARIANTS = 5
+const BOULDERS_PER_VARIANT = 64
+
+/** Scattered boulders (five sculpted shapes, instanced) and a few old vent chimneys. */
 function Rocks() {
-  const rockRef = useRef<THREE.InstancedMesh>(null)
+  const rockRefs = useRef<(THREE.InstancedMesh | null)[]>([])
   const ventRef = useRef<THREE.InstancedMesh>(null)
-  const ROCKS = 320
   const VENTS = 14
 
-  const rockGeometry = useMemo(() => {
-    const g = new THREE.DodecahedronGeometry(1, 1)
-    const p = g.attributes.position as THREE.BufferAttribute
-    for (let i = 0; i < p.count; i++) {
-      const v = new THREE.Vector3().fromBufferAttribute(p, i)
-      v.multiplyScalar(0.75 + valueNoise(v.x * 2.1 + 3, v.y * 2.1 + v.z) * 0.5)
-      p.setXYZ(i, v.x, v.y * 0.7, v.z)
-    }
-    g.computeVertexNormals()
-    return g
-  }, [])
+  const boulders = useMemo(
+    () => Array.from({ length: BOULDER_VARIANTS }, (_, i) => makeBoulderGeometry(i + 1)),
+    [],
+  )
 
   const ventGeometry = useMemo(() => {
-    const g = new THREE.CylinderGeometry(0.35, 0.9, 1, 9, 6, true)
+    const g = new THREE.CylinderGeometry(0.35, 0.9, 1, 18, 10, true)
     const p = g.attributes.position as THREE.BufferAttribute
     for (let i = 0; i < p.count; i++) {
       const x = p.getX(i)
@@ -169,21 +167,23 @@ function Rocks() {
     const e = new THREE.Euler()
     const s = new THREE.Vector3()
     const p = new THREE.Vector3()
-    const rocks = rockRef.current
-    if (rocks) {
-      for (let i = 0; i < ROCKS; i++) {
+    rockRefs.current.forEach((rocks) => {
+      if (!rocks) return
+      for (let i = 0; i < BOULDERS_PER_VARIANT; i++) {
         const x = -10 + rand() * 120
         const z = -10 + rand() * 120
         const big = rand() < 0.08
-        const r = big ? 1.2 + rand() * 1.8 : 0.15 + rand() * 0.55
-        p.set(x, seabedHeight(x, z) - r * 0.25, z)
-        e.set(rand() * Math.PI, rand() * Math.PI, rand() * Math.PI)
+        const r = big ? 1.1 + rand() * 1.6 : 0.14 + rand() * 0.5
+        // half-buried, upright (the silt dusting stays on top), random heading
+        p.set(x, seabedHeight(x, z) - r * 0.18, z)
+        e.set((rand() - 0.5) * 0.35, rand() * Math.PI * 2, (rand() - 0.5) * 0.35)
         q.setFromEuler(e)
-        s.set(r * (0.8 + rand() * 0.6), r, r * (0.8 + rand() * 0.6))
+        s.set(r * (0.85 + rand() * 0.5), r * (0.8 + rand() * 0.4), r * (0.85 + rand() * 0.5))
         rocks.setMatrixAt(i, m.compose(p, q, s))
       }
       rocks.instanceMatrix.needsUpdate = true
-    }
+      rocks.computeBoundingSphere()
+    })
     const vents = ventRef.current
     if (vents) {
       for (let i = 0; i < VENTS; i++) {
@@ -202,11 +202,21 @@ function Rocks() {
 
   return (
     <>
-      <instancedMesh ref={rockRef} args={[rockGeometry, undefined, ROCKS]} castShadow receiveShadow>
-        <meshStandardMaterial color={PALETTE.rock} roughness={0.95} flatShading />
-      </instancedMesh>
+      {boulders.map((g, i) => (
+        <instancedMesh
+          key={i}
+          ref={(m) => {
+            rockRefs.current[i] = m
+          }}
+          args={[g, undefined, BOULDERS_PER_VARIANT]}
+          castShadow
+          receiveShadow
+        >
+          <meshStandardMaterial vertexColors roughness={0.93} metalness={0.02} />
+        </instancedMesh>
+      ))}
       <instancedMesh ref={ventRef} args={[ventGeometry, undefined, VENTS]} castShadow receiveShadow>
-        <meshStandardMaterial color="#1f1d1a" roughness={0.9} side={THREE.DoubleSide} flatShading />
+        <meshStandardMaterial color="#26241f" roughness={0.9} side={THREE.DoubleSide} />
       </instancedMesh>
     </>
   )
@@ -276,24 +286,18 @@ function MarineSnow({ followRef }: { followRef: MutableRefObject<THREE.Vector3> 
 }
 
 // ── deposits: clusters of lumpy polymetallic nodules ───────────────────────
-function useNoduleGeometries() {
-  return useMemo(
-    () =>
-      Array.from({ length: 6 }, (_, k) => {
-        const g = new THREE.IcosahedronGeometry(1, 2)
-        const p = g.attributes.position as THREE.BufferAttribute
-        for (let i = 0; i < p.count; i++) {
-          const v = new THREE.Vector3().fromBufferAttribute(p, i)
-          const n = valueNoise(v.x * 2.4 + k * 9, v.y * 2.4 + v.z * 1.7 + k)
-          const n2 = valueNoise(v.x * 6 + k, v.z * 6 - k)
-          v.multiplyScalar(0.72 + n * 0.45 + n2 * 0.12)
-          p.setXYZ(i, v.x, v.y * 0.68, v.z)
-        }
-        g.computeVertexNormals()
-        return g
-      }),
-    [],
-  )
+const NODULE_VARIANTS = 4
+
+/** Four sculpted nodule shapes per mineral, colours baked in. */
+function useNoduleGeometries(): Record<ResourceType, THREE.BufferGeometry[]> {
+  return useMemo(() => {
+    const out = {} as Record<ResourceType, THREE.BufferGeometry[]>
+    ;(Object.keys(DEPOSIT_COLORS) as ResourceType[]).forEach((type, t) => {
+      const { base, accent } = DEPOSIT_COLORS[type]
+      out[type] = Array.from({ length: NODULE_VARIANTS }, (_, i) => makeNoduleGeometry(t * 10 + i + 1, base, accent))
+    })
+    return out
+  }, [])
 }
 
 function Deposit({
@@ -303,12 +307,12 @@ function Deposit({
 }: {
   node: ResourceNode
   targeted: boolean
-  geometries: THREE.BufferGeometry[]
+  geometries: Record<ResourceType, THREE.BufferGeometry[]>
 }) {
   const x = node.position.x * WORLD_SCALE
   const z = node.position.y * WORLD_SCALE
   const y = seabedHeight(x, z)
-  const colors = DEPOSIT_COLORS[node.type]
+  const shapes = geometries[node.type]
 
   const lumps = useMemo(() => {
     const rand = seeded(hashString(node.id))
@@ -319,14 +323,14 @@ function Deposit({
       const r = (i === 0 ? 0.42 : 0.18 + rand() * 0.24) * (0.8 + node.size / 60)
       return {
         key: i,
-        position: [Math.cos(a) * d, r * 0.35, Math.sin(a) * d] as [number, number, number],
-        rotation: [rand() * 3, rand() * 3, rand() * 3] as [number, number, number],
+        // nodules lie half-sunk in the silt, top side up
+        position: [Math.cos(a) * d, r * 0.2, Math.sin(a) * d] as [number, number, number],
+        rotation: [(rand() - 0.5) * 0.4, rand() * Math.PI * 2, (rand() - 0.5) * 0.4] as [number, number, number],
         scale: r,
-        geometry: geometries[Math.floor(rand() * geometries.length)],
-        accent: i > 0 && rand() < 0.3,
+        geometry: shapes[Math.floor(rand() * shapes.length)],
       }
     })
-  }, [node.id, node.amount, node.size, geometries])
+  }, [node.id, node.amount, node.size, shapes])
 
   // Bioluminescent specks: a few faint lights that cut through the dark so
   // deposits can be found without the lamp. Not fogged, very small.
@@ -368,9 +372,9 @@ function Deposit({
           receiveShadow
         >
           <meshStandardMaterial
-            color={l.accent ? colors.accent : colors.base}
-            roughness={node.type === "cobalt" ? 0.55 : 0.85}
-            metalness={node.type === "cobalt" || node.type === "nickel" ? 0.35 : 0.1}
+            vertexColors
+            roughness={node.type === "cobalt" ? 0.55 : 0.82}
+            metalness={node.type === "cobalt" || node.type === "nickel" ? 0.3 : 0.08}
           />
         </mesh>
       ))}
@@ -440,9 +444,72 @@ function SiltPlume({ origin, active }: { origin: THREE.Vector3 | null; active: b
 }
 
 // ── submarine ───────────────────────────────────────────────────────────────
+/** Hull profile (radius along the length), turned on a lathe: a long teardrop. */
+const HULL_PROFILE: [number, number][] = [
+  [0.0, -1.5], [0.07, -1.47], [0.2, -1.36], [0.33, -1.15], [0.44, -0.86], [0.51, -0.5],
+  [0.54, -0.1], [0.54, 0.45], [0.52, 0.78], [0.47, 1.0], [0.38, 1.17], [0.25, 1.29], [0.11, 1.36], [0.0, 1.38],
+]
+
+function useHullGeometry() {
+  return useMemo(() => {
+    const g = new THREE.LatheGeometry(
+      HULL_PROFILE.map(([r, y]) => new THREE.Vector2(r, y)),
+      48,
+    )
+    g.rotateZ(-Math.PI / 2) // lathe axis (y) -> forward (x)
+    // Grime: darker underneath and in streaks running aft, baked per vertex.
+    const pos = g.attributes.position as THREE.BufferAttribute
+    const colors = new Float32Array(pos.count * 3)
+    for (let i = 0; i < pos.count; i++) {
+      const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i)
+      const under = THREE.MathUtils.smoothstep(-y, 0.0, 0.5) * 0.35
+      const streak = Math.max(0, valueNoise(z * 9 + 3, x * 1.2) - 0.55) * 0.6
+      const k = 1 - under - streak
+      colors.set([k, k * 0.99, k * 0.97], i * 3)
+    }
+    g.setAttribute("color", new THREE.BufferAttribute(colors, 3))
+    return g
+  }, [])
+}
+
+/** A ducted thruster: a short shroud with a propeller inside. Axis along x. */
+function DuctedThruster({
+  radius,
+  metal,
+  propRef,
+}: {
+  radius: number
+  metal: THREE.Material
+  propRef?: MutableRefObject<THREE.Group | null>
+}) {
+  return (
+    <group>
+      <mesh rotation={[0, Math.PI / 2, 0]} material={metal} castShadow>
+        <cylinderGeometry args={[radius, radius * 0.92, radius * 0.9, 28, 1, true]} />
+      </mesh>
+      <mesh rotation={[0, Math.PI / 2, 0]} material={metal}>
+        <torusGeometry args={[radius, radius * 0.08, 8, 28]} />
+      </mesh>
+      <group {...(propRef ? { ref: propRef } : {})}>
+        {[0, 1, 2, 3].map((i) => (
+          <mesh key={i} rotation={[(i * Math.PI) / 2, 0, 0.35]} material={metal}>
+            <boxGeometry args={[0.02, radius * 1.6, radius * 0.38]} />
+          </mesh>
+        ))}
+        <mesh rotation={[0, 0, Math.PI / 2]} material={metal}>
+          <coneGeometry args={[radius * 0.22, radius * 0.5, 12]} />
+        </mesh>
+      </group>
+    </group>
+  )
+}
+
 /**
- * The submarine's body (forward is +x). Shared by the dive scene and the
- * hangar. `propRef` lets the owner spin the propeller.
+ * The submarine (forward is +x), modelled on deep research submersibles:
+ * a white syntactic-foam body with a painted upper fairing in the tier
+ * colour, a forward viewport, a manipulator arm and sample basket, lamp bar,
+ * and ducted thrusters. Shared by the dive scene and the hangar; `propRef`
+ * lets the owner spin the main propeller.
  */
 export function SubmarineModel({
   hullColor,
@@ -453,76 +520,149 @@ export function SubmarineModel({
   propRef?: MutableRefObject<THREE.Group | null>
   children?: ReactNode
 }) {
-  // Weathered paint: the tier colour, pulled towards grey.
-  const paint = useMemo(() => new THREE.Color(hullColor).lerp(new THREE.Color("#5b5a52"), 0.42), [hullColor])
+  const hull = useHullGeometry()
   const ownPropRef = useRef<THREE.Group | null>(null)
+  const m = useMemo(() => {
+    const paint = new THREE.Color(hullColor).lerp(new THREE.Color("#6b6a62"), 0.25)
+    return {
+      body: new THREE.MeshStandardMaterial({ color: "#d9d6cc", vertexColors: true, roughness: 0.55, metalness: 0.05 }),
+      paint: new THREE.MeshStandardMaterial({ color: paint, roughness: 0.45, metalness: 0.15 }),
+      metal: new THREE.MeshStandardMaterial({ color: "#5d5f5c", roughness: 0.42, metalness: 0.75 }),
+      dark: new THREE.MeshStandardMaterial({ color: "#1f2322", roughness: 0.7, metalness: 0.4 }),
+      glass: new THREE.MeshStandardMaterial({ color: "#0e2226", roughness: 0.05, metalness: 0.2, emissive: "#3a2a12", emissiveIntensity: 0.4 }),
+      lamp: new THREE.MeshStandardMaterial({ color: "#2a2722", emissive: PALETTE.lamp, emissiveIntensity: 2.4 }),
+      strobe: new THREE.MeshStandardMaterial({ color: "#552", emissive: "#f2a33a", emissiveIntensity: 1.2 }),
+    }
+  }, [hullColor])
+
   return (
     <>
-      {/* pressure hull */}
-      <mesh rotation={[0, 0, Math.PI / 2]} castShadow receiveShadow>
-        <capsuleGeometry args={[0.52, 1.7, 8, 20]} />
-        <meshStandardMaterial color={paint} roughness={0.62} metalness={0.35} />
+      {/* pressure body */}
+      <mesh geometry={hull} material={m.body} castShadow receiveShadow />
+
+      {/* painted upper fairing and sail */}
+      <RoundedBox args={[2.05, 0.3, 0.7]} radius={0.12} smoothness={4} position={[-0.05, 0.43, 0]} material={m.paint} castShadow />
+      <RoundedBox args={[0.6, 0.34, 0.34]} radius={0.12} smoothness={4} position={[0.2, 0.7, 0]} material={m.paint} castShadow />
+      {/* sail: hatch, antenna, strobe */}
+      <mesh position={[0.05, 0.89, 0]} material={m.metal}>
+        <cylinderGeometry args={[0.1, 0.11, 0.04, 20]} />
       </mesh>
-      {/* hull bands */}
-      {[-0.55, 0.15, 0.75].map((bx) => (
-        <mesh key={bx} position={[bx, 0, 0]} rotation={[0, Math.PI / 2, 0]}>
-          <torusGeometry args={[0.53, 0.025, 8, 32]} />
-          <meshStandardMaterial color="#2b2a26" roughness={0.6} metalness={0.6} />
+      <mesh position={[0.4, 1.02, 0]} material={m.dark}>
+        <cylinderGeometry args={[0.012, 0.012, 0.36, 6]} />
+      </mesh>
+      <mesh position={[0.4, 1.21, 0]} material={m.strobe}>
+        <sphereGeometry args={[0.03, 10, 8]} />
+      </mesh>
+      {/* handrails along the fairing */}
+      {[-0.37, 0.37].map((z) => (
+        <mesh key={z} position={[-0.05, 0.52, z]} rotation={[0, 0, Math.PI / 2]} material={m.metal}>
+          <cylinderGeometry args={[0.014, 0.014, 1.5, 6]} />
         </mesh>
       ))}
-      {/* side thrusters */}
-      {[-0.6, 0.6].map((zz) => (
-        <mesh key={zz} position={[-0.55, -0.1, zz]} rotation={[0, 0, Math.PI / 2]} castShadow>
-          <cylinderGeometry args={[0.13, 0.13, 0.42, 14]} />
-          <meshStandardMaterial color="#3d3b35" roughness={0.55} metalness={0.6} />
-        </mesh>
+
+      {/* forward viewport with a bolted ring */}
+      <mesh position={[1.24, -0.12, 0]} material={m.glass}>
+        <sphereGeometry args={[0.17, 24, 16]} />
+      </mesh>
+      <mesh position={[1.2, -0.12, 0]} rotation={[0, Math.PI / 2, 0]} material={m.metal}>
+        <torusGeometry args={[0.17, 0.022, 8, 28]} />
+      </mesh>
+
+      {/* lamp bar across the bow */}
+      <mesh position={[1.05, -0.38, 0]} rotation={[Math.PI / 2, 0, 0]} material={m.metal}>
+        <cylinderGeometry args={[0.02, 0.02, 0.86, 8]} />
+      </mesh>
+      {[-0.36, -0.12, 0.12, 0.36].map((z) => (
+        <group key={z} position={[1.1, -0.38, z]}>
+          <mesh rotation={[0, 0, Math.PI / 2]} material={m.dark}>
+            <cylinderGeometry args={[0.055, 0.065, 0.09, 14]} />
+          </mesh>
+          <mesh position={[0.046, 0, 0]} rotation={[0, 0, Math.PI / 2]} material={m.lamp}>
+            <circleGeometry args={[0.05, 14]} />
+          </mesh>
+        </group>
       ))}
-      {/* hatch */}
-      <mesh position={[-0.1, 0.79, 0]}>
-        <cylinderGeometry args={[0.13, 0.13, 0.05, 16]} />
-        <meshStandardMaterial color="#3a3a35" roughness={0.5} metalness={0.7} />
-      </mesh>
-      {/* sail */}
-      <mesh position={[-0.1, 0.55, 0]} rotation={[0, 0, Math.PI / 2]} scale={[0.85, 1, 0.55]} castShadow>
-        <capsuleGeometry args={[0.24, 0.42, 6, 16]} />
-        <meshStandardMaterial color={paint} roughness={0.7} metalness={0.3} />
-      </mesh>
-      {/* viewport */}
-      <mesh position={[1.22, 0.05, 0]}>
-        <sphereGeometry args={[0.26, 20, 16]} />
-        <meshStandardMaterial color="#0c1a1c" roughness={0.08} metalness={0.9} emissive="#3a2a12" emissiveIntensity={0.35} />
-      </mesh>
-      {/* skids */}
-      {[-0.32, 0.32].map((zz) => (
-        <mesh key={zz} position={[0.05, -0.55, zz]} castShadow>
-          <boxGeometry args={[1.9, 0.06, 0.07]} />
-          <meshStandardMaterial color="#3a3934" roughness={0.8} metalness={0.5} />
+
+      {/* manipulator arm (starboard), folded forward */}
+      <group position={[0.9, -0.42, 0.26]}>
+        <mesh material={m.metal}>
+          <sphereGeometry args={[0.055, 12, 10]} />
         </mesh>
-      ))}
-      {/* lamp housings */}
-      {[-0.3, 0.3].map((zz) => (
-        <mesh key={zz} position={[1.05, -0.32, zz]} rotation={[0, 0, Math.PI / 2]}>
-          <cylinderGeometry args={[0.07, 0.09, 0.14, 12]} />
-          <meshStandardMaterial color="#262521" emissive={PALETTE.lamp} emissiveIntensity={2.2} />
+        <mesh position={[0.15, -0.06, 0]} rotation={[0, 0, Math.PI / 2 + 0.4]} material={m.paint}>
+          <cylinderGeometry args={[0.03, 0.035, 0.32, 10]} />
         </mesh>
-      ))}
-      {/* tail fins + propeller */}
-      <mesh position={[-1.25, 0, 0]} castShadow>
-        <boxGeometry args={[0.4, 0.9, 0.05]} />
-        <meshStandardMaterial color={paint} roughness={0.7} />
-      </mesh>
-      <mesh position={[-1.25, 0, 0]} castShadow>
-        <boxGeometry args={[0.4, 0.05, 0.9]} />
-        <meshStandardMaterial color={paint} roughness={0.7} />
-      </mesh>
-      <group ref={propRef ?? ownPropRef} position={[-1.52, 0, 0]}>
-        {[0, 1, 2].map((i) => (
-          <mesh key={i} rotation={[(i * Math.PI * 2) / 3, 0, 0]}>
-            <boxGeometry args={[0.04, 0.5, 0.1]} />
-            <meshStandardMaterial color="#6d5a3a" roughness={0.4} metalness={0.8} />
+        <mesh position={[0.3, -0.13, 0]} material={m.metal}>
+          <sphereGeometry args={[0.04, 10, 8]} />
+        </mesh>
+        <mesh position={[0.43, -0.1, 0]} rotation={[0, 0, Math.PI / 2 - 0.25]} material={m.paint}>
+          <cylinderGeometry args={[0.025, 0.03, 0.26, 10]} />
+        </mesh>
+        {[-0.03, 0.03].map((dz) => (
+          <mesh key={dz} position={[0.58, -0.07, dz]} rotation={[0, dz * 6, 0]} material={m.dark}>
+            <boxGeometry args={[0.1, 0.02, 0.016]} />
           </mesh>
         ))}
       </group>
+
+      {/* sample basket under the bow */}
+      <group position={[0.7, -0.6, 0]}>
+        <mesh material={m.dark}>
+          <boxGeometry args={[0.5, 0.02, 0.56]} />
+        </mesh>
+        {[-0.25, 0.25].map((x) =>
+          [-0.28, 0.28].map((z) => (
+            <mesh key={`${x}${z}`} position={[x, 0.07, z]} material={m.metal}>
+              <boxGeometry args={[0.02, 0.14, 0.02]} />
+            </mesh>
+          )),
+        )}
+        {[-0.28, 0.28].map((z) => (
+          <mesh key={z} position={[0, 0.14, z]} rotation={[0, 0, Math.PI / 2]} material={m.metal}>
+            <cylinderGeometry args={[0.012, 0.012, 0.5, 6]} />
+          </mesh>
+        ))}
+      </group>
+
+      {/* skids */}
+      {[-0.34, 0.34].map((z) => (
+        <group key={z}>
+          <mesh position={[-0.05, -0.66, z]} rotation={[0, 0, Math.PI / 2]} material={m.metal} castShadow>
+            <cylinderGeometry args={[0.025, 0.025, 2.0, 8]} />
+          </mesh>
+          {[-0.6, 0.45].map((x) => (
+            <mesh key={x} position={[x, -0.56, z * 0.85]} rotation={[z > 0 ? -0.3 : 0.3, 0, 0]} material={m.metal}>
+              <boxGeometry args={[0.04, 0.22, 0.03]} />
+            </mesh>
+          ))}
+        </group>
+      ))}
+
+      {/* ballast / battery pods */}
+      {[-0.5, 0.5].map((z) => (
+        <mesh key={z} position={[-0.25, -0.3, z]} rotation={[0, 0, Math.PI / 2]} material={m.paint} castShadow>
+          <capsuleGeometry args={[0.1, 0.7, 6, 14]} />
+        </mesh>
+      ))}
+
+      {/* stern: main ducted thruster on a short shaft, plus vertical thrusters */}
+      <mesh position={[-1.5, 0, 0]} rotation={[0, 0, Math.PI / 2]} material={m.metal}>
+        <cylinderGeometry args={[0.035, 0.035, 0.18, 8]} />
+      </mesh>
+      <group position={[-1.62, 0, 0]}>
+        <DuctedThruster radius={0.2} metal={m.metal} propRef={propRef ?? ownPropRef} />
+      </group>
+      {[-0.42, 0.42].map((z) => (
+        <group key={z} position={[-1.1, 0.12, z]} rotation={[0, 0, Math.PI / 2]}>
+          <DuctedThruster radius={0.11} metal={m.metal} />
+        </group>
+      ))}
+      {/* stabilisers */}
+      {[-1, 1].map((side) => (
+        <mesh key={side} position={[-1.25, 0, side * 0.32]} material={m.paint} castShadow>
+          <boxGeometry args={[0.32, 0.03, 0.22]} />
+        </mesh>
+      ))}
+
       {children}
     </>
   )
@@ -582,9 +722,9 @@ function Submarine({
         <primitive object={lightTarget} position={[7, -3.2, 0]} />
         <spotLight
           ref={spotRef}
-          position={[1.1, -0.3, 0]}
+          position={[1.15, -0.38, 0]}
           color={PALETTE.lamp}
-          intensity={240}
+          intensity={200}
           distance={42}
           angle={0.78}
           penumbra={0.65}
@@ -595,7 +735,7 @@ function Submarine({
           shadow-bias={-0.0004}
         />
         {/* faint fill so the hull reads against the dark */}
-        <pointLight position={[0, 1.8, 0.6]} color="#9dbfb8" intensity={12} distance={6} decay={2} />
+        <pointLight position={[0, 1.9, 0.6]} color="#a8c8c2" intensity={18} distance={6.5} decay={2} />
         {/* lamp spill under and around the hull */}
         <pointLight position={[1.4, -1.2, 0]} color={PALETTE.lamp} intensity={2.5} distance={6} decay={1.8} />
       </SubmarineModel>
@@ -665,9 +805,9 @@ export function DeepSeaScene({ playerRef, nodes, targetNodeId, hullColor, isMini
       aria-label="Seabed around your submarine"
     >
       <color attach="background" args={[PALETTE.abyss]} />
-      <fogExp2 attach="fog" args={[PALETTE.abyss, 0.038]} />
-      <hemisphereLight args={["#3d7f86", "#1a1a14", 2.4]} />
-      <directionalLight position={[20, 40, 10]} color="#5f8f96" intensity={0.5} />
+      <fogExp2 attach="fog" args={[PALETTE.abyss, 0.031]} />
+      <hemisphereLight args={["#559aa0", "#26261d", 3.1]} />
+      <directionalLight position={[20, 40, 10]} color="#7fb0b5" intensity={0.9} />
 
       <Seabed />
       <Rocks />

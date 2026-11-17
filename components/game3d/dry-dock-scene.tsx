@@ -51,7 +51,7 @@ export function DryDockScene({ hullColor, tier }: { hullColor: string; tier: num
     >
       <color attach="background" args={[PALETTE.abyss]} />
       <fog attach="fog" args={[PALETTE.abyss, 11, 24]} />
-      <hemisphereLight args={["#2f5f64", "#141410", 1.1]} />
+      <hemisphereLight args={["#4f8e93", "#22221b", 2.0]} />
       {/* overhead work lamp */}
       <spotLight
         position={[1.5, 6.5, 2]}
@@ -66,12 +66,12 @@ export function DryDockScene({ hullColor, tier }: { hullColor: string; tier: num
         shadow-bias={-0.0004}
       />
       {/* cold rim from behind so the silhouette reads */}
-      <directionalLight position={[-4, 3, -5]} color="#6fb6b0" intensity={1.4} />
+      <directionalLight position={[-4, 3, -5]} color="#7fc2bc" intensity={2.0} />
 
       {/* dock floor: worn concrete, with a painted lamp-orange safety line */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
         <circleGeometry args={[9, 64]} />
-        <meshStandardMaterial color="#2a2b26" roughness={0.95} />
+        <meshStandardMaterial color="#34352f" roughness={0.95} />
       </mesh>
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.005, 0]}>
         <ringGeometry args={[2.35, 2.42, 96]} />
