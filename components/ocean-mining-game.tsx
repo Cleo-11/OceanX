@@ -1390,7 +1390,9 @@ export function OceanMiningGame({
       {showGuide && (
         <ScubaDiverGuide onFinish={handleTutorialFinish} />
       )}
-      <div className="relative h-full w-full">
+      {/* Full viewport: the 3D canvas sizes itself to this box (the old 2D
+          canvas sized itself to the window, so the parent had no height). */}
+      <div className="relative h-[100dvh] w-full overflow-hidden">
         {/* The seabed, in 3D. Game state stays in 2D world units; the scene
             reads the live position every frame. */}
         <DeepSeaScene
