@@ -2,12 +2,10 @@
 
 import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
-import Link from "next/link"
+import dynamic from "next/dynamic"
 import { StyleWrapper } from "@/components/style-wrapper"
 import type { PlayerResources } from "@/lib/types"
-import { HangarHeader } from "@/components/hangar/HangarHeader"
-import { SubmarineCarousel } from "@/components/hangar/SubmarineCarousel"
-import { HangarHUD } from "@/components/hangar/HangarHUD"
+import { SUBMARINE_TIERS, getSubmarineByTier } from "@/lib/submarine-tiers"
 import { 
   tryOnChainUpgrade, 
   getOCXBalanceReadOnly,
@@ -16,6 +14,15 @@ import { walletManager } from "@/lib/wallet"
 import { supabase } from "@/lib/supabase"
 import { useTxLifecycle } from "@/hooks/use-tx-lifecycle"
 import { classifyTxError, describeTx, explorerTxUrl, txError } from "@/lib/state-machines/tx-lifecycle"
+
+const DryDockScene = dynamic(() => import("@/components/game3d/dry-dock-scene").then((m) => m.DryDockScene), {
+  ssr: false,
+  loading: () => <div className="absolute inset-0 bg-[var(--abyss)]" />,
+})
+
+const fmt = (n: number, digits = 0) => n.toLocaleString("en-US", { maximumFractionDigits: digits })
+const holdOf = (t: (typeof SUBMARINE_TIERS)[number]) =>
+  t.baseStats.maxCapacity.nickel + t.baseStats.maxCapacity.cobalt + t.baseStats.maxCapacity.copper + t.baseStats.maxCapacity.manganese
 
 const UPGRADE_COMPLETE_NOTE = 'Upgrade complete! Loading your new submarine...'
 
@@ -44,7 +51,6 @@ type SubmarineHangarClientProps = {
 
 export default function SubmarineHangarClient({
   currentTier,
-  resources,
   balance: initialBalance,
   walletAddress,
 }: SubmarineHangarClientProps) {
@@ -57,6 +63,8 @@ export default function SubmarineHangarClient({
   // instead of separate isUpgrading / status-string / error-string flags that
   // could disagree with each other.
   const upgradeTx = useTxLifecycle()
+  // The submarine shown in the dock. Starts on the next upgrade.
+  const [selectedTier, setSelectedTier] = useState(Math.min(currentTier + 1, SUBMARINE_TIERS.length))
   const [txChainId, setTxChainId] = useState<number | null>(null)
   const upgradeSucceeded = upgradeTx.tx.status === "succeeded"
   // Stay locked after success until the redirect to /game happens.
@@ -266,119 +274,159 @@ export default function SubmarineHangarClient({
     }
   }
 
-  const handleClose = () => {
-    router.push("/home")
-  }
+  const selected = getSubmarineByTier(selectedTier)
+  const current = getSubmarineByTier(currentTier)
+  const nextTier = currentTier + 1
+  const selectedCost = UPGRADE_COSTS[selectedTier] ?? 0
+  const stats = [
+    { label: "Hold", from: holdOf(current), to: holdOf(selected), unit: "" },
+    { label: "Battery", from: current.baseStats.energy, to: selected.baseStats.energy, unit: "" },
+    { label: "Hull", from: current.baseStats.health, to: selected.baseStats.health, unit: "" },
+    { label: "Speed", from: current.baseStats.speed, to: selected.baseStats.speed, unit: "×", digits: 1 },
+    { label: "Drill", from: current.baseStats.miningRate, to: selected.baseStats.miningRate, unit: "×", digits: 1 },
+    { label: "Rated depth", from: current.baseStats.depth, to: selected.baseStats.depth, unit: " m" },
+  ]
 
   return (
     <StyleWrapper>
-      <div className="relative min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-cyan-950 overflow-hidden">
-        {/* Animated Background Effects */}
-        <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          {/* Light rays from top */}
-          <div className="absolute top-0 left-1/4 w-px h-full bg-gradient-to-b from-cyan-500/20 via-cyan-500/5 to-transparent transform -skew-x-12 animate-pulse" />
-          <div className="absolute top-0 left-1/2 w-px h-full bg-gradient-to-b from-blue-500/20 via-blue-500/5 to-transparent transform skew-x-12 opacity-50" 
-               style={{ animationDelay: '1s' }} />
-          <div className="absolute top-0 right-1/4 w-px h-full bg-gradient-to-b from-cyan-500/20 via-cyan-500/5 to-transparent transform -skew-x-12 opacity-75" 
-               style={{ animationDelay: '2s' }} />
-          
-          {/* Glowing orbs */}
-          <div className="absolute top-1/4 left-1/3 w-96 h-96 bg-cyan-500/10 rounded-full blur-3xl animate-pulse" />
-          <div className="absolute bottom-1/4 right-1/3 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl animate-pulse" 
-               style={{ animationDelay: '1.5s' }} />
-          
-          {/* Scanlines effect */}
-          <div className="absolute inset-0 bg-[linear-gradient(transparent_50%,rgba(6,182,212,0.02)_50%)] bg-[length:100%_4px] pointer-events-none" />
-        </div>
+      <main className="dive">
+        <header className="flex flex-wrap items-center justify-between gap-4 border-b border-[var(--rule)] px-6 py-4 sm:px-10">
+          <div className="flex items-baseline gap-6">
+            <button type="button" onClick={() => router.push("/home")} className="text-lg font-semibold tracking-tight">
+              AbyssX
+            </button>
+            <h1 className="text-lg text-[var(--ink-dim)]">Hangar</h1>
+          </div>
+          <dl className="flex gap-6 text-sm">
+            <div className="flex gap-2">
+              <dt className="text-[var(--ink-dim)]">In your wallet</dt>
+              <dd>{fmt(balance, 2)} OCX</dd>
+            </div>
+            <div className="flex gap-2">
+              <dt className="text-[var(--ink-dim)]">Earned in the game</dt>
+              <dd>{fmt(dbBalance, 2)} OCX</dd>
+            </div>
+          </dl>
+        </header>
 
-        {/* Main Hangar Content */}
-        <div className="relative z-10 container mx-auto px-4 pb-16">
-          {/* Dock HUD (now part of page flow) */}
-          <HangarHUD
-            balance={balance}
-            dbBalance={dbBalance}
-            resources={resources}
-            currentTier={currentTier}
-            walletAddress={walletAddress}
-            onClose={handleClose}
-            onRefreshBalance={() => { void fetchBalance() }}
-          />
-          {/* Hangar Header */}
-          <HangarHeader currentTier={currentTier} />
+        <div className="grid lg:grid-cols-[minmax(0,1fr)_26rem]">
+          {/* The dock */}
+          <section aria-labelledby="dock-title" className="relative h-[52dvh] min-h-[360px] lg:h-[calc(100dvh-4.25rem)]">
+            <DryDockScene hullColor={selected.color} tier={selected.tier} />
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 px-6 pb-6 sm:px-10">
+              <p className="text-sm text-[var(--ink-dim)]">
+                Tier {selected.tier}
+                {selected.tier === currentTier && ", your submarine"}
+                {selected.tier < currentTier && ", already passed"}
+              </p>
+              <h2 id="dock-title" className="dive-display mt-1 text-[clamp(2rem,4.5vw,3.5rem)]">
+                {selected.name}
+              </h2>
+              <p className="mt-2 max-w-[52ch] leading-relaxed text-[var(--ink-dim)]">{selected.description}</p>
+            </div>
+          </section>
 
-          {/* 3D Submarine Carousel */}
-          <SubmarineCarousel
-            currentTier={currentTier}
-            resources={resources}
-            balance={balance}
-            isUpgrading={isUpgrading}
-            onPurchase={handlePurchase}
-          />
+          {/* Details and the tier list */}
+          <aside className="border-l border-[var(--rule)] lg:h-[calc(100dvh-4.25rem)] lg:overflow-y-auto">
+            <section aria-label="Compared with your submarine" className="px-6 py-6">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-xs text-[var(--ink-dim)]">
+                    <th scope="col" className="pb-1 text-left font-normal" />
+                    <th scope="col" className="pb-1 text-right font-normal">Yours</th>
+                    <th scope="col" className="pb-1 text-right font-normal">{selected.tier === currentTier ? "" : selected.name}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {stats.map((s) => (
+                    <tr key={s.label} className="border-t border-[var(--rule)]">
+                      <th scope="row" className="py-1.5 text-left font-normal text-[var(--ink-dim)]">{s.label}</th>
+                      <td className="py-1.5 text-right text-[var(--ink-dim)]">{fmt(s.from, s.digits)}{s.unit}</td>
+                      <td className="py-1.5 text-right">{selected.tier === currentTier ? "" : `${fmt(s.to, s.digits)}${s.unit}`}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
 
-          {/* Upgrade Status/Error Display */}
-          {(upgradeStatus || upgradeError) && (
-            <div className="mt-8 max-w-2xl mx-auto">
-              {upgradeStatus && (
-                <div className="p-4 rounded-xl bg-cyan-500/10 border border-cyan-500/30 backdrop-blur-sm">
-                  <div className="flex items-center gap-3">
-                    <div className="w-4 h-4 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin" />
-                    <span className="text-cyan-300 font-medium">{upgradeStatus}</span>
+              <div className="mt-6">
+                {selected.tier === nextTier ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => handlePurchase(selected.tier)}
+                      disabled={isUpgrading}
+                      className="dive-btn dive-btn--warm w-full py-3 text-base"
+                    >
+                      {isUpgrading ? "Upgrading…" : `Upgrade for ${fmt(selectedCost)} OCX`}
+                    </button>
+                    <p className="mt-2 text-xs leading-relaxed text-[var(--ink-dim)]">
+                      Paid from the OCX you have earned in the game. If that is short, your wallet pays instead and asks
+                      you to approve the transaction.
+                    </p>
+                  </>
+                ) : selected.tier === currentTier ? (
+                  <p className="text-sm text-[var(--ink-dim)]">This is your submarine.</p>
+                ) : selected.tier < currentTier ? (
+                  <p className="text-sm text-[var(--ink-dim)]">You have already upgraded past this one.</p>
+                ) : (
+                  <p className="text-sm text-[var(--ink-dim)]">
+                    Upgrades go one tier at a time. Reach tier {selected.tier - 1} first.
+                  </p>
+                )}
+
+                {upgradeStatus && (
+                  <p role="status" aria-live="polite" className="mt-4 border-l-2 border-[var(--lamp)] pl-3 text-sm">
+                    {upgradeStatus}
                     {upgradeTxUrl && (
-                      <a
-                        href={upgradeTxUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="ml-auto text-sm text-cyan-400 underline hover:text-cyan-300"
-                      >
+                      <a href={upgradeTxUrl} target="_blank" rel="noopener noreferrer" className="dive-link ml-2">
                         View transaction
                       </a>
                     )}
+                  </p>
+                )}
+                {upgradeError && (
+                  <div role="alert" className="mt-4 border-l-2 border-[var(--danger)] pl-3 text-sm">
+                    <p>{upgradeError}</p>
+                    <button type="button" onClick={() => { void fetchBalance() }} className="dive-link mt-1 text-[var(--ink-dim)]">
+                      Refresh balances
+                    </button>
                   </div>
-                </div>
-              )}
-              {upgradeError && (
-                <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/30 backdrop-blur-sm">
-                  <div className="flex items-center gap-3">
-                    <svg className="w-5 h-5 text-red-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                    <div>
-                      <p className="text-red-300 font-medium">Upgrade Failed</p>
-                      <p className="text-red-200/80 text-sm mt-1">{upgradeError}</p>
-                      {(upgradeError.includes('claim') || upgradeError.includes('Claim') || upgradeError.includes('on-chain')) && (
-                        <Link
-                          href="/marketplace"
-                          className="inline-flex items-center gap-1.5 mt-2 px-4 py-2 rounded-lg bg-cyan-600/20 border border-cyan-500/40 text-cyan-300 text-sm font-medium hover:bg-cyan-600/30 transition-colors"
-                        >
-                          Go to Marketplace to Claim OCX
-                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
-                          </svg>
-                        </Link>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
+                )}
+              </div>
+            </section>
 
-          {/* Bottom Info Bar */}
-          <div className="mt-12 p-6 rounded-2xl bg-slate-900/40 backdrop-blur-md border border-cyan-500/20">
-            <div className="flex items-center justify-between text-sm">
-              <div className="flex items-center gap-2 text-cyan-400">
-                <div className="w-2 h-2 bg-cyan-400 rounded-full animate-pulse" />
-                <span className="font-medium">HANGAR STATUS:</span>
-                <span className="text-slate-300">All systems operational</span>
-              </div>
-              
-              <div className="text-slate-400">
-                <span className="text-cyan-400">TIP:</span> Higher tier submarines unlock deeper mining zones and increased storage capacity
-              </div>
-            </div>
-          </div>
+            <section aria-labelledby="fleet-title" className="border-t border-[var(--rule)] px-6 py-6">
+              <h2 id="fleet-title" className="text-sm font-medium text-[var(--ink-dim)]">All submarines</h2>
+              <ol className="mt-2">
+                {SUBMARINE_TIERS.map((t) => {
+                  const isSelected = t.tier === selectedTier
+                  const status =
+                    t.tier === currentTier ? "Yours" : t.tier < currentTier ? "Passed" : t.tier === nextTier ? `${fmt(UPGRADE_COSTS[t.tier] ?? 0)} OCX` : "Locked"
+                  return (
+                    <li key={t.tier}>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedTier(t.tier)}
+                        aria-current={isSelected ? "true" : undefined}
+                        className={`grid w-full grid-cols-[2rem_1fr_auto] items-baseline gap-2 border-t border-[var(--rule)] py-2 text-left text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--lamp)] ${
+                          isSelected ? "text-[var(--ink)]" : "text-[var(--ink-dim)] hover:text-[var(--ink)]"
+                        }`}
+                      >
+                        <span>{t.tier}</span>
+                        <span className={isSelected ? "font-semibold" : ""}>
+                          {isSelected && <span aria-hidden className="mr-2 inline-block h-1.5 w-1.5 -translate-y-0.5 rounded-full bg-[var(--bio)]" />}
+                          {t.name}
+                        </span>
+                        <span className={t.tier === nextTier ? "text-[var(--lamp)]" : ""}>{status}</span>
+                      </button>
+                    </li>
+                  )
+                })}
+              </ol>
+            </section>
+          </aside>
         </div>
-      </div>
+      </main>
     </StyleWrapper>
   )
 }

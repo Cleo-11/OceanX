@@ -8,6 +8,7 @@
 
 import { ethers } from 'ethers'
 import { WalletManager } from './wallet'
+import { getPrimaryChain } from "./chain-config"
 
 export interface Web3AuthProvider {
   type: 'ethereum' | 'solana' | 'walletconnect'
@@ -450,10 +451,18 @@ export const SUPPORTED_CHAINS = [
   CHAIN_CONFIG.ethereum.sepolia,
 ]
 
-// Determine active chain based on environment
-export const ACTIVE_BASE_CHAIN = process.env.NEXT_PUBLIC_USE_BASE_MAINNET === 'true'
-  ? CHAIN_CONFIG.base.mainnet
-  : CHAIN_CONFIG.base.sepolia
+// The chain the game's contracts live on (lib/chain-config.ts). WalletConnect
+// sign-in used to force BASE Sepolia here, so the wallet then had to switch
+// back to Ethereum Sepolia before any transaction.
+const primaryChain = getPrimaryChain()
+export const ACTIVE_CHAIN = {
+  chainId: primaryChain.chainId,
+  name: primaryChain.name,
+  rpcUrl: primaryChain.rpcUrl,
+  blockExplorer: primaryChain.blockExplorer,
+}
+/** @deprecated use ACTIVE_CHAIN; kept for existing imports */
+export const ACTIVE_BASE_CHAIN = ACTIVE_CHAIN
 
 /**
  * Check if WalletConnect is available

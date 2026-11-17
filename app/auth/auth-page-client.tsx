@@ -2,9 +2,6 @@
 
 import { useState, useEffect, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { Anchor, ArrowLeft, Loader2, AlertCircle, Wallet, ExternalLink, Smartphone } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Alert, AlertDescription } from "@/components/ui/alert"
 import { NetworkStatus } from "@/components/network-status"
 import { 
   signInWithEthereum, 
@@ -13,7 +10,7 @@ import {
   isEthereumAvailable, 
   isCoinbaseAvailable,
   isWalletConnectAvailable,
-  ACTIVE_BASE_CHAIN
+  ACTIVE_CHAIN
 } from "@/lib/web3auth"
 
 function AuthPageContent() {
@@ -47,14 +44,7 @@ function AuthPageContent() {
   }, [authError])
 
   if (!mounted) {
-    return (
-      <div className="min-h-screen bg-gradient-to-b from-depth-950 via-depth-900 to-depth-950 flex items-center justify-center">
-        <div className="text-center">
-          <Loader2 className="w-8 h-8 text-ocean-400 animate-spin mx-auto mb-4" />
-          <p className="text-depth-400">Loading...</p>
-        </div>
-      </div>
-    )
+    return <main className="dive" />
   }
 
   const handleEthereumAuth = async () => {
@@ -147,193 +137,102 @@ function AuthPageContent() {
   const hasAnyWallet = isEthereumAvailable() || isCoinbaseAvailable()
   const walletConnectEnabled = isWalletConnectAvailable()
 
+  const wallets = [
+    {
+      id: "ethereum",
+      name: "MetaMask",
+      detail: isEthereumAvailable() ? "Browser extension" : "Not installed in this browser",
+      available: isEthereumAvailable(),
+      onClick: handleEthereumAuth,
+    },
+    {
+      id: "coinbase",
+      name: "Coinbase Wallet",
+      detail: isCoinbaseAvailable() ? "Browser extension" : "Not installed in this browser",
+      available: isCoinbaseAvailable(),
+      onClick: handleCoinbaseAuth,
+    },
+    ...(walletConnectEnabled
+      ? [{ id: "walletconnect", name: "WalletConnect", detail: "Scan a QR code with a phone wallet", available: true, onClick: handleWalletConnectAuth }]
+      : []),
+  ]
+
   return (
-    <div className="min-h-screen bg-gradient-to-b from-depth-950 via-depth-900 to-depth-950 flex items-center justify-center px-4">
-      <div className="w-full max-w-md">
-        <div className="text-center mb-8">
-          <Button
-            variant="ghost"
-            onClick={() => router.push("/")}
-            className="inline-flex items-center text-depth-400 hover:text-white mb-6 transition-colors"
-          >
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Back to Home
-          </Button>
+    <main className="dive flex min-h-[100dvh] flex-col">
+      <header className="flex items-center justify-between px-6 py-5 sm:px-10">
+        <button type="button" onClick={() => router.push("/")} className="text-lg font-semibold tracking-tight">
+          AbyssX
+        </button>
+      </header>
 
-          <div className="flex items-center justify-center mb-4">
-            <Anchor className="w-8 h-8 text-ocean-400 mr-2" />
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-ocean-400 to-abyss-400 bg-clip-text text-transparent">
-              AbyssX
-            </h1>
-          </div>
-
-          <h2 className="text-2xl font-bold text-white mb-2">Connect Your Wallet</h2>
-          <p className="text-depth-400">
-            Sign in with your Web3 wallet to start mining
+      <div className="flex flex-1 items-center px-6 pb-16 sm:px-10">
+        <div className="mx-auto w-full max-w-md">
+          <h1 className="dive-display text-4xl">Sign in with your wallet</h1>
+          <p className="mt-3 leading-relaxed text-[var(--ink-dim)]">
+            Your wallet is your account. You will be asked to sign a message to prove the address is yours; it costs
+            nothing and sends no transaction.
           </p>
-        </div>
 
-        <div className="bg-depth-800/50 backdrop-blur-sm rounded-xl p-6 border border-depth-700">
           {error && (
-            <Alert className="mb-4 border-red-500/30 bg-red-900/50">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription className="text-red-200">{error}</AlertDescription>
-            </Alert>
+            <p role="alert" className="mt-6 border-l-2 border-[var(--danger)] pl-3 text-sm">
+              {error}
+            </p>
           )}
 
-          {/* Web3 Wallet Authentication Header */}
-          <div className="flex items-center justify-center mb-4">
-            <Wallet className="w-5 h-5 text-ocean-400 mr-2" />
-            <span className="text-sm text-depth-300 font-medium">Web3 Authentication</span>
-          </div>
-          
-          {/* BASE Network Badge */}
-          <div className="flex items-center justify-center mb-6">
-            <div className="inline-flex items-center px-3 py-1.5 rounded-full bg-blue-500/20 border border-blue-500/30">
-              <div className="w-2 h-2 rounded-full bg-blue-400 mr-2 animate-pulse"></div>
-              <span className="text-xs text-blue-400 font-medium">
-                Powered by {ACTIVE_BASE_CHAIN.name}
-              </span>
-            </div>
-          </div>
-
-          {/* Network Status - Shows if user needs to switch networks */}
           {mounted && isEthereumAvailable() && (
-            <div className="mb-4">
+            <div className="mt-6">
               <NetworkStatus />
             </div>
           )}
 
-          {/* Ethereum Wallet */}
-          <Button
-            onClick={handleEthereumAuth}
-            disabled={isLoading || !isEthereumAvailable()}
-            className="w-full flex items-center justify-center px-4 py-4 bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-lg font-medium hover:from-orange-600 hover:to-orange-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed mb-3 h-14"
-          >
-            {loadingWallet === "ethereum" ? (
-              <Loader2 className="w-5 h-5 animate-spin mr-2" />
-            ) : (
-              <span className="text-2xl mr-3">🦊</span>
-            )}
-            <div className="flex flex-col items-start">
-              <span className="font-semibold">MetaMask</span>
-              {!isEthereumAvailable() && (
-                <span className="text-xs opacity-75">Not detected</span>
-              )}
-            </div>
-          </Button>
-
-          {/* Coinbase Wallet - Base Native */}
-          <Button
-            onClick={handleCoinbaseAuth}
-            disabled={isLoading || !isCoinbaseAvailable()}
-            className="w-full flex items-center justify-center px-4 py-4 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg font-medium hover:from-blue-600 hover:to-blue-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed mb-3 h-14"
-          >
-            {loadingWallet === "coinbase" ? (
-              <Loader2 className="w-5 h-5 animate-spin mr-2" />
-            ) : (
-              <span className="text-2xl mr-3">🔵</span>
-            )}
-            <div className="flex flex-col items-start">
-              <span className="font-semibold">Coinbase Wallet</span>
-              <span className="text-xs opacity-75">
-                {!isCoinbaseAvailable() ? "Not detected" : "Base native ✨"}
-              </span>
-            </div>
-          </Button>
-
-          {/* WalletConnect - Mobile Wallet Support */}
-          {walletConnectEnabled && (
-            <>
-              <div className="relative my-4">
-                <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-depth-600"></div>
-                </div>
-                <div className="relative flex justify-center text-xs">
-                  <span className="px-2 bg-depth-800 text-depth-500 flex items-center">
-                    <Smartphone className="w-3 h-3 mr-1" />
-                    Mobile Wallet
+          <ul className="mt-8 divide-y divide-[var(--rule)] border-y border-[var(--rule)]">
+            {wallets.map((w) => (
+              <li key={w.id}>
+                <button
+                  type="button"
+                  onClick={w.onClick}
+                  disabled={isLoading || !w.available}
+                  className="group flex w-full items-center justify-between gap-4 py-4 text-left disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--lamp)]"
+                >
+                  <span>
+                    <span className="block font-semibold">{w.name}</span>
+                    <span className="block text-sm text-[var(--ink-dim)]">{w.detail}</span>
                   </span>
-                </div>
-              </div>
-              
-              <Button
-                onClick={handleWalletConnectAuth}
-                disabled={isLoading}
-                className="w-full flex items-center justify-center px-4 py-4 bg-gradient-to-r from-sky-500 to-cyan-600 text-white rounded-lg font-medium hover:from-sky-600 hover:to-cyan-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed mb-4 h-14"
-              >
-                {loadingWallet === "walletconnect" ? (
-                  <Loader2 className="w-5 h-5 animate-spin mr-2" />
-                ) : (
-                  <span className="text-2xl mr-3">🔗</span>
-                )}
-                <div className="flex flex-col items-start">
-                  <span className="font-semibold">WalletConnect</span>
-                  <span className="text-xs opacity-75">Mobile wallet on {ACTIVE_BASE_CHAIN.name}</span>
-                </div>
-              </Button>
-            </>
-          )}
+                  <span className="text-sm text-[var(--bio)] group-disabled:text-[var(--ink-faint)]">
+                    {loadingWallet === w.id ? "Check your wallet…" : w.available ? "Connect" : ""}
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
 
-          {/* No wallet detected message */}
           {!hasAnyWallet && !walletConnectEnabled && (
-            <div className="mt-4 p-4 rounded-lg bg-depth-700/50 border border-depth-600">
-              <p className="text-sm text-depth-300 mb-3">
-                No wallet detected. Install one of these to continue:
-              </p>
-              <div className="flex flex-wrap gap-2">
-                <a
-                  href="https://metamask.io/download/"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center px-3 py-1.5 rounded-md bg-orange-500/20 text-orange-400 text-xs font-medium hover:bg-orange-500/30 transition-colors"
-                >
-                  MetaMask <ExternalLink className="w-3 h-3 ml-1" />
-                </a>
-                <a
-                  href="https://www.coinbase.com/wallet"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center px-3 py-1.5 rounded-md bg-blue-500/20 text-blue-400 text-xs font-medium hover:bg-blue-500/30 transition-colors"
-                >
-                  Coinbase <ExternalLink className="w-3 h-3 ml-1" />
-                </a>
-              </div>
-            </div>
+            <p className="mt-6 text-sm leading-relaxed text-[var(--ink-dim)]">
+              You need a wallet to play. Install{" "}
+              <a href="https://metamask.io/download/" target="_blank" rel="noopener noreferrer" className="dive-link">
+                MetaMask
+              </a>{" "}
+              or{" "}
+              <a href="https://www.coinbase.com/wallet" target="_blank" rel="noopener noreferrer" className="dive-link">
+                Coinbase Wallet
+              </a>
+              , then reload this page.
+            </p>
           )}
 
-          {/* Security info */}
-          <div className="mt-6 pt-4 border-t border-depth-700">
-            <div className="flex items-start space-x-2 text-xs text-depth-400">
-              <span className="text-ocean-400">🔐</span>
-              <p>
-                We use <span className="text-ocean-400 font-medium">Sign-In with Ethereum (SIWE)</span> for secure, 
-                passwordless authentication. Your wallet signature proves ownership without sharing your private keys.
-              </p>
-            </div>
-          </div>
+          <p className="mt-8 text-xs leading-relaxed text-[var(--ink-dim)]">
+            The game runs on {ACTIVE_CHAIN.name}, a test network. New here? Signing in creates your account and your
+            first submarine.
+          </p>
         </div>
-
-        <p className="text-xs text-depth-500 text-center mt-6">
-          By connecting your wallet, you agree to our Terms of Service and Privacy Policy
-        </p>
       </div>
-    </div>
+    </main>
   )
 }
 
 export default function AuthPageClient() {
   return (
-    <Suspense
-      fallback={
-        <div className="min-h-screen bg-gradient-to-b from-depth-950 via-depth-900 to-depth-950 flex items-center justify-center">
-          <div className="text-center">
-            <Loader2 className="w-8 h-8 text-ocean-400 animate-spin mx-auto mb-4" />
-            <p className="text-depth-400">Loading...</p>
-          </div>
-        </div>
-      }
-    >
+    <Suspense fallback={<main className="dive" />}>
       <AuthPageContent />
     </Suspense>
   )

@@ -14,13 +14,13 @@
  */
 
 import { Canvas, useFrame, useThree } from "@react-three/fiber"
-import { useEffect, useMemo, useRef, type MutableRefObject } from "react"
+import { useEffect, useMemo, useRef, type MutableRefObject, type ReactNode } from "react"
 import * as THREE from "three"
 import type { PlayerPosition, ResourceNode, ResourceType } from "@/lib/types"
 
 export const WORLD_SCALE = 1 / 20 // 2000 world units -> 100 scene units
 
-const PALETTE = {
+export const PALETTE = {
   abyss: "#04161a",
   silt: "#5c5a4c",
   siltDark: "#2b2c25",
@@ -440,6 +440,94 @@ function SiltPlume({ origin, active }: { origin: THREE.Vector3 | null; active: b
 }
 
 // ── submarine ───────────────────────────────────────────────────────────────
+/**
+ * The submarine's body (forward is +x). Shared by the dive scene and the
+ * hangar. `propRef` lets the owner spin the propeller.
+ */
+export function SubmarineModel({
+  hullColor,
+  propRef,
+  children,
+}: {
+  hullColor: string
+  propRef?: MutableRefObject<THREE.Group | null>
+  children?: ReactNode
+}) {
+  // Weathered paint: the tier colour, pulled towards grey.
+  const paint = useMemo(() => new THREE.Color(hullColor).lerp(new THREE.Color("#5b5a52"), 0.42), [hullColor])
+  const ownPropRef = useRef<THREE.Group | null>(null)
+  return (
+    <>
+      {/* pressure hull */}
+      <mesh rotation={[0, 0, Math.PI / 2]} castShadow receiveShadow>
+        <capsuleGeometry args={[0.52, 1.7, 8, 20]} />
+        <meshStandardMaterial color={paint} roughness={0.62} metalness={0.35} />
+      </mesh>
+      {/* hull bands */}
+      {[-0.55, 0.15, 0.75].map((bx) => (
+        <mesh key={bx} position={[bx, 0, 0]} rotation={[0, Math.PI / 2, 0]}>
+          <torusGeometry args={[0.53, 0.025, 8, 32]} />
+          <meshStandardMaterial color="#2b2a26" roughness={0.6} metalness={0.6} />
+        </mesh>
+      ))}
+      {/* side thrusters */}
+      {[-0.6, 0.6].map((zz) => (
+        <mesh key={zz} position={[-0.55, -0.1, zz]} rotation={[0, 0, Math.PI / 2]} castShadow>
+          <cylinderGeometry args={[0.13, 0.13, 0.42, 14]} />
+          <meshStandardMaterial color="#3d3b35" roughness={0.55} metalness={0.6} />
+        </mesh>
+      ))}
+      {/* hatch */}
+      <mesh position={[-0.1, 0.79, 0]}>
+        <cylinderGeometry args={[0.13, 0.13, 0.05, 16]} />
+        <meshStandardMaterial color="#3a3a35" roughness={0.5} metalness={0.7} />
+      </mesh>
+      {/* sail */}
+      <mesh position={[-0.1, 0.55, 0]} rotation={[0, 0, Math.PI / 2]} scale={[0.85, 1, 0.55]} castShadow>
+        <capsuleGeometry args={[0.24, 0.42, 6, 16]} />
+        <meshStandardMaterial color={paint} roughness={0.7} metalness={0.3} />
+      </mesh>
+      {/* viewport */}
+      <mesh position={[1.22, 0.05, 0]}>
+        <sphereGeometry args={[0.26, 20, 16]} />
+        <meshStandardMaterial color="#0c1a1c" roughness={0.08} metalness={0.9} emissive="#3a2a12" emissiveIntensity={0.35} />
+      </mesh>
+      {/* skids */}
+      {[-0.32, 0.32].map((zz) => (
+        <mesh key={zz} position={[0.05, -0.55, zz]} castShadow>
+          <boxGeometry args={[1.9, 0.06, 0.07]} />
+          <meshStandardMaterial color="#3a3934" roughness={0.8} metalness={0.5} />
+        </mesh>
+      ))}
+      {/* lamp housings */}
+      {[-0.3, 0.3].map((zz) => (
+        <mesh key={zz} position={[1.05, -0.32, zz]} rotation={[0, 0, Math.PI / 2]}>
+          <cylinderGeometry args={[0.07, 0.09, 0.14, 12]} />
+          <meshStandardMaterial color="#262521" emissive={PALETTE.lamp} emissiveIntensity={2.2} />
+        </mesh>
+      ))}
+      {/* tail fins + propeller */}
+      <mesh position={[-1.25, 0, 0]} castShadow>
+        <boxGeometry args={[0.4, 0.9, 0.05]} />
+        <meshStandardMaterial color={paint} roughness={0.7} />
+      </mesh>
+      <mesh position={[-1.25, 0, 0]} castShadow>
+        <boxGeometry args={[0.4, 0.05, 0.9]} />
+        <meshStandardMaterial color={paint} roughness={0.7} />
+      </mesh>
+      <group ref={propRef ?? ownPropRef} position={[-1.52, 0, 0]}>
+        {[0, 1, 2].map((i) => (
+          <mesh key={i} rotation={[(i * Math.PI * 2) / 3, 0, 0]}>
+            <boxGeometry args={[0.04, 0.5, 0.1]} />
+            <meshStandardMaterial color="#6d5a3a" roughness={0.4} metalness={0.8} />
+          </mesh>
+        ))}
+      </group>
+      {children}
+    </>
+  )
+}
+
 function Submarine({
   playerRef,
   hullColor,
@@ -450,15 +538,12 @@ function Submarine({
   followRef: MutableRefObject<THREE.Vector3>
 }) {
   const groupRef = useRef<THREE.Group>(null)
-  const propRef = useRef<THREE.Group>(null)
+  const propRef = useRef<THREE.Group | null>(null)
   const lightTarget = useMemo(() => new THREE.Object3D(), [])
   const spotRef = useRef<THREE.SpotLight>(null)
   const last = useRef({ x: NaN, y: NaN, speed: 0 })
   const smoothPos = useRef(new THREE.Vector3())
   const initialised = useRef(false)
-
-  // Weathered paint: the tier colour, pulled towards grey.
-  const paint = useMemo(() => new THREE.Color(hullColor).lerp(new THREE.Color("#5b5a52"), 0.35), [hullColor])
 
   useEffect(() => {
     if (spotRef.current) spotRef.current.target = lightTarget
@@ -492,102 +577,46 @@ function Submarine({
 
   return (
     <group ref={groupRef}>
-      {/* pressure hull: forward is +x */}
-      <mesh rotation={[0, 0, Math.PI / 2]} castShadow>
-        <capsuleGeometry args={[0.52, 1.7, 8, 20]} />
-        <meshStandardMaterial color={paint} roughness={0.62} metalness={0.35} />
-      </mesh>
-      {/* hull bands */}
-      {[-0.55, 0.15, 0.75].map((bx) => (
-        <mesh key={bx} position={[bx, 0, 0]} rotation={[0, Math.PI / 2, 0]}>
-          <torusGeometry args={[0.53, 0.025, 8, 32]} />
-          <meshStandardMaterial color="#2b2a26" roughness={0.6} metalness={0.6} />
-        </mesh>
-      ))}
-      {/* side thrusters */}
-      {[-0.6, 0.6].map((zz) => (
-        <mesh key={zz} position={[-0.55, -0.1, zz]} rotation={[0, 0, Math.PI / 2]} castShadow>
-          <cylinderGeometry args={[0.13, 0.13, 0.42, 14]} />
-          <meshStandardMaterial color="#3d3b35" roughness={0.55} metalness={0.6} />
-        </mesh>
-      ))}
-      {/* hatch */}
-      <mesh position={[-0.1, 0.79, 0]}>
-        <cylinderGeometry args={[0.13, 0.13, 0.05, 16]} />
-        <meshStandardMaterial color="#3a3a35" roughness={0.5} metalness={0.7} />
-      </mesh>
-      {/* sail */}
-      <mesh position={[-0.1, 0.55, 0]} castShadow>
-        <boxGeometry args={[0.75, 0.42, 0.34]} />
-        <meshStandardMaterial color={paint} roughness={0.7} metalness={0.3} />
-      </mesh>
-      {/* viewport */}
-      <mesh position={[1.22, 0.05, 0]}>
-        <sphereGeometry args={[0.26, 20, 16]} />
-        <meshStandardMaterial color="#0c1a1c" roughness={0.08} metalness={0.9} emissive="#3a2a12" emissiveIntensity={0.35} />
-      </mesh>
-      {/* skids */}
-      {[-0.32, 0.32].map((zz) => (
-        <mesh key={zz} position={[0.05, -0.55, zz]} castShadow>
-          <boxGeometry args={[1.9, 0.06, 0.07]} />
-          <meshStandardMaterial color="#3a3934" roughness={0.8} metalness={0.5} />
-        </mesh>
-      ))}
-      {/* lamp housings */}
-      {[-0.3, 0.3].map((zz) => (
-        <mesh key={zz} position={[1.05, -0.32, zz]} rotation={[0, 0, Math.PI / 2]}>
-          <cylinderGeometry args={[0.07, 0.09, 0.14, 12]} />
-          <meshStandardMaterial color="#262521" emissive={PALETTE.lamp} emissiveIntensity={2.2} />
-        </mesh>
-      ))}
-      {/* tail fins + propeller */}
-      <mesh position={[-1.25, 0, 0]} castShadow>
-        <boxGeometry args={[0.4, 0.9, 0.05]} />
-        <meshStandardMaterial color={paint} roughness={0.7} />
-      </mesh>
-      <mesh position={[-1.25, 0, 0]} castShadow>
-        <boxGeometry args={[0.4, 0.05, 0.9]} />
-        <meshStandardMaterial color={paint} roughness={0.7} />
-      </mesh>
-      <group ref={propRef} position={[-1.52, 0, 0]}>
-        {[0, 1, 2].map((i) => (
-          <mesh key={i} rotation={[(i * Math.PI * 2) / 3, 0, 0]} position={[0, 0, 0]}>
-            <boxGeometry args={[0.04, 0.5, 0.1]} />
-            <meshStandardMaterial color="#6d5a3a" roughness={0.4} metalness={0.8} />
-          </mesh>
-        ))}
-      </group>
-
-      {/* the lamp: the only warm light in the scene */}
-      <primitive object={lightTarget} position={[7, -3.2, 0]} />
-      <spotLight
-        ref={spotRef}
-        position={[1.1, -0.3, 0]}
-        color={PALETTE.lamp}
-        intensity={240}
-        distance={42}
-        angle={0.78}
-        penumbra={0.65}
-        decay={1.35}
-        castShadow
-        shadow-mapSize-width={1024}
-        shadow-mapSize-height={1024}
-        shadow-bias={-0.0004}
-      />
-      {/* faint fill so the hull reads against the dark */}
-      <pointLight position={[0, 1.8, 0.6]} color="#9dbfb8" intensity={12} distance={6} decay={2} />
-      {/* lamp spill under and around the hull */}
-      <pointLight position={[1.4, -1.2, 0]} color={PALETTE.lamp} intensity={2.5} distance={6} decay={1.8} />
+      <SubmarineModel hullColor={hullColor} propRef={propRef}>
+        {/* the lamp: the only warm light in the scene */}
+        <primitive object={lightTarget} position={[7, -3.2, 0]} />
+        <spotLight
+          ref={spotRef}
+          position={[1.1, -0.3, 0]}
+          color={PALETTE.lamp}
+          intensity={240}
+          distance={42}
+          angle={0.78}
+          penumbra={0.65}
+          decay={1.35}
+          castShadow
+          shadow-mapSize-width={1024}
+          shadow-mapSize-height={1024}
+          shadow-bias={-0.0004}
+        />
+        {/* faint fill so the hull reads against the dark */}
+        <pointLight position={[0, 1.8, 0.6]} color="#9dbfb8" intensity={12} distance={6} decay={2} />
+        {/* lamp spill under and around the hull */}
+        <pointLight position={[1.4, -1.2, 0]} color={PALETTE.lamp} intensity={2.5} distance={6} decay={1.8} />
+      </SubmarineModel>
     </group>
   )
 }
 
-function FollowCamera({ followRef }: { followRef: MutableRefObject<THREE.Vector3> }) {
+function FollowCamera({
+  followRef,
+  framing,
+}: {
+  followRef: MutableRefObject<THREE.Vector3>
+  framing: { x: number; z: number }
+}) {
   const { camera } = useThree()
   const look = useRef(new THREE.Vector3())
   const ready = useRef(false)
   useFrame((_, delta) => {
-    const f = followRef.current
+    // framing shifts the view so the submarine sits off-centre (e.g. to
+    // leave room for text on the landing page)
+    const f = followRef.current.clone().add(new THREE.Vector3(framing.x, 0, framing.z))
     const desired = new THREE.Vector3(f.x, f.y + 15, f.z + 11)
     if (!ready.current) {
       camera.position.copy(desired)
@@ -609,9 +638,13 @@ export interface DeepSeaSceneProps {
   targetNodeId: string | null
   hullColor: string
   isMining: boolean
+  /** Offset of the camera target from the submarine, in scene units. */
+  framing?: { x: number; z: number }
 }
 
-export function DeepSeaScene({ playerRef, nodes, targetNodeId, hullColor, isMining }: DeepSeaSceneProps) {
+const CENTRED = { x: 0, z: 0 }
+
+export function DeepSeaScene({ playerRef, nodes, targetNodeId, hullColor, isMining, framing = CENTRED }: DeepSeaSceneProps) {
   const followRef = useRef(new THREE.Vector3(25, 0, 25))
   const geometries = useNoduleGeometries()
   const target = nodes.find((n) => n.id === targetNodeId) ?? null
@@ -644,7 +677,7 @@ export function DeepSeaScene({ playerRef, nodes, targetNodeId, hullColor, isMini
       <Submarine playerRef={playerRef} hullColor={hullColor} followRef={followRef} />
       <SiltPlume origin={plumeOrigin} active={isMining} />
       <MarineSnow followRef={followRef} />
-      <FollowCamera followRef={followRef} />
+      <FollowCamera followRef={followRef} framing={framing} />
     </Canvas>
   )
 }

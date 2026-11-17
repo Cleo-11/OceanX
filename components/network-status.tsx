@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react"
 import { WalletManager } from "@/lib/wallet"
 import { getChainName, getPrimaryChain, isChainAllowed } from "@/lib/chain-config"
-import { AlertCircle, CheckCircle2 } from "lucide-react"
 
 interface NetworkStatusProps {
   onNetworkChange?: (chainId: number) => void
@@ -13,6 +12,7 @@ export function NetworkStatus({ onNetworkChange }: NetworkStatusProps) {
   const [chainId, setChainId] = useState<number | null>(null)
   const [isAllowed, setIsAllowed] = useState<boolean>(true)
   const [isSwitching, setIsSwitching] = useState(false)
+  const [switchError, setSwitchError] = useState<string | null>(null)
 
   useEffect(() => {
     checkNetwork()
@@ -50,6 +50,7 @@ export function NetworkStatus({ onNetworkChange }: NetworkStatusProps) {
 
   async function handleSwitchNetwork() {
     setIsSwitching(true)
+    setSwitchError(null)
     try {
       const walletManager = WalletManager.getInstance()
       const primaryChain = getPrimaryChain()
@@ -57,7 +58,7 @@ export function NetworkStatus({ onNetworkChange }: NetworkStatusProps) {
       await checkNetwork()
     } catch (error) {
       console.error("Failed to switch network:", error)
-      alert("Failed to switch network. Please switch manually in your wallet.")
+      setSwitchError(`Your wallet did not switch. Switch it to ${getPrimaryChain().name} manually.`)
     } finally {
       setIsSwitching(false)
     }
@@ -70,31 +71,27 @@ export function NetworkStatus({ onNetworkChange }: NetworkStatusProps) {
   const chainName = getChainName(chainId)
   const primaryChain = getPrimaryChain()
 
-  if (isAllowed) {
+  const onPrimary = chainId === primaryChain.chainId
+
+  if (onPrimary) {
     return (
-      <div className="flex items-center gap-2 text-sm text-green-400 bg-green-500/10 px-3 py-2 rounded-lg border border-green-500/30">
-        <CheckCircle2 className="w-4 h-4" />
-        <span>Connected to {chainName}</span>
-      </div>
+      <p className="flex items-center gap-2 text-sm text-[var(--ink-dim)]">
+        <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-[var(--bio)]" />
+        Wallet is on {chainName}
+      </p>
     )
   }
 
   return (
-    <div className="flex items-center gap-3 text-sm bg-yellow-500/10 px-4 py-3 rounded-lg border border-yellow-500/30">
-      <AlertCircle className="w-5 h-5 text-yellow-400 flex-shrink-0" />
-      <div className="flex-1">
-        <p className="text-yellow-400 font-medium">Wrong Network</p>
-        <p className="text-yellow-300/80 text-xs mt-0.5">
-          You're on {chainName}. Please switch to {primaryChain.name}.
-        </p>
-      </div>
-      <button
-        onClick={handleSwitchNetwork}
-        disabled={isSwitching}
-        className="px-4 py-2 bg-yellow-500 hover:bg-yellow-600 text-slate-900 font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
-      >
-        {isSwitching ? "Switching..." : "Switch Network"}
+    <div role={isAllowed ? "status" : "alert"} className="border-l-2 border-[var(--lamp)] pl-3 text-sm">
+      <p>
+        Your wallet is on {chainName}. The game uses {primaryChain.name}
+        {isAllowed ? ", and will ask to switch before any transaction." : "."}
+      </p>
+      <button type="button" onClick={handleSwitchNetwork} disabled={isSwitching} className="dive-link mt-1">
+        {isSwitching ? "Switching…" : `Switch to ${primaryChain.name}`}
       </button>
+      {switchError && <p className="mt-1 text-[var(--ink-dim)]">{switchError}</p>}
     </div>
   )
 }

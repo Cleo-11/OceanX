@@ -649,15 +649,22 @@ h1, h2, h3, h4, h5, h6 {
   }
 }
 
-/* ── Dive HUD (game view) ─────────────────────────────────────────────────
-   An instrument panel for a night dive: one condensed face with tabular
-   figures, sentence case, thin rules, no glows. Warm = the lamp and alerts,
-   cyan = things you can interact with (it matches the deposits' glow). */
+/* ── Dive style ───────────────────────────────────────────────────────────
+   One visual language for every screen: a night dive. Instrument-panel UI,
+   one condensed face with tabular figures, sentence case, thin rules, no
+   glows. Warm (lamp) = battery, warnings and money leaving your wallet;
+   cyan (bio) = things you can interact with. `.dive` is for whole pages,
+   `.dive-hud` for overlays on the game view; both carry the same tokens. */
+.dive,
 .dive-hud {
+  --abyss: #04161a;
+  --abyss-2: #071f23;
   --ink: #cfdad4;
   --ink-dim: #7e9692;
+  --ink-faint: #4f6764;
   --rule: rgba(207, 218, 212, 0.12);
   --panel: rgba(6, 22, 25, 0.8);
+  --panel-solid: #08201f;
   --lamp: #f2a33a;
   --bio: #5fe3d0;
   --danger: #e5604a;
@@ -665,6 +672,113 @@ h1, h2, h3, h4, h5, h6 {
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.005em;
   color: var(--ink);
+}
+.dive {
+  min-height: 100dvh;
+  background: var(--abyss);
+}
+.dive h1,
+.dive h2,
+.dive h3 {
+  font-family: inherit;
+  letter-spacing: -0.01em;
+}
+.dive-display {
+  font-weight: 600;
+  line-height: 1.02;
+  letter-spacing: -0.025em;
+}
+.dive-link {
+  color: var(--bio);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1px;
+}
+.dive-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.6rem 1.1rem;
+  font-weight: 600;
+  font-size: 0.95rem;
+  border-radius: 4px;
+  color: #04161a;
+  background: var(--bio);
+  transition: background-color 120ms ease-out;
+}
+.dive-btn:hover:not(:disabled) {
+  background: #8af0e2;
+}
+.dive-btn:disabled {
+  background: rgba(95, 227, 208, 0.3);
+  cursor: not-allowed;
+}
+.dive-btn--quiet {
+  color: var(--ink);
+  background: transparent;
+  border: 1px solid rgba(207, 218, 212, 0.22);
+}
+.dive-btn--quiet:hover:not(:disabled) {
+  background: rgba(207, 218, 212, 0.06);
+  border-color: rgba(207, 218, 212, 0.4);
+}
+.dive-btn--quiet:disabled {
+  background: transparent;
+  color: var(--ink-faint);
+}
+.dive-btn--warm {
+  background: var(--lamp);
+}
+.dive-btn--warm:hover:not(:disabled) {
+  background: #f6b964;
+}
+.dive-btn--warm:disabled {
+  background: rgba(242, 163, 58, 0.3);
+}
+.dive-btn:focus-visible,
+.dive-link:focus-visible,
+.dive-input:focus-visible,
+.dive-tab:focus-visible {
+  outline: 2px solid var(--lamp);
+  outline-offset: 2px;
+}
+.dive-input {
+  width: 100%;
+  padding: 0.55rem 0.75rem;
+  color: var(--ink);
+  background: rgba(4, 22, 26, 0.6);
+  border: 1px solid rgba(207, 218, 212, 0.2);
+  border-radius: 4px;
+}
+.dive-input::placeholder {
+  color: var(--ink-faint);
+}
+.dive-rule {
+  border: 0;
+  border-top: 1px solid var(--rule);
+}
+.dive-tab {
+  padding: 0.5rem 0.25rem;
+  font-size: 0.9rem;
+  color: var(--ink-dim);
+  border-bottom: 2px solid transparent;
+}
+.dive-tab[aria-selected="true"] {
+  color: var(--ink);
+  border-bottom-color: var(--bio);
+}
+/* A readout row: label left, value right, figures aligned. */
+.dive-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.35rem 0;
+  font-size: 0.875rem;
+}
+.dive-row > :first-child {
+  color: var(--ink-dim);
 }
 .dive-panel {
   background: var(--panel);

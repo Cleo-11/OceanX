@@ -1,109 +1,84 @@
-import { useState } from "react";
+"use client"
 
-// Cartoon scuba diver SVG (simple, can be improved or replaced with a more detailed SVG)
-const ScubaDiverSVG = ({ style = {} }) => (
-  <svg
-    width="120"
-    height="120"
-    viewBox="0 0 120 120"
-    fill="none"
-    xmlns="http://www.w3.org/2000/svg"
-    style={style}
-  >
-    {/* Body */}
-    <ellipse cx="60" cy="80" rx="18" ry="28" fill="#2d3748" />
-    {/* Head */}
-    <circle cx="60" cy="45" r="14" fill="#fbbf24" stroke="#22223b" strokeWidth="2" />
-    {/* Mask */}
-    <ellipse cx="60" cy="45" rx="10" ry="8" fill="#60a5fa" stroke="#22223b" strokeWidth="2" />
-    {/* Eyes */}
-    <circle cx="56" cy="45" r="1.5" fill="#22223b" />
-    <circle cx="64" cy="45" r="1.5" fill="#22223b" />
-    {/* Mouth */}
-    <ellipse cx="60" cy="51" rx="3" ry="1.2" fill="#22223b" />
-    {/* Oxygen tank */}
-    <rect x="72" y="70" width="8" height="22" rx="4" fill="#60a5fa" stroke="#22223b" strokeWidth="2" />
-    {/* Fins */}
-    <ellipse cx="50" cy="110" rx="6" ry="2.5" fill="#60a5fa" />
-    <ellipse cx="70" cy="110" rx="6" ry="2.5" fill="#60a5fa" />
-    {/* Bubbles */}
-    <circle cx="80" cy="25" r="3" fill="#bae6fd" />
-    <circle cx="90" cy="15" r="2" fill="#bae6fd" />
-    <circle cx="100" cy="8" r="1.5" fill="#bae6fd" />
-  </svg>
-);
+import { useEffect, useRef, useState } from "react"
 
-const guideSteps = [
+/** First-dive briefing: what the controls are and how the loop works. */
+const steps: { title: string; body: string; keys?: string[] }[] = [
   {
-    message: "Welcome to AbyssX! 🌊",
-    sub: "I'm your scuba guide. Ready to explore the ocean?",
+    title: "Steer with the lamp",
+    body: "W and S drive forward and back, A and D turn. Arrow keys work too. It is dark down here: your lamp lights the way.",
+    keys: ["W", "A", "S", "D"],
   },
   {
-    message: "Move your submarine",
-    sub: "Use the controls or arrow keys to navigate the ocean floor.",
+    title: "Follow the glow",
+    body: "Deposits give off faint blue-green light, and the sonar in the corner maps them. Get close until a ring appears around one.",
   },
   {
-    message: "Mine resources",
-    sub: "Click on resource nodes to mine valuable minerals.",
+    title: "Drill",
+    body: "Press F to mine the deposit in reach. What you mine goes into your hold, and the hold has a limit for each resource.",
+    keys: ["F"],
   },
   {
-    message: "Upgrade your submarine",
-    sub: "Visit the store to upgrade your sub for deeper exploration!",
+    title: "Sell, claim, upgrade",
+    body: "Open the menu (I) to sell your hold for OCX and claim it to your wallet. Press U to upgrade to a sub with a bigger hold and battery.",
+    keys: ["I", "U"],
   },
-  {
-    message: "Good luck!",
-    sub: "Dive in and become the top ocean miner!",
-  },
-];
+]
 
 export function ScubaDiverGuide({ onFinish }: { onFinish: () => void }) {
-  const [step, setStep] = useState(0);
+  const [step, setStep] = useState(0)
+  const last = step === steps.length - 1
+  const panelRef = useRef<HTMLDivElement>(null)
+  const current = steps[step]
 
-  const handleNext = () => {
-    if (step < guideSteps.length - 1) setStep(step + 1);
-    else onFinish();
-  };
-
-  const handleSkip = () => onFinish();
+  useEffect(() => {
+    panelRef.current?.focus()
+  }, [step])
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="relative flex flex-col items-center">
-        <div
-          className="animate-bounce"
-          style={{ transition: "transform 0.5s" }}
-        >
-          <ScubaDiverSVG />
-        </div>
-        <div className="relative mt-4">
-          <div className="absolute -top-8 left-1/2 -translate-x-1/2 w-64">
-            <div className="rounded-2xl bg-white/90 border border-cyan-400 shadow-lg px-6 py-4 text-center">
-              <div className="text-lg font-bold text-cyan-700">
-                {guideSteps[step].message}
-              </div>
-              <div className="text-sm text-cyan-900 mt-1">
-                {guideSteps[step].sub}
-              </div>
-              <div className="flex justify-center gap-4 mt-4">
-                {step < guideSteps.length - 1 && (
-                  <button
-                    className="px-4 py-1 rounded bg-cyan-400 text-white font-semibold hover:bg-cyan-500 transition"
-                    onClick={handleNext}
-                  >
-                    Next
-                  </button>
-                )}
-                <button
-                  className="px-4 py-1 rounded bg-slate-400 text-white font-semibold hover:bg-slate-500 transition"
-                  onClick={handleSkip}
-                >
-                  {step < guideSteps.length - 1 ? "Skip" : "Close"}
-                </button>
-              </div>
-            </div>
+    <div className="dive-hud fixed inset-0 z-[80] flex items-end justify-center bg-[rgba(2,10,12,0.55)] p-4 sm:items-center">
+      <div
+        ref={panelRef}
+        tabIndex={-1}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="briefing-title"
+        className="dive-panel w-full max-w-md bg-[var(--panel-solid)] p-6 outline-none"
+      >
+        <p className="text-xs text-[var(--ink-dim)]">
+          Dive briefing, {step + 1} of {steps.length}
+        </p>
+        <h2 id="briefing-title" className="mt-1 text-xl font-semibold">
+          {current.title}
+        </h2>
+        <p className="mt-2 text-sm leading-relaxed text-[var(--ink-dim)]">{current.body}</p>
+        {current.keys && (
+          <div className="mt-4 flex gap-1.5" aria-hidden>
+            {current.keys.map((k) => (
+              <kbd key={k} className="min-w-[2rem] rounded border border-[var(--rule)] px-2 py-1 text-center text-sm">
+                {k}
+              </kbd>
+            ))}
+          </div>
+        )}
+        <div className="mt-6 flex items-center justify-between">
+          <div className="flex gap-1.5" aria-hidden>
+            {steps.map((_, i) => (
+              <span key={i} className={`h-1 w-5 ${i <= step ? "bg-[var(--bio)]" : "bg-[var(--rule)]"}`} />
+            ))}
+          </div>
+          <div className="flex gap-3">
+            {!last && (
+              <button type="button" onClick={onFinish} className="dive-btn dive-btn--quiet">
+                Skip
+              </button>
+            )}
+            <button type="button" onClick={() => (last ? onFinish() : setStep(step + 1))} className="dive-btn">
+              {last ? "Start diving" : "Next"}
+            </button>
           </div>
         </div>
       </div>
     </div>
-  );
+  )
 }

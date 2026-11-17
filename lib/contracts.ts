@@ -1,4 +1,5 @@
 import { walletManager } from "./wallet"
+import { getPrimaryChain } from "./chain-config"
 import { env } from "./env"
 import { ethers, BrowserProvider } from 'ethers'
 import type { TxEvent } from './state-machines/tx-lifecycle'
@@ -298,7 +299,8 @@ export async function getPlayerOCXBalance(address: string): Promise<string> {
  * This is a read-only call that works even when MetaMask is not connected.
  */
 export async function getOCXBalanceReadOnly(address: string): Promise<string> {
-  const rpcUrl = process.env.NEXT_PUBLIC_RPC_URL || 'https://sepolia.infura.io/v3/'
+  // Same chain and public endpoint as the rest of the app (lib/chain-config.ts).
+  const rpcUrl = getPrimaryChain().rpcUrl
   const provider = new ethers.JsonRpcProvider(rpcUrl)
   const tokenContract = new ethers.Contract(
     CONTRACT_ADDRESSES.OCEAN_X_TOKEN,
