@@ -185,6 +185,15 @@ export function OceanMiningGame({
   const [sessionId, setSessionId] = useState<string | null>(null)
   const sessionIdRef = useRef<string | null>(null)
   sessionIdRef.current = sessionId
+  // Joining the game server: the ocean has no deposits until it answers.
+  const [world, setWorld] = useState<
+    | { status: "idle" | "signing" | "joining" | "ready" }
+    | { status: "error"; message: string }
+  >({ status: "idle" })
+  const joinTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => () => {
+    if (joinTimeoutRef.current) clearTimeout(joinTimeoutRef.current)
+  }, [])
   // Multiplayer disabled: Only single player state is used
   // const [otherPlayers, setOtherPlayers] = useState<OtherPlayer[]>([])
   const [walletAddress, setWalletAddress] = useState<string>(initialWalletAddress)
@@ -377,13 +386,23 @@ export function OceanMiningGame({
         wsManager.on("movement-rejected", handleMovementRejected);
         wsManager.on(JOIN_ERROR_EVENT, handleJoinError);
         wsManager.on("error", handleWebSocketError);
-        const connection = walletManager.getConnection();
+        // After a page reload the wallet connection is not cached yet:
+        // restore it (silently when the site is already authorised) instead
+        // of skipping the join, which left the ocean empty with no message.
+        let connection = walletManager.getConnection();
+        if (!connection) {
+          try {
+            connection = await walletManager.ensureConnected();
+          } catch (connectErr) {
+            console.warn("[OceanMiningGame] Wallet not available:", connectErr);
+          }
+        }
         if (connection) {
           setWalletAddress(connection.address);
-          await signAndJoin(connection.address);
-          await loadPlayerData(connection.address);
+          await joinWorld(connection.address);
+          loadPlayerData(connection.address).catch((err) => console.error("Failed to load player data:", err));
         } else {
-          console.warn("[OceanMiningGame] walletManager.getConnection() returned null or undefined");
+          setWorld({ status: "error", message: "Connect your wallet to load the ocean." });
         }
         sendConnectionEvent("CONNECTED");
       } catch (error) {
@@ -438,6 +457,49 @@ export function OceanMiningGame({
    * actually joined and ran entirely in the browser. After a dropped
    * connection the socket rejoins with a resume token, without a prompt.
    */
+  /**
+   * Sign in to the game server and wait for the world, reporting each step
+   * on screen. Deposits only exist once the server has sent them.
+   */
+  const joinWorld = async (address: string) => {
+    if (joinTimeoutRef.current) clearTimeout(joinTimeoutRef.current)
+    setWorld({ status: "signing" })
+    try {
+      await signAndJoin(address)
+    } catch (err: any) {
+      const rejected = err?.code === 4001 || err?.code === "ACTION_REJECTED" || /reject|denied/i.test(String(err?.message))
+      setWorld({
+        status: "error",
+        message: rejected
+          ? "The sign-in request was declined. Sign it to load the ocean."
+          : "Could not sign in to the game server.",
+      })
+      return
+    }
+    setWorld((prev) => (prev.status === "ready" ? prev : { status: "joining" }))
+    joinTimeoutRef.current = setTimeout(() => {
+      joinTimeoutRef.current = null
+      setWorld((prev) =>
+        prev.status === "ready"
+          ? prev
+          : { status: "error", message: "The game server did not respond. It may be waking up — try again in a moment." },
+      )
+    }, 20000)
+  }
+
+  const retryJoin = async () => {
+    try {
+      const connection = walletManager.getConnection() ?? (await walletManager.ensureConnected())
+      if (!wsManager.isConnected()) {
+        await wsManager.connect()
+      }
+      await joinWorld(connection.address)
+    } catch (err) {
+      console.error("Retry join failed:", err)
+      setWorld({ status: "error", message: "Could not reach the game server. Check your connection and try again." })
+    }
+  }
+
   const signAndJoin = async (address: string) => {
     const payload = createJoinSignaturePayload(address)
     const signature = await walletManager.signMessage(payload.message)
@@ -556,6 +618,11 @@ export function OceanMiningGame({
     console.log("Received game state:", state);
 
     if (typeof state?.sessionId === "string") {
+      if (joinTimeoutRef.current) {
+        clearTimeout(joinTimeoutRef.current)
+        joinTimeoutRef.current = null
+      }
+      setWorld({ status: "ready" })
       setSessionId(state.sessionId)
       sessionIdRef.current = state.sessionId
       // The server needs a position before it allows mining.
@@ -615,14 +682,17 @@ export function OceanMiningGame({
   }
 
   // The resume token was refused after a reconnect: sign in again (one prompt).
-  const handleJoinError = (data: { code?: string }) => {
+  const handleJoinError = (data: { code?: string; message?: string }) => {
     const connection = walletManager.getConnection()
     if (data?.code === "RESUME_INVALID" && connection) {
-      signAndJoin(connection.address).catch((err) => {
-        console.error("Rejoin failed:", err)
-        showNotice({ tone: "error", message: "Could not rejoin the game server. Reload the page to continue mining." })
-      })
+      joinWorld(connection.address)
+      return
     }
+    if (joinTimeoutRef.current) {
+      clearTimeout(joinTimeoutRef.current)
+      joinTimeoutRef.current = null
+    }
+    setWorld({ status: "error", message: `The game server refused the sign-in${data?.message ? `: ${data.message}` : "."}` })
   }
 
   const handleWebSocketError = (error: any) => {
@@ -1804,6 +1874,26 @@ export function OceanMiningGame({
           {connectionStatus !== "connected" && walletConnected && (
             <div className="absolute left-1/2 top-4 -translate-x-1/2 transform rounded-lg bg-slate-900/80 px-4 py-2 text-cyan-400 backdrop-blur-sm">
               {CONNECTION_LABELS[connectionStatus]}
+            </div>
+          )}
+
+          {/* World loading: deposits come from the game server */}
+          {walletConnected && world.status !== "ready" && world.status !== "idle" && (
+            <div className="pointer-events-auto absolute left-1/2 top-1/3 -translate-x-1/2 transform rounded-xl border border-cyan-500/30 bg-slate-900/90 px-6 py-4 text-center text-cyan-100 shadow-lg backdrop-blur-sm max-w-md">
+              {world.status === "signing" && <p>Approve the sign-in request in your wallet to load the ocean…</p>}
+              {world.status === "joining" && <p>Loading deposits from the game server…</p>}
+              {world.status === "error" && (
+                <>
+                  <p className="mb-3">{world.message}</p>
+                  <button
+                    type="button"
+                    onClick={retryJoin}
+                    className="rounded-lg bg-cyan-600 px-4 py-2 text-sm font-semibold text-white hover:bg-cyan-500"
+                  >
+                    Try again
+                  </button>
+                </>
+              )}
             </div>
           )}
 
