@@ -1433,17 +1433,6 @@ export function OceanMiningGame({
           isMining={gameState === "mining"}
           cameraMode={cameraMode}
         />
-        {/* Looking out through the acrylic bubble */}
-        {cameraMode === "cockpit" && (
-          <div
-            aria-hidden
-            className="pointer-events-none absolute inset-0"
-            style={{
-              background:
-                "radial-gradient(ellipse 78% 82% at 50% 46%, transparent 62%, rgba(4,16,19,0.55) 82%, rgba(4,16,19,0.92) 100%)",
-            }}
-          />
-        )}
 
         {/* HUD Overlay */}
         <div className="pointer-events-none absolute inset-0 z-10">
@@ -1476,14 +1465,17 @@ export function OceanMiningGame({
           {/* Player Stats HUD */}
           <PlayerHUD stats={playerStats} tier={playerTier} resources={resources} />
 
-          {/* Sonar/Mini-map at bottom left */}
-          <div className="absolute bottom-4 left-4 z-20">
-            <SonarRadar
-              playerPosition={playerPosition}
-              resourceNodes={resourceNodes}
-              otherPlayers={[]}
-            />
-          </div>
+          {/* Sonar/Mini-map at bottom left. In the cockpit the console has
+              its own heading-up sonar scope, so this one steps aside. */}
+          {cameraMode !== "cockpit" && (
+            <div className="absolute bottom-4 left-4 z-20">
+              <SonarRadar
+                playerPosition={playerPosition}
+                resourceNodes={resourceNodes}
+                otherPlayers={[]}
+              />
+            </div>
+          )}
 
           {/* Wallet info now shown in ResourceSidebar only */}
           {/* Camera view toggle */}

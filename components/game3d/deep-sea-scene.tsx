@@ -19,6 +19,10 @@ import { useEffect, useMemo, useRef, type MutableRefObject, type ReactNode } fro
 import * as THREE from "three"
 import type { PlayerPosition, ResourceNode, ResourceType } from "@/lib/types"
 import { makeBoulderGeometry, makeNoduleGeometry } from "./procedural"
+import { Cockpit } from "./cockpit"
+import type { CameraMode } from "./camera-modes"
+
+export { CAMERA_MODES, CAMERA_MODE_LABELS, type CameraMode } from "./camera-modes"
 
 export const WORLD_SCALE = 1 / 20 // 2000 world units -> 100 scene units
 
@@ -304,10 +308,13 @@ function Deposit({
   node,
   targeted,
   geometries,
+  insideRef,
 }: {
   node: ResourceNode
   targeted: boolean
   geometries: Record<ResourceType, THREE.BufferGeometry[]>
+  /** in the cockpit, the target ring must stay behind the console */
+  insideRef: MutableRefObject<boolean>
 }) {
   const x = node.position.x * WORLD_SCALE
   const z = node.position.y * WORLD_SCALE
@@ -353,6 +360,7 @@ function Deposit({
     })
     if (ringRef.current) {
       const mat = ringRef.current.material as THREE.MeshBasicMaterial
+      mat.depthTest = insideRef.current
       mat.opacity = targeted ? 0.3 + 0.18 * Math.sin(t * 2.4) : 0
     }
   })
@@ -789,12 +797,16 @@ function Submarine({
   playerRef,
   hullColor,
   followRef,
+  insideRef,
 }: {
   playerRef: MutableRefObject<PlayerPosition>
   hullColor: string
   followRef: MutableRefObject<THREE.Vector3>
+  /** true while the camera is in the pilot's seat: the hull is hidden so it can't clip into view */
+  insideRef: MutableRefObject<boolean>
 }) {
   const groupRef = useRef<THREE.Group>(null)
+  const hullRef = useRef<THREE.Group>(null)
   const propRef = useRef<THREE.Group | null>(null)
   const lightTarget = useMemo(() => new THREE.Object3D(), [])
   const spotRef = useRef<THREE.SpotLight>(null)
@@ -823,6 +835,7 @@ function Submarine({
     g.position.copy(smoothPos.current)
     g.rotation.y = -p.rotation
     g.rotation.z = Math.sin(t * 0.7) * 0.03
+    if (hullRef.current) hullRef.current.visible = !insideRef.current
     followRef.current.copy(smoothPos.current)
 
     const moved = Number.isFinite(last.current.x) ? Math.hypot(p.x - last.current.x, p.y - last.current.y) : 0
@@ -834,7 +847,10 @@ function Submarine({
 
   return (
     <group ref={groupRef}>
-      <SubmarineModel hullColor={hullColor} propRef={propRef}>
+      <group ref={hullRef}>
+        <SubmarineModel hullColor={hullColor} propRef={propRef} />
+      </group>
+      <>
         {/* the lamp: the only warm light in the scene */}
         <primitive object={lightTarget} position={[7, -3.2, 0]} />
         <spotLight
@@ -855,20 +871,9 @@ function Submarine({
         <pointLight position={[0, 1.9, 0.6]} color="#a8c8c2" intensity={18} distance={6.5} decay={2} />
         {/* lamp spill under and around the hull */}
         <pointLight position={[1.4, -1.2, 0]} color={PALETTE.lamp} intensity={2.5} distance={6} decay={1.8} />
-      </SubmarineModel>
+      </>
     </group>
   )
-}
-
-/** How the camera follows the submarine. */
-export type CameraMode = "overhead" | "chase" | "cockpit"
-
-export const CAMERA_MODES: CameraMode[] = ["overhead", "chase", "cockpit"]
-
-export const CAMERA_MODE_LABELS: Record<CameraMode, string> = {
-  overhead: "Overhead",
-  chase: "Chase",
-  cockpit: "Cockpit",
 }
 
 /** Shortest signed difference between two angles. */
@@ -879,7 +884,9 @@ function FollowCamera({
   playerRef,
   framing,
   mode,
+  insideRef,
 }: {
+  insideRef: MutableRefObject<boolean>
   followRef: MutableRefObject<THREE.Vector3>
   playerRef: MutableRefObject<PlayerPosition>
   framing: { x: number; z: number }
@@ -938,6 +945,8 @@ function FollowCamera({
       cam.updateProjectionMatrix()
     }
     if (switching && camera.position.distanceTo(desired) < 0.05) lastMode.current = mode
+    // swap the hull for the cockpit once the camera is nearly in the seat
+    insideRef.current = mode === "cockpit" && camera.position.distanceTo(desired) < 0.9
   })
   return null
 }
@@ -967,6 +976,7 @@ export function DeepSeaScene({
   cameraMode = "overhead",
 }: DeepSeaSceneProps) {
   const followRef = useRef(new THREE.Vector3(25, 0, 25))
+  const insideRef = useRef(false)
   const geometries = useNoduleGeometries()
   const target = nodes.find((n) => n.id === targetNodeId) ?? null
   const plumeOrigin = useMemo(() => {
@@ -993,12 +1003,14 @@ export function DeepSeaScene({
       <Seabed />
       <Rocks />
       {nodes.map((n) => (
-        <Deposit key={n.id} node={n} targeted={n.id === targetNodeId} geometries={geometries} />
+        <Deposit key={n.id} node={n} targeted={n.id === targetNodeId} geometries={geometries} insideRef={insideRef} />
       ))}
-      <Submarine playerRef={playerRef} hullColor={hullColor} followRef={followRef} />
+      <Submarine playerRef={playerRef} hullColor={hullColor} followRef={followRef} insideRef={insideRef} />
       <SiltPlume origin={plumeOrigin} active={isMining} />
       <MarineSnow followRef={followRef} />
-      <FollowCamera followRef={followRef} playerRef={playerRef} framing={framing} mode={cameraMode} />
+      <FollowCamera followRef={followRef} playerRef={playerRef} framing={framing} mode={cameraMode} insideRef={insideRef} />
+      {/* after the camera, so it reads this frame's camera position */}
+      <Cockpit playerRef={playerRef} nodes={nodes} heightAt={seabedHeight} visibleRef={insideRef} />
     </Canvas>
   )
 }
