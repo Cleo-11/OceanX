@@ -16,13 +16,9 @@ import { createJoinSignaturePayload } from "@/lib/signature"
 import { ContractManager } from "@/lib/contracts"
 import { ethers } from "ethers"
 import { getSubmarineByTier } from "@/lib/submarine-tiers"
-import { canMineResource, getStoragePercentage, getResourceColor } from "@/lib/resource-utils"
+import { canMineResource, getStoragePercentage } from "@/lib/resource-utils"
 import type { GameState, ResourceNode, PlayerStats, PlayerResources, PlayerPosition } from "@/lib/types"
 import type {
-  AquaticState,
-  ScreenShake,
-  ColorGrade,
-  ParticleBurst,
   MovementKeys,
   ConnectionStatus,
 } from "@/lib/game-types"
@@ -34,6 +30,13 @@ import { useTxLifecycle } from "@/hooks/use-tx-lifecycle"
 import { CONNECTION_STATUS_EVENT } from "@/lib/websocket"
 import { loadGameState, setupAutoSave, clearGameState, getDefaultGameState } from "@/lib/gameStateStorage"
 import { getCurrentUser } from "@/lib/supabase"
+import dynamic from "next/dynamic"
+
+// WebGL only exists in the browser.
+const DeepSeaScene = dynamic(() => import("./game3d/deep-sea-scene").then((m) => m.DeepSeaScene), {
+  ssr: false,
+  loading: () => <div className="absolute inset-0" style={{ background: "#04161a" }} />,
+})
 
 interface OceanMiningGameProps {
   walletConnected: boolean
@@ -96,36 +99,6 @@ const MINING_FAILURE_TEXT: Record<string, string> = {
 const AUTH_SIGNATURE_REUSE_MS = 3 * 60 * 1000
 
 // ── Build submarine SVG string (pixel-identical to SubmarineIcon.tsx) ────────
-function buildSubmarineSVG(tier: number, color: string): string {
-  const highlight = `<path d="M22 24 Q50 18 82 24" stroke="rgba(255,255,255,0.35)" stroke-width="1.2" fill="none" stroke-linecap="round"/>`
-  const tower = (y = 14, w = 10, h = 12) =>
-    `<rect x="${48 - w / 2}" y="${y}" width="${w}" height="${h}" rx="2" fill="${color}" stroke="rgba(0,0,0,0.3)" stroke-width="0.6"/>`
-  const viewport = (cx = 68, cy = 30, r = 4.5) =>
-    `<circle cx="${cx}" cy="${cy}" r="${r}" fill="url(#vp)" stroke="rgba(0,40,60,0.6)" stroke-width="0.8"/>` +
-    `<circle cx="${cx - 1}" cy="${cy - 1}" r="${r * 0.45}" fill="rgba(255,255,255,0.35)"/>`
-  const propeller = (x = 10) =>
-    `<g transform="translate(${x}, 30)"><ellipse rx="2" ry="7" fill="rgba(80,80,100,0.7)"/><circle r="2" fill="rgba(60,60,80,0.8)"/></g>`
-  let body = ''
-  switch (tier) {
-    case 1:  body = `<g><path d="M14 30 Q14 18 30 16 L72 16 Q88 18 88 30 Q88 42 72 44 L30 44 Q14 42 14 30Z" fill="${color}" stroke="rgba(0,0,0,0.25)" stroke-width="1"/>${highlight}${tower()}${viewport()}${propeller()}</g>`; break
-    case 2:  body = `<g><path d="M12 30 Q12 17 32 15 L74 15 Q90 17 90 30 Q90 43 74 45 L32 45 Q12 43 12 30Z" fill="${color}" stroke="rgba(0,0,0,0.25)" stroke-width="1"/><path d="M52 15 L56 6 L60 15" fill="${color}" stroke="rgba(0,0,0,0.2)" stroke-width="0.7"/>${highlight}${tower(8,12,10)}${viewport()}${propeller()}<path d="M12 22 L6 16 L6 44 L12 38" fill="${color}" stroke="rgba(0,0,0,0.2)" stroke-width="0.5"/></g>`; break
-    case 3:  body = `<g><path d="M12 30 Q12 16 34 14 L70 14 Q90 16 90 30 Q90 44 70 46 L34 46 Q12 44 12 30Z" fill="${color}" stroke="rgba(0,0,0,0.3)" stroke-width="1.2"/><line x1="35" y1="14" x2="35" y2="46" stroke="rgba(255,255,255,0.15)" stroke-width="1.5"/><line x1="55" y1="14" x2="55" y2="46" stroke="rgba(255,255,255,0.15)" stroke-width="1.5"/>${highlight}${tower(10,12,10)}${viewport()}${propeller()}<path d="M30 46 L70 46 L65 50 L35 50Z" fill="${color}" stroke="rgba(0,0,0,0.2)" stroke-width="0.5" opacity="0.7"/></g>`; break
-    case 4:  body = `<g><path d="M12 28 Q12 14 34 12 L72 12 Q92 14 92 28 Q92 42 72 44 L34 44 Q12 42 12 28Z" fill="${color}" stroke="rgba(0,0,0,0.3)" stroke-width="1.2"/><rect x="32" y="44" width="36" height="8" rx="3" fill="${color}" stroke="rgba(0,0,0,0.25)" stroke-width="0.8" opacity="0.85"/><line x1="44" y1="44" x2="44" y2="52" stroke="rgba(0,0,0,0.15)" stroke-width="0.6"/><line x1="56" y1="44" x2="56" y2="52" stroke="rgba(0,0,0,0.15)" stroke-width="0.6"/>${highlight}${tower(6,14,10)}${viewport(72,28)}${viewport(62,28,3)}${propeller()}</g>`; break
-    case 5:  body = `<g><ellipse cx="50" cy="30" rx="44" ry="22" fill="url(#heatGlow)" opacity="0.4"/><path d="M14 30 Q14 16 34 14 L72 14 Q88 16 88 30 Q88 44 72 46 L34 46 Q14 44 14 30Z" fill="${color}" stroke="rgba(0,0,0,0.3)" stroke-width="1.2"/><path d="M30 16 L30 44" stroke="rgba(255,100,0,0.25)" stroke-width="2"/><path d="M50 15 L50 45" stroke="rgba(255,100,0,0.25)" stroke-width="2"/><path d="M70 16 L70 44" stroke="rgba(255,100,0,0.25)" stroke-width="2"/>${highlight}${tower(8,12,10)}${viewport()}${propeller()}</g>`; break
-    case 6:  body = `<g><path d="M10 30 Q10 14 34 12 L72 12 Q92 14 92 30 Q92 46 72 48 L34 48 Q10 46 10 30Z" fill="${color}" stroke="rgba(0,0,0,0.3)" stroke-width="1.5"/><ellipse cx="32" cy="30" rx="4" ry="15" fill="none" stroke="rgba(0,255,255,0.2)" stroke-width="1.2"/><ellipse cx="50" cy="30" rx="4" ry="16" fill="none" stroke="rgba(0,255,255,0.2)" stroke-width="1.2"/><ellipse cx="68" cy="30" rx="4" ry="15" fill="none" stroke="rgba(0,255,255,0.2)" stroke-width="1.2"/>${highlight}${tower(6,14,10)}${viewport(76,30)}${propeller(8)}</g>`; break
-    case 7:  body = `<g><ellipse cx="50" cy="30" rx="46" ry="24" fill="url(#energyField)" opacity="0.3"/><path d="M12 30 Q12 15 38 12 L68 12 Q88 12 92 26 L92 30 Q92 45 68 48 L38 48 Q12 45 12 30Z" fill="${color}" stroke="rgba(0,255,255,0.3)" stroke-width="1"/><path d="M38 12 L34 30 L38 48" stroke="rgba(0,255,255,0.25)" stroke-width="0.8" fill="none"/><path d="M68 12 L72 30 L68 48" stroke="rgba(0,255,255,0.25)" stroke-width="0.8" fill="none"/>${highlight}<path d="M44 12 L48 4 L56 4 L60 12" fill="${color}" stroke="rgba(0,255,255,0.3)" stroke-width="0.7"/>${viewport(78,28,4)}${propeller(8)}<circle cx="30" cy="22" r="1.2" fill="#67e8f9" opacity="0.8"/><circle cx="70" cy="38" r="1" fill="#67e8f9" opacity="0.6"/></g>`; break
-    case 8:  body = `<g><path d="M10 30 Q10 12 36 10 L70 10 Q92 10 94 26 L94 34 Q92 50 70 50 L36 50 Q10 48 10 30Z" fill="${color}" stroke="rgba(0,0,0,0.35)" stroke-width="1.5"/><rect x="25" y="12" width="22" height="36" rx="1" fill="none" stroke="rgba(255,255,255,0.12)" stroke-width="1"/><rect x="50" y="11" width="22" height="38" rx="1" fill="none" stroke="rgba(255,255,255,0.12)" stroke-width="1"/><path d="M20 20 Q50 14 85 20" stroke="rgba(255,255,255,0.3)" stroke-width="1.5" fill="none" stroke-linecap="round"/><path d="M20 22 Q50 16 85 22" stroke="rgba(255,255,255,0.15)" stroke-width="0.8" fill="none" stroke-linecap="round"/>${tower(4,16,10)}${viewport(80,28,5)}${viewport(70,28,3.5)}${propeller(6)}</g>`; break
-    case 9:  body = `<g><path d="M6 30 Q6 10 34 8 L72 8 Q96 10 96 30 Q96 50 72 52 L34 52 Q6 50 6 30Z" fill="${color}" stroke="rgba(0,0,0,0.35)" stroke-width="1.8"/><line x1="30" y1="10" x2="30" y2="50" stroke="rgba(255,255,255,0.1)" stroke-width="1"/><line x1="50" y1="9" x2="50" y2="51" stroke="rgba(255,255,255,0.1)" stroke-width="1"/><line x1="70" y1="10" x2="70" y2="50" stroke="rgba(255,255,255,0.1)" stroke-width="1"/>${highlight}${tower(2,18,10)}${viewport(80,26,5.5)}${viewport(80,38,4)}${propeller(4)}<path d="M30 52 L70 52 L65 56 L35 56Z" fill="${color}" opacity="0.6"/></g>`; break
-    case 10: body = `<g><path d="M8 30 Q8 10 34 8 L72 8 Q94 10 94 30 Q94 50 72 52 L34 52 Q8 50 8 30Z" fill="${color}" stroke="rgba(0,0,0,0.35)" stroke-width="1.8"/><rect x="24" y="4" width="8" height="8" rx="1.5" fill="rgba(100,100,120,0.8)" stroke="rgba(0,0,0,0.3)" stroke-width="0.7"/><rect x="24" y="2" width="8" height="3" rx="1" fill="rgba(80,80,100,0.7)"/><rect x="64" y="4" width="8" height="8" rx="1.5" fill="rgba(100,100,120,0.8)" stroke="rgba(0,0,0,0.3)" stroke-width="0.7"/><rect x="64" y="2" width="8" height="3" rx="1" fill="rgba(80,80,100,0.7)"/><path d="M20 18 Q50 12 84 18" stroke="rgba(255,255,255,0.2)" stroke-width="1.2" fill="none"/>${tower(0,16,8)}${viewport(82,26,5)}${propeller(4)}</g>`; break
-    case 11: body = `<g><path d="M14 30 Q14 14 36 12 L70 12 Q90 14 90 30 Q90 46 70 48 L36 48 Q14 46 14 30Z" fill="${color}" stroke="rgba(0,0,0,0.3)" stroke-width="1.2"/><path d="M30 48 Q26 54 22 56 Q20 58 24 56 Q28 54 32 50" stroke="${color}" stroke-width="1.5" fill="none" stroke-linecap="round"/><path d="M50 48 Q48 56 44 58 Q42 60 46 58 Q50 54 52 50" stroke="${color}" stroke-width="1.5" fill="none" stroke-linecap="round"/><path d="M68 48 Q66 54 62 56 Q60 58 64 56 Q68 52 70 48" stroke="${color}" stroke-width="1.5" fill="none" stroke-linecap="round"/><path d="M36 12 Q40 8 50 7 Q60 8 64 12" fill="${color}" stroke="rgba(0,0,0,0.2)" stroke-width="0.7"/>${highlight}${viewport(76,30,5)}${propeller(10)}</g>`; break
-    case 12: body = `<g><ellipse cx="50" cy="30" rx="48" ry="26" fill="url(#voidAura)" opacity="0.5"/><path d="M12 30 Q12 13 36 10 L70 10 Q90 13 90 30 Q90 47 70 50 L36 50 Q12 47 12 30Z" fill="${color}" stroke="rgba(168,85,247,0.4)" stroke-width="1.2"/><ellipse cx="50" cy="30" rx="30" ry="14" fill="rgba(168,85,247,0.08)"/><path d="M24 22 Q50 16 80 22" stroke="rgba(168,85,247,0.3)" stroke-width="1" fill="none"/><path d="M42 10 L46 2 L58 2 L62 10" fill="${color}" stroke="rgba(168,85,247,0.3)" stroke-width="0.7"/>${viewport(78,28,5)}${propeller(8)}</g>`; break
-    case 13: body = `<g><ellipse cx="50" cy="30" rx="46" ry="24" fill="url(#starGlow)" opacity="0.3"/><path d="M12 30 Q12 14 36 12 L70 12 Q90 14 90 30 Q90 46 70 48 L36 48 Q12 46 12 30Z" fill="${color}" stroke="rgba(0,0,0,0.3)" stroke-width="1.2"/><polygon points="50,4 52,10 58,10 53,14 55,20 50,16 45,20 47,14 42,10 48,10" fill="#fef08a" opacity="0.8"/>${highlight}${viewport(76,28,5)}${propeller(8)}</g>`; break
-    case 14: body = `<g><ellipse cx="50" cy="30" rx="48" ry="10" fill="none" stroke="rgba(168,85,247,0.3)" stroke-width="1" transform="rotate(-12 50 30)"/><ellipse cx="50" cy="30" rx="44" ry="8" fill="none" stroke="rgba(168,85,247,0.2)" stroke-width="0.7" transform="rotate(8 50 30)"/><path d="M10 30 Q10 12 36 10 L70 10 Q92 12 92 30 Q92 48 70 50 L36 50 Q10 48 10 30Z" fill="${color}" stroke="rgba(168,85,247,0.4)" stroke-width="1.2"/>${highlight}<path d="M42 10 L44 0 L56 0 L58 10" fill="${color}" stroke="rgba(168,85,247,0.35)" stroke-width="0.7"/>${viewport(80,28,5.5)}${propeller(6)}</g>`; break
-    case 15: body = `<g><ellipse cx="50" cy="30" rx="50" ry="28" fill="url(#leviathanAura)" opacity="0.3"/><path d="M4 30 Q4 8 32 6 L74 6 Q98 8 98 30 Q98 52 74 54 L32 54 Q4 52 4 30Z" fill="${color}" stroke="rgba(0,0,0,0.4)" stroke-width="2"/><polygon points="40,6 42,0 44,6" fill="rgba(255,255,255,0.7)"/><polygon points="48,6 50,-2 52,6" fill="rgba(255,255,255,0.85)"/><polygon points="56,6 58,0 60,6" fill="rgba(255,255,255,0.7)"/>${viewport(70,24,5)}${viewport(82,24,5)}${viewport(76,36,4)}<path d="M18 18 Q50 10 88 18" stroke="rgba(255,255,255,0.3)" stroke-width="1.5" fill="none" stroke-linecap="round"/>${propeller(2)}<path d="M28 54 L72 54 L66 58 L34 58Z" fill="${color}" opacity="0.5"/></g>`; break
-    default: body = `<g><path d="M14 30 Q14 18 30 16 L72 16 Q88 18 88 30 Q88 42 72 44 L30 44 Q14 42 14 30Z" fill="${color}" stroke="rgba(0,0,0,0.25)" stroke-width="1"/>${highlight}${viewport()}${propeller()}</g>`
-  }
-  return `<svg width="100" height="60" viewBox="0 0 100 60" xmlns="http://www.w3.org/2000/svg" fill="none"><defs><radialGradient id="vp" cx="35%" cy="35%"><stop offset="0%" stop-color="#a5f3fc" stop-opacity="0.95"/><stop offset="50%" stop-color="#22d3ee" stop-opacity="0.7"/><stop offset="100%" stop-color="#0e7490" stop-opacity="0.4"/></radialGradient><radialGradient id="heatGlow" cx="50%" cy="50%"><stop offset="0%" stop-color="#f97316" stop-opacity="0.5"/><stop offset="100%" stop-color="#f97316" stop-opacity="0"/></radialGradient><radialGradient id="energyField" cx="50%" cy="50%"><stop offset="0%" stop-color="#22d3ee" stop-opacity="0.4"/><stop offset="100%" stop-color="#22d3ee" stop-opacity="0"/></radialGradient><radialGradient id="voidAura" cx="50%" cy="50%"><stop offset="0%" stop-color="#a855f7" stop-opacity="0.35"/><stop offset="100%" stop-color="#a855f7" stop-opacity="0"/></radialGradient><radialGradient id="starGlow" cx="50%" cy="50%"><stop offset="0%" stop-color="#fef08a" stop-opacity="0.4"/><stop offset="100%" stop-color="#fef08a" stop-opacity="0"/></radialGradient><radialGradient id="leviathanAura" cx="50%" cy="50%"><stop offset="0%" stop-color="#7e22ce" stop-opacity="0.35"/><stop offset="70%" stop-color="#7e22ce" stop-opacity="0.1"/><stop offset="100%" stop-color="#7e22ce" stop-opacity="0"/></radialGradient></defs>${body}</svg>`
-}
 
 export function OceanMiningGame({
   walletConnected,
@@ -142,7 +115,6 @@ export function OceanMiningGame({
   initialBalance = 0,
   initialTier = 1,
 }: OceanMiningGameProps) {
-  const canvasRef = useRef<HTMLCanvasElement>(null)
   const gameLoopRef = useRef<number>(0)
   const lastTimeRef = useRef<number>(0)
   // Server position sync: last time a move was sent, and the latest position
@@ -150,25 +122,6 @@ export function OceanMiningGame({
   // see a stale value).
   const lastMoveSentRef = useRef<number>(0)
   const playerPositionRef = useRef<PlayerPosition>({ x: 500, y: 500, rotation: 0 })
-  const subImgCacheRef = useRef<Record<string, HTMLImageElement>>({})
-
-  // --- CINEMATIC FEEDBACK STATE ---
-  const [screenShake, setScreenShake] = useState<ScreenShake>({ 
-    active: false, 
-    intensity: 0, 
-    duration: 0, 
-    time: 0 
-  })
-  const [colorGrade, setColorGrade] = useState<ColorGrade>({ 
-    active: false, 
-    tint: '#0ea5e9', 
-    opacity: 0.0, 
-    duration: 0, 
-    time: 0 
-  })
-  const [particleBursts, setParticleBursts] = useState<ParticleBurst[]>([])
-
-  // --- CINEMATIC FEEDBACK UTILS ---
 
   // Player position and movement
   const [playerPosition, setPlayerPosition] = useState<PlayerPosition>({ x: 500, y: 500, rotation: 0 })
@@ -246,7 +199,6 @@ export function OceanMiningGame({
   const [showStorageAlert, setShowStorageAlert] = useState<boolean>(false)
   const [storagePercentage, setStoragePercentage] = useState<number>(0)
   const [showEnergyAlert, setShowEnergyAlert] = useState<boolean>(false)
-  const [viewportOffset, setViewportOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 })
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>("disconnected")
   // All connection changes go through the connection machine so the HUD can
   // never claim "connected" after the socket has dropped.
@@ -296,40 +248,6 @@ export function OceanMiningGame({
   )
   const [showGuide, setShowGuide] = useState<boolean>(!hasCompletedTutorial);
   const [userId, setUserId] = useState<string | null>(null);
-
-  // --- AQUATIC FEATURE STATE ---
-  const [aquaticState] = useState<AquaticState>(() => {
-    // Sunlight rays
-    const sunRays = Array.from({ length: 6 }, () => ({
-      x: Math.random() * window.innerWidth,
-      width: 80 + Math.random() * 60,
-      opacity: 0.10 + Math.random() * 0.10,
-      speed: 0.4 + Math.random() * 0.4,
-    }))
-    // No kelp, seaweed, bubbles, or coral/flowers
-    const seaweed: never[] = []
-    const kelp: never[] = []
-    const coral: never[] = []
-    const fish = Array.from({ length: 10 }, () => ({
-      x: Math.random() * window.innerWidth,
-      y: 100 + Math.random() * (window.innerHeight - 200),
-      size: 12 + Math.random() * 8,
-      speed: 0.7 + Math.random() * 0.7,
-      direction: Math.random() > 0.5 ? 1 : -1,
-      opacity: 0.5 + Math.random() * 0.5,
-      swimOffset: Math.random() * Math.PI * 2,
-    }))
-    const bubbles: never[] = []
-    const particles = Array.from({ length: 30 }, () => ({
-      x: Math.random() * window.innerWidth,
-      y: Math.random() * window.innerHeight,
-      speedX: (Math.random() - 0.5) * 0.3,
-      speedY: (Math.random() - 0.5) * 0.3,
-      opacity: 0.2 + Math.random() * 0.3,
-      life: 100,
-    }))
-    return { sunRays, seaweed, kelp, coral, fish, bubbles, particles }
-  })
 
   // Generate initial resource nodes immediately when component mounts
   // Restore backend and database connectivity, but keep multiplayer visuals disabled
@@ -829,7 +747,6 @@ export function OceanMiningGame({
       }
 
       checkNearbyNodes()
-      renderGame()
 
       gameLoopRef.current = requestAnimationFrame(gameLoop)
     }
@@ -840,40 +757,6 @@ export function OceanMiningGame({
       cancelAnimationFrame(gameLoopRef.current)
     }
   }, [walletConnected, playerPosition, movementKeys, gameState, resourceNodes, playerStats.speed, playerTier])
-
-  // Initialize canvas
-  useEffect(() => {
-    const canvas = canvasRef.current
-    if (!canvas) return
-
-    canvas.width = window.innerWidth
-    canvas.height = window.innerHeight
-
-    const handleResize = () => {
-      if (canvas) {
-        canvas.width = window.innerWidth
-        canvas.height = window.innerHeight
-      }
-    }
-
-    window.addEventListener("resize", handleResize)
-    return () => window.removeEventListener("resize", handleResize)
-  }, [])
-
-  // Preload submarine SVG image for the current tier into cache
-  useEffect(() => {
-    const cacheKey = `${playerTier}-${submarineData.color}`
-    if (subImgCacheRef.current[cacheKey]) return
-    const svgStr = buildSubmarineSVG(playerTier, submarineData.color)
-    const blob = new Blob([svgStr], { type: 'image/svg+xml;charset=utf-8' })
-    const url = URL.createObjectURL(blob)
-    const img = new window.Image()
-    img.onload = () => {
-      subImgCacheRef.current[cacheKey] = img
-      URL.revokeObjectURL(url)
-    }
-    img.src = url
-  }, [playerTier, submarineData.color])
 
   const updatePlayerPosition = (deltaTime: number) => {
     if (playerStats.energy === 0) return; // Block movement when energy is 0
@@ -911,13 +794,6 @@ export function OceanMiningGame({
       syncPositionToServer(newPosition)
     }
 
-    const canvas = canvasRef.current
-    if (canvas) {
-      setViewportOffset({
-        x: newX - canvas.width / 2,
-        y: newY - canvas.height / 2,
-      })
-    }
   }
 
   const checkNearbyNodes = () => {
@@ -932,341 +808,6 @@ export function OceanMiningGame({
     })
 
     setTargetNode(nearbyNode || null)
-  }
-
-  // ...existing code...
-
-  const renderGame = () => {
-    try {
-      const canvas = canvasRef.current
-      if (!canvas) return
-      const ctx = canvas.getContext("2d")
-      if (!ctx) return
-      const time = Date.now() / 1000
-
-    // --- SCREEN SHAKE ---
-    let shakeX = 0, shakeY = 0
-    if (screenShake.active) {
-      const shake = screenShake.intensity * Math.sin(screenShake.time * 40 + Math.random() * 10)
-      shakeX = shake * (Math.random() - 0.5)
-      shakeY = shake * (Math.random() - 0.5)
-      // Use functional update to avoid stale closure
-      setScreenShake((prev) => {
-        const newTime = prev.time + 0.016
-        if (newTime > prev.duration) {
-          return { ...prev, active: false, intensity: 0, duration: 0, time: 0 }
-        }
-        return { ...prev, time: newTime }
-      })
-    }
-    ctx.save()
-    ctx.translate(shakeX, shakeY)
-
-  // --- OCEAN GRADIENT BACKGROUND ---
-  // Modern ocean gradient
-  const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height)
-  gradient.addColorStop(0, "#0f172a")
-  gradient.addColorStop(0.2, "#164e63")
-  gradient.addColorStop(0.5, "#2563eb")
-  gradient.addColorStop(0.8, "#38bdf8")
-  gradient.addColorStop(1, "#a5f3fc")
-  ctx.fillStyle = gradient
-  ctx.fillRect(0, 0, canvas.width, canvas.height)
-    // --- PARTICLE BURSTS ---
-    setParticleBursts((prev: typeof particleBursts) => prev.map((burst) => {
-      burst.particles.forEach((p: typeof burst.particles[0]) => {
-        p.x += p.vx
-        p.y += p.vy
-        p.life -= 1
-      })
-      burst.particles = burst.particles.filter((p: typeof burst.particles[0]) => p.life > 0)
-      return burst
-    }).filter((b) => b.particles.length > 0))
-    particleBursts.forEach((burst) => {
-      burst.particles.forEach((p) => {
-        ctx.save()
-        ctx.globalAlpha = Math.max(0, p.life / 30)
-        ctx.fillStyle = burst.color
-        ctx.beginPath()
-        ctx.arc(p.x, p.y, 3, 0, Math.PI * 2)
-        ctx.fill()
-        ctx.restore()
-      })
-    })
-    ctx.restore() // end screen shake
-    // --- COLOR GRADING OVERLAY ---
-    if (colorGrade.active) {
-      ctx.save()
-      ctx.globalAlpha = colorGrade.opacity
-      ctx.fillStyle = colorGrade.tint
-      ctx.fillRect(0, 0, canvas.width, canvas.height)
-      ctx.restore()
-      setColorGrade((prev) => {
-        const newTime = prev.time + 0.016
-        if (newTime > prev.duration) {
-          return { ...prev, active: false, opacity: 0, duration: 0, time: 0 }
-        }
-        return { ...prev, time: newTime }
-      })
-    }
-  // Example: trigger effects on mining (replace with actual event hooks)
-  // useEffect(() => { triggerScreenShake(); triggerColorGrade(); triggerParticleBurst(300, 300); }, [])
-
-    // --- SUNLIGHT RAYS ---
-    aquaticState.sunRays.forEach((ray) => {
-      ctx.save()
-      ctx.globalAlpha = ray.opacity * (0.7 + 0.3 * Math.sin(time * ray.speed))
-      const rayGradient = ctx.createLinearGradient(ray.x, 0, ray.x, canvas.height)
-      rayGradient.addColorStop(0, "rgba(255, 255, 255, 0.18)")
-      rayGradient.addColorStop(0.5, "rgba(255, 255, 255, 0.07)")
-      rayGradient.addColorStop(1, "rgba(255, 255, 255, 0)")
-      ctx.fillStyle = rayGradient
-      ctx.fillRect(ray.x - ray.width / 2, 0, ray.width, canvas.height)
-      ctx.restore()
-    })
-
-    // --- SEAWEED ---
-  // No seaweed
-
-    // --- KELP ---
-  // No kelp
-
-    // --- CORAL ---
-  // No coral/flower features
-
-    // --- FISH ---
-    aquaticState.fish.forEach((f) => {
-      f.x += f.speed * f.direction
-      f.y += Math.sin(time * 2 + f.swimOffset) * 0.5
-      if (f.direction > 0 && f.x > canvas.width + f.size) {
-        f.x = -f.size
-      } else if (f.direction < 0 && f.x < -f.size) {
-        f.x = canvas.width + f.size
-      }
-      ctx.save()
-      ctx.globalAlpha = f.opacity
-      ctx.fillStyle = "#1e293b"
-      ctx.save()
-      ctx.translate(f.x, f.y)
-      ctx.scale(f.direction, 1)
-      ctx.beginPath()
-      ctx.ellipse(0, 0, f.size, f.size * 0.6, 0, 0, Math.PI * 2)
-      ctx.fill()
-      ctx.beginPath()
-      ctx.moveTo(-f.size, 0)
-      ctx.lineTo(-f.size * 1.5, -f.size * 0.3)
-      ctx.lineTo(-f.size * 1.5, f.size * 0.3)
-      ctx.closePath()
-      ctx.fill()
-      ctx.restore()
-      ctx.restore()
-    })
-
-    // --- BUBBLES ---
-  // No bubbles
-
-    // --- WATER PARTICLES ---
-    aquaticState.particles.forEach((particle) => {
-      particle.x += particle.speedX
-      particle.y += particle.speedY
-      particle.life -= 0.5
-      if (particle.life <= 0) {
-        particle.x = Math.random() * canvas.width
-        particle.y = Math.random() * canvas.height
-        particle.life = 100
-      }
-      ctx.save()
-      ctx.globalAlpha = particle.opacity * (particle.life / 100)
-      ctx.fillStyle = "rgba(173, 216, 230, 0.4)"
-      ctx.beginPath()
-      ctx.arc(particle.x, particle.y, 1.5, 0, Math.PI * 2)
-      ctx.fill()
-      ctx.restore()
-    })
-
-    // Draw grid
-    ctx.strokeStyle = "#1e40af30"
-    ctx.lineWidth = 1
-    const gridSize = 100
-    const offsetX = -viewportOffset.x % gridSize
-    const offsetY = -viewportOffset.y % gridSize
-
-    for (let x = offsetX; x < canvas.width; x += gridSize) {
-      ctx.beginPath()
-      ctx.moveTo(x, 0)
-      ctx.lineTo(x, canvas.height)
-      ctx.stroke()
-    }
-
-    for (let y = offsetY; y < canvas.height; y += gridSize) {
-      ctx.beginPath()
-      ctx.moveTo(0, y)
-      ctx.lineTo(canvas.width, y)
-      ctx.stroke()
-    }
-
-    // Draw resource nodes as colored circles
-    let visibleNodes = 0
-    resourceNodes.forEach((node) => {
-      drawResourceNode(ctx, node, viewportOffset, targetNode)
-    })
-
-    // Debug info for resource nodes
-    if (resourceNodes.length > 0) {
-      ctx.fillStyle = "#00ff00"
-      ctx.font = "12px Arial"
-      ctx.fillText(`Nodes: ${resourceNodes.length} | Visible: ${visibleNodes}`, 10, 30)
-    }
-
-  // Multiplayer disabled: no other players to draw
-
-    // Draw player submarine
-    const screenX = playerPosition.x - viewportOffset.x
-    const screenY = playerPosition.y - viewportOffset.y
-  drawSubmarine(ctx, screenX, screenY, playerPosition.rotation, submarineData.color, playerTier, movementKeys.forward)
-
-    // Draw bubbles if moving
-    if (movementKeys.forward || movementKeys.backward) {
-      for (let i = 0; i < 3; i++) {
-        const bubbleX = screenX - Math.cos(playerPosition.rotation) * 30 + (Math.random() - 0.5) * 20
-        const bubbleY = screenY - Math.sin(playerPosition.rotation) * 30 + (Math.random() - 0.5) * 20
-        const bubbleSize = Math.random() * 5 + 2
-
-        ctx.fillStyle = "#7dd3fc60"
-        ctx.beginPath()
-        ctx.arc(bubbleX, bubbleY, bubbleSize, 0, Math.PI * 2)
-        ctx.fill()
-      }
-    }
-    } catch (error) {
-      console.error("Render error:", error);
-      // Graceful degradation - continue rendering on next frame
-    }
-  }
-
-  // Modular submarine drawing with shadow, highlight, and engine glow
-  const drawSubmarine = (ctx: CanvasRenderingContext2D, x: number, y: number, rotation: number, color: string, tier: number, movingForward: boolean) => {
-    ctx.save()
-    ctx.translate(x, y)
-    ctx.rotate(rotation)
-    
-    // Scale factor to make submarines larger on canvas (SVG uses size 40, we want ~80-100 on canvas)
-    const size = 80
-    
-    // Draw submarine using preloaded SVG image (exact replica of SubmarineIcon.tsx)
-    const cacheKey = `${tier}-${color}`
-    const cachedImg = subImgCacheRef.current[cacheKey]
-    if (cachedImg && cachedImg.complete) {
-      ctx.drawImage(cachedImg, -50, -30, 100, 60)
-    } else {
-      // Fallback while image loads (simple hull shape)
-      ctx.fillStyle = color
-      ctx.beginPath()
-      ctx.ellipse(0, 0, 38, 18, 0, 0, Math.PI * 2)
-      ctx.fill()
-      ctx.fillStyle = '#7dd3fc'
-      ctx.beginPath()
-      ctx.arc(18, 0, 6, 0, Math.PI * 2)
-      ctx.fill()
-    }
-    
-    // Engine glow when moving (positioned behind submarine based on tier size)
-    if (movingForward) {
-      ctx.save()
-      ctx.globalAlpha = 0.45 + 0.15 * Math.sin(Date.now() / 120)
-      const engineX = tier >= 9 ? -size*0.55 : -size*0.45 // Adjust for larger submarines
-      ctx.beginPath()
-      ctx.ellipse(engineX, 0, 16, 8, 0, 0, Math.PI * 2)
-      ctx.fillStyle = tier >= 5 ? '#fbbf24' : tier >= 3 ? '#f97316' : '#22d3ee'
-      ctx.shadowColor = ctx.fillStyle
-      ctx.shadowBlur = 16
-      ctx.fill()
-      ctx.restore()
-    }
-    
-    ctx.restore()
-  }
-
-  // Modular resource node drawing with glow, shading, and info
-  const drawResourceNode = (
-    ctx: CanvasRenderingContext2D,
-    node: ResourceNode,
-    viewportOffset: { x: number; y: number },
-    targetNode: ResourceNode | null
-  ) => {
-    if (node.depleted) return
-    const screenX = node.position.x - viewportOffset.x
-    const screenY = node.position.y - viewportOffset.y
-    // Only render nodes that are visible on screen
-    if (screenX > -100 && screenX < ctx.canvas.width + 100 && screenY > -100 && screenY < ctx.canvas.height + 100) {
-      const resourceColor = getResourceColor(node.type)
-      const nodeSize = node.size || 20
-      // HSL shifting glow
-      const hue = (Date.now() / 30 + node.position.x) % 360
-      ctx.save()
-      ctx.globalAlpha = 0.7
-      const grad = ctx.createRadialGradient(screenX, screenY, nodeSize * 0.5, screenX, screenY, nodeSize * 1.2)
-      grad.addColorStop(0, `hsl(${hue}, 90%, 70%)`)
-      grad.addColorStop(1, `hsl(${hue}, 90%, 40%, 0)`)
-      ctx.beginPath()
-      ctx.arc(screenX, screenY, nodeSize * 1.2, 0, Math.PI * 2)
-      ctx.fillStyle = grad
-      ctx.fill()
-      // 3D shading
-      const lightAngle = Math.sin(Date.now() / 1200)
-      const grad2 = ctx.createRadialGradient(
-        screenX + nodeSize * 0.3 * lightAngle,
-        screenY - nodeSize * 0.3 * lightAngle,
-        nodeSize * 0.2,
-        screenX,
-        screenY,
-        nodeSize
-      )
-      grad2.addColorStop(0, `hsl(${hue}, 100%, 90%)`)
-      grad2.addColorStop(1, `hsl(${hue}, 80%, 40%)`)
-      ctx.beginPath()
-      ctx.arc(screenX, screenY, nodeSize, 0, Math.PI * 2)
-      ctx.fillStyle = grad2
-      ctx.fill()
-      ctx.restore()
-      // Add subtle pulsing effect
-      const pulseSize = nodeSize + Math.sin(Date.now() / 1000) * 2
-      ctx.strokeStyle = resourceColor + "AA"
-      ctx.lineWidth = 2
-      ctx.beginPath()
-      ctx.arc(screenX, screenY, pulseSize, 0, Math.PI * 2)
-      ctx.stroke()
-      // Draw resource type indicator
-      ctx.fillStyle = "#ffffff"
-      ctx.font = "bold 14px Arial"
-      ctx.textAlign = "center"
-      ctx.shadowColor = "#000000"
-      ctx.shadowBlur = 2
-      ctx.fillText(getResourceEmoji(node.type), screenX, screenY + 4)
-      ctx.shadowBlur = 0
-      // Highlight target node
-      if (targetNode && node.id === targetNode.id) {
-        ctx.strokeStyle = "#ffffff"
-        ctx.lineWidth = 3
-        ctx.setLineDash([5, 5])
-        ctx.beginPath()
-        ctx.arc(screenX, screenY, nodeSize + 8, 0, Math.PI * 2)
-        ctx.stroke()
-        ctx.setLineDash([])
-        // Show resource info
-        ctx.fillStyle = "#ffffff"
-        ctx.font = "bold 12px Arial"
-        ctx.textAlign = "center"
-        ctx.shadowColor = "#000000"
-        ctx.shadowBlur = 2
-        ctx.fillText(
-          `${node.type.charAt(0).toUpperCase() + node.type.slice(1)} (${node.amount})`,
-          screenX,
-          screenY - nodeSize - 15,
-        )
-        ctx.shadowBlur = 0
-      }
-    }
   }
 
   const handleMine = async (node: ResourceNode) => {
@@ -1806,21 +1347,6 @@ export function OceanMiningGame({
     return { message, signature }
   }
 
-  const getResourceEmoji = (resourceType: string) => {
-    switch (resourceType) {
-      case "nickel":
-        return "Ni"
-      case "cobalt":
-        return "Co"
-      case "copper":
-        return "Cu"
-      case "manganese":
-        return "Mn"
-      default:
-        return "?"
-    }
-  }
-
   const handleDisconnect = () => {
     cleanup();
     sendGameEvent("RESET");
@@ -1865,31 +1391,37 @@ export function OceanMiningGame({
         <ScubaDiverGuide onFinish={handleTutorialFinish} />
       )}
       <div className="relative h-full w-full">
-        {/* Game Canvas */}
-        <canvas ref={canvasRef} className="absolute inset-0" />
+        {/* The seabed, in 3D. Game state stays in 2D world units; the scene
+            reads the live position every frame. */}
+        <DeepSeaScene
+          playerRef={playerPositionRef}
+          nodes={resourceNodes}
+          targetNodeId={targetNode?.id ?? null}
+          hullColor={submarineData.color}
+          isMining={gameState === "mining"}
+        />
 
         {/* HUD Overlay */}
         <div className="pointer-events-none absolute inset-0 z-10">
           {/* Connection Status */}
           {connectionStatus !== "connected" && walletConnected && (
-            <div className="absolute left-1/2 top-4 -translate-x-1/2 transform rounded-lg bg-slate-900/80 px-4 py-2 text-cyan-400 backdrop-blur-sm">
+            <div role="status" className="dive-hud dive-panel absolute left-1/2 top-4 -translate-x-1/2 px-3.5 py-1.5 text-sm">
               {CONNECTION_LABELS[connectionStatus]}
             </div>
           )}
 
           {/* World loading: deposits come from the game server */}
           {walletConnected && world.status !== "ready" && world.status !== "idle" && (
-            <div className="pointer-events-auto absolute left-1/2 top-1/3 -translate-x-1/2 transform rounded-xl border border-cyan-500/30 bg-slate-900/90 px-6 py-4 text-center text-cyan-100 shadow-lg backdrop-blur-sm max-w-md">
-              {world.status === "signing" && <p>Approve the sign-in request in your wallet to load the ocean…</p>}
-              {world.status === "joining" && <p>Loading deposits from the game server…</p>}
+            <div
+              role="status"
+              className="dive-hud dive-panel pointer-events-auto absolute left-1/2 top-[38%] w-[min(90vw,24rem)] -translate-x-1/2 px-5 py-4 text-sm leading-relaxed"
+            >
+              {world.status === "signing" && <p>Approve the sign-in request in your wallet to start the dive.</p>}
+              {world.status === "joining" && <p className="text-[var(--ink-dim)]">Mapping deposits around you…</p>}
               {world.status === "error" && (
                 <>
-                  <p className="mb-3">{world.message}</p>
-                  <button
-                    type="button"
-                    onClick={retryJoin}
-                    className="rounded-lg bg-cyan-600 px-4 py-2 text-sm font-semibold text-white hover:bg-cyan-500"
-                  >
+                  <p>{world.message}</p>
+                  <button type="button" onClick={retryJoin} className="dive-action mt-3 px-4 py-2 text-sm font-semibold">
                     Try again
                   </button>
                 </>
@@ -1901,7 +1433,7 @@ export function OceanMiningGame({
           <PlayerHUD stats={playerStats} tier={playerTier} resources={resources} />
 
           {/* Sonar/Mini-map at bottom left */}
-          <div className="absolute left-4 bottom-4 z-20">
+          <div className="absolute bottom-4 left-4 z-20">
             <SonarRadar
               playerPosition={playerPosition}
               resourceNodes={resourceNodes}
@@ -1912,8 +1444,11 @@ export function OceanMiningGame({
           {/* Wallet info now shown in ResourceSidebar only */}
           {/* Resource Sidebar Toggle */}
           <button
+            type="button"
             onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="pointer-events-auto absolute right-4 top-16 z-50 rounded-lg bg-slate-800/80 p-2 text-cyan-400 backdrop-blur-sm transition-all hover:bg-slate-700/80"
+            aria-label={sidebarOpen ? "Close menu" : "Open menu: trade, claim OCX, wallet"}
+            aria-expanded={sidebarOpen}
+            className="dive-hud dive-icon-button pointer-events-auto absolute right-4 top-4 z-50 p-2"
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -1961,7 +1496,7 @@ export function OceanMiningGame({
 
         {/* Show MineButton only when submarine is hovering over a resource node */}
         {targetNode && !targetNode.depleted && (
-          <div style={{ position: 'fixed', bottom: 20, left: '50%', transform: 'translateX(-50%)', zIndex: 99999 }}>
+          <div className="fixed bottom-6 left-1/2 z-[60] -translate-x-1/2">
             <MineButton
               onClick={() => handleMine(targetNode)}
               disabled={!walletConnected || gameState !== "idle"}
@@ -1983,7 +1518,7 @@ export function OceanMiningGame({
           <div
             role="status"
             aria-live="polite"
-            className="pointer-events-none absolute left-1/2 top-1/4 max-w-[90vw] -translate-x-1/2 transform rounded-lg bg-slate-900/80 px-6 py-3 text-center text-lg font-bold text-cyan-400 backdrop-blur-sm"
+            className="dive-hud dive-panel pointer-events-none absolute left-1/2 top-20 max-w-[90vw] -translate-x-1/2 px-4 py-2 text-center text-sm"
           >
             {actionStatusText}
             {actionTxUrl && (
@@ -1991,7 +1526,7 @@ export function OceanMiningGame({
                 href={actionTxUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="pointer-events-auto mt-1 block text-sm font-normal text-cyan-300 underline"
+                className="pointer-events-auto mt-0.5 block text-xs text-[var(--bio)] underline underline-offset-2"
               >
                 View transaction
               </a>
@@ -1999,15 +1534,6 @@ export function OceanMiningGame({
           </div>
         )}
 
-        {/* Session Info */}
-        {sessionId && (
-          <div className="absolute bottom-4 left-4 rounded-lg bg-slate-900/70 p-3 text-xs text-slate-300 backdrop-blur-sm">
-            <div className="mb-1 font-bold text-cyan-400">SESSION INFO</div>
-            <div>Session: {sessionId.slice(-8)}</div>
-            <div>Players: 1/1 (Single Player Mode)</div>
-            <div>Status: {connectionStatus}</div>
-          </div>
-        )}
 
         {/* Wallet connection is optional in gameplay; overlay removed */}
         </div> {/* Close HUD Overlay div */}
@@ -2032,12 +1558,12 @@ export function OceanMiningGame({
           role={notice.tone === "error" ? "alert" : "status"}
           aria-live={notice.tone === "error" ? "assertive" : "polite"}
           style={{ zIndex: 100000 }}
-          className={`fixed left-1/2 top-4 w-[min(92vw,30rem)] -translate-x-1/2 transform rounded-lg border px-4 py-3 text-sm shadow-lg backdrop-blur-sm ${
+          className={`dive-hud dive-panel fixed left-1/2 top-4 w-[min(92vw,30rem)] -translate-x-1/2 border-l-[3px] px-4 py-3 text-sm ${
             notice.tone === "error"
-              ? "border-red-500/50 bg-red-950/90 text-red-100"
+              ? "border-l-[var(--danger)]"
               : notice.tone === "success"
-                ? "border-emerald-500/50 bg-emerald-950/90 text-emerald-100"
-                : "border-cyan-500/50 bg-slate-900/90 text-cyan-100"
+                ? "border-l-[var(--bio)]"
+                : "border-l-[var(--ink-dim)]"
           }`}
         >
           <div className="flex items-start gap-3">
@@ -2052,7 +1578,7 @@ export function OceanMiningGame({
             </button>
           </div>
           {notice.txUrl && (
-            <a href={notice.txUrl} target="_blank" rel="noopener noreferrer" className="mt-1 inline-block underline">
+            <a href={notice.txUrl} target="_blank" rel="noopener noreferrer" className="mt-1 inline-block text-xs text-[var(--bio)] underline underline-offset-2">
               View transaction
             </a>
           )}

@@ -648,3 +648,94 @@ h1, h2, h3, h4, h5, h6 {
     opacity: 0;
   }
 }
+
+/* ── Dive HUD (game view) ─────────────────────────────────────────────────
+   An instrument panel for a night dive: one condensed face with tabular
+   figures, sentence case, thin rules, no glows. Warm = the lamp and alerts,
+   cyan = things you can interact with (it matches the deposits' glow). */
+.dive-hud {
+  --ink: #cfdad4;
+  --ink-dim: #7e9692;
+  --rule: rgba(207, 218, 212, 0.12);
+  --panel: rgba(6, 22, 25, 0.8);
+  --lamp: #f2a33a;
+  --bio: #5fe3d0;
+  --danger: #e5604a;
+  font-family: "IBM Plex Sans Condensed", "Inter", system-ui, sans-serif;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.005em;
+  color: var(--ink);
+}
+.dive-panel {
+  background: var(--panel);
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+.dive-panel--warn {
+  border-color: rgba(242, 163, 58, 0.45);
+}
+.dive-track {
+  position: relative;
+  height: 3px;
+  background: rgba(207, 218, 212, 0.1);
+}
+/* tick marks every tenth of the scale, printed below the track */
+.dive-track::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 5px;
+  height: 3px;
+  background-image: repeating-linear-gradient(
+    to right,
+    rgba(207, 218, 212, 0.22) 0 1px,
+    transparent 1px 10%
+  );
+}
+.dive-track-fill {
+  height: 100%;
+  transition: width 400ms ease-out;
+}
+.dive-action {
+  color: #04161a;
+  background: var(--bio);
+  border-radius: 4px;
+  transition: background-color 120ms ease-out;
+}
+.dive-action:hover:not(:disabled) {
+  background: #8af0e2;
+}
+.dive-action:disabled {
+  background: rgba(95, 227, 208, 0.35);
+  cursor: not-allowed;
+}
+.dive-action:focus-visible,
+.dive-icon-button:focus-visible {
+  outline: 2px solid var(--lamp);
+  outline-offset: 2px;
+}
+.dive-key {
+  font: inherit;
+  font-size: 0.7rem;
+  line-height: 1;
+  padding: 0.2rem 0.35rem;
+  border: 1px solid rgba(4, 22, 26, 0.35);
+  border-radius: 3px;
+}
+.dive-icon-button {
+  color: var(--ink);
+  background: var(--panel);
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+}
+.dive-icon-button:hover {
+  border-color: rgba(207, 218, 212, 0.3);
+}
+@media (prefers-reduced-motion: reduce) {
+  .dive-track-fill {
+    transition: none;
+  }
+}

@@ -1,139 +1,114 @@
-import type { PlayerStats, PlayerResources } from "@/lib/types"
+import type { PlayerStats, PlayerResources, ResourceType } from "@/lib/types"
 import { getSubmarineByTier } from "@/lib/submarine-tiers"
-import { motion } from "framer-motion"
 
 interface PlayerHUDProps {
-  stats: PlayerStats;
-  tier: number;
-  resources?: PlayerResources; // Live resources for instant UI updates
+  stats: PlayerStats
+  tier: number
+  resources?: PlayerResources // Live resources for instant UI updates
 }
 
+/** Hold colours: the same muted mineral tones the deposits use in the 3D scene. */
+export const HOLD_COLORS: Record<ResourceType, string> = {
+  nickel: "#9aa595",
+  cobalt: "#7189b8",
+  copper: "#c27c4f",
+  manganese: "#8c7b6b",
+}
+
+const HOLD_ORDER: { type: ResourceType; label: string }[] = [
+  { type: "nickel", label: "Nickel" },
+  { type: "cobalt", label: "Cobalt" },
+  { type: "copper", label: "Copper" },
+  { type: "manganese", label: "Manganese" },
+]
+
+const fmt = (n: number) => Math.round(n).toLocaleString("en-US")
+
+/**
+ * The dive plate: a quiet instrument panel. The scene is the spectacle; this
+ * stays legible and still.
+ */
 export function PlayerHUD({ stats, tier, resources }: PlayerHUDProps) {
-  const submarineData = getSubmarineByTier(tier);
+  const sub = getSubmarineByTier(tier)
+  const maxEnergy = sub.baseStats.energy
+  const energyLow = stats.energy <= maxEnergy * 0.15
+
   return (
-    <motion.div
-      className="absolute left-4 top-4 z-20 rounded-2xl bg-gradient-to-br from-slate-900/70 to-cyan-900/60 p-6 shadow-xl backdrop-blur-lg border border-cyan-400/20"
-      initial={{ opacity: 0, y: -20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.6, type: "spring" }}
-      style={{ boxShadow: "0 4px 32px 0 #22d3ee33, 0 1.5px 8px 0 #38bdf822" }}
+    <section
+      aria-label="Submarine status"
+      className="dive-hud dive-panel absolute left-4 top-4 z-20 w-[17rem] px-4 pb-3 pt-3.5"
     >
-      <div className="mb-2 flex items-center justify-between">
-        <h2 className="text-lg font-bold text-cyan-400 drop-shadow">SUBMARINE STATUS</h2>
-        <motion.div
-          className="rounded-full bg-slate-800/80 px-2 py-0.5 text-xs font-bold text-cyan-400 shadow-cyan-400/30 shadow"
-          whileHover={{ scale: 1.08, rotate: 2 }}
-          whileTap={{ scale: 0.95, rotate: -2 }}
-        >
-          TIER {tier}: {submarineData.name}
-        </motion.div>
+      <header className="flex items-baseline justify-between gap-3">
+        <h2 className="text-[0.95rem] font-semibold text-[var(--ink)]">{sub.name}</h2>
+        <span className="text-xs text-[var(--ink-dim)]">Tier {tier}</span>
+      </header>
+      <p className="mt-0.5 text-xs text-[var(--ink-dim)]">Rated to {fmt(stats.depth)} m</p>
+
+      <Gauge
+        className="mt-4"
+        label="Battery"
+        value={stats.energy}
+        max={maxEnergy}
+        color={energyLow ? "var(--danger)" : "var(--lamp)"}
+      />
+
+      <h3 className="mt-4 text-xs font-medium text-[var(--ink-dim)]">Hold</h3>
+      <div className="mt-1.5 space-y-2">
+        {HOLD_ORDER.map(({ type, label }) => (
+          <Gauge
+            key={type}
+            label={label}
+            value={resources?.[type] ?? 0}
+            max={stats.maxCapacity[type]}
+            color={HOLD_COLORS[type]}
+            compact
+          />
+        ))}
       </div>
-      <div className="space-y-2">
-        <StatBar 
-          label="ENERGY" 
-          value={stats.energy} 
-          maxValue={submarineData.baseStats.energy} 
-          color={stats.energy <= 0 ? "bg-red-500" : stats.energy <= 20 ? "bg-orange-500" : "bg-yellow-500"} 
-          pulse={stats.energy <= 0}
-        />
-        
-        <div className="mt-4 border-t border-cyan-400/20 pt-2">
-          <h3 className="mb-2 text-sm font-bold text-cyan-400">CARGO</h3>
-          <div className="grid grid-cols-2 gap-2">
-            <ResourceBar
-              label="NICKEL"
-              value={resources?.nickel ?? 0}
-              maxValue={stats.maxCapacity.nickel}
-              color="bg-slate-400"
-            />
-            <ResourceBar
-              label="COBALT"
-              value={resources?.cobalt ?? 0}
-              maxValue={stats.maxCapacity.cobalt}
-              color="bg-blue-500"
-            />
-            <ResourceBar
-              label="COPPER"
-              value={resources?.copper ?? 0}
-              maxValue={stats.maxCapacity.copper}
-              color="bg-orange-500"
-            />
-            <ResourceBar
-              label="MANGANESE"
-              value={resources?.manganese ?? 0}
-              maxValue={stats.maxCapacity.manganese}
-              color="bg-purple-500"
-            />
-          </div>
+
+      <dl className="mt-4 flex gap-5 border-t border-[var(--rule)] pt-2.5 text-xs">
+        <div className="flex gap-1.5">
+          <dt className="text-[var(--ink-dim)]">Speed</dt>
+          <dd className="text-[var(--ink)]">{stats.speed.toFixed(1)}×</dd>
         </div>
-        <motion.div className="flex items-center justify-between" whileHover={{ scale: 1.04 }}>
-          <span className="text-sm text-slate-300">DEPTH</span>
-          <span className="font-mono text-sm text-cyan-400">{stats.depth}m</span>
-        </motion.div>
-        <motion.div className="flex items-center justify-between" whileHover={{ scale: 1.04 }}>
-          <span className="text-sm text-slate-300">SPEED</span>
-          <span className="font-mono text-sm text-cyan-400">x{stats.speed.toFixed(1)}</span>
-        </motion.div>
-        <motion.div className="flex items-center justify-between" whileHover={{ scale: 1.04 }}>
-          <span className="text-sm text-slate-300">MINING RATE</span>
-          <span className="font-mono text-sm text-cyan-400">x{stats.miningRate.toFixed(1)}</span>
-        </motion.div>
-
-      </div>
-    </motion.div>
-
+        <div className="flex gap-1.5">
+          <dt className="text-[var(--ink-dim)]">Drill</dt>
+          <dd className="text-[var(--ink)]">{stats.miningRate.toFixed(1)}×</dd>
+        </div>
+      </dl>
+    </section>
   )
 }
 
-interface StatBarProps {
+interface GaugeProps {
   label: string
   value: number
-  maxValue: number
+  max: number
   color: string
-  pulse?: boolean
+  compact?: boolean
+  className?: string
 }
 
-function StatBar({ label, value, maxValue, color, pulse = false }: StatBarProps) {
-  const percentage = Math.min(100, Math.max(0, (value / maxValue) * 100))
-
+/** A thin track with tick marks every tenth, like a printed instrument scale. */
+function Gauge({ label, value, max, color, compact = false, className = "" }: GaugeProps) {
+  const pct = max > 0 ? Math.min(100, Math.max(0, (value / max) * 100)) : 0
   return (
-    <div className="space-y-1">
-      <div className="flex items-center justify-between">
-        <span className="text-sm text-slate-300">{label}</span>
-        <span className="font-mono text-sm text-cyan-400">
-          {value}/{maxValue}
+    <div className={className}>
+      <div className="flex items-baseline justify-between">
+        <span className={compact ? "text-xs text-[var(--ink)]" : "text-sm text-[var(--ink)]"}>{label}</span>
+        <span className="text-xs text-[var(--ink-dim)]">
+          <span className="text-[var(--ink)]">{fmt(value)}</span> / {fmt(max)}
         </span>
       </div>
-      <div className="h-2 w-full rounded-full bg-slate-700">
-        <div 
-          className={`h-full rounded-full ${color} ${pulse ? 'animate-pulse' : ''}`} 
-          style={{ width: `${percentage}%` }} 
-        />
-      </div>
-    </div>
-  )
-}
-
-interface ResourceBarProps {
-  label: string
-  value: number
-  maxValue: number
-  color: string
-}
-
-function ResourceBar({ label, value, maxValue, color }: ResourceBarProps) {
-  const percentage = Math.min(100, Math.max(0, (value / maxValue) * 100))
-
-  return (
-    <div className="space-y-1">
-      <div className="flex items-center justify-between">
-        <span className="text-xs text-slate-300">{label}</span>
-        <span className="font-mono text-xs text-cyan-400">
-          {value}/{maxValue}
-        </span>
-      </div>
-      <div className="h-1.5 w-full rounded-full bg-slate-700">
-        <div className={`h-full rounded-full ${color}`} style={{ width: `${percentage}%` }} />
+      <div
+        className="dive-track mt-1"
+        role="meter"
+        aria-label={label}
+        aria-valuemin={0}
+        aria-valuemax={max}
+        aria-valuenow={value}
+      >
+        <div className="dive-track-fill" style={{ width: `${pct}%`, background: color }} />
       </div>
     </div>
   )
