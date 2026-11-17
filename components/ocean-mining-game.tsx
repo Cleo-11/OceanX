@@ -32,6 +32,18 @@ import { loadGameState, setupAutoSave, clearGameState, getDefaultGameState } fro
 import { getCurrentUser } from "@/lib/supabase"
 import dynamic from "next/dynamic"
 
+import { CAMERA_MODES, CAMERA_MODE_LABELS, type CameraMode } from "./game3d/camera-modes"
+
+const CAMERA_MODE_KEY = "abyssx.cameraMode"
+const readCameraMode = (): CameraMode => {
+  try {
+    const saved = window.localStorage.getItem(CAMERA_MODE_KEY) as CameraMode | null
+    return saved && CAMERA_MODES.includes(saved) ? saved : "overhead"
+  } catch {
+    return "overhead"
+  }
+}
+
 // WebGL only exists in the browser.
 const DeepSeaScene = dynamic(() => import("./game3d/deep-sea-scene").then((m) => m.DeepSeaScene), {
   ssr: false,
@@ -138,6 +150,21 @@ export function OceanMiningGame({
   const [sessionId, setSessionId] = useState<string | null>(null)
   const sessionIdRef = useRef<string | null>(null)
   sessionIdRef.current = sessionId
+  // Camera: overhead (default), third-person chase, or first-person cockpit.
+  // Remembered per browser; V cycles through them.
+  const [cameraMode, setCameraMode] = useState<CameraMode>("overhead")
+  useEffect(() => setCameraMode(readCameraMode()), [])
+  const cycleCameraMode = useCallback(() => {
+    setCameraMode((prev) => {
+      const next = CAMERA_MODES[(CAMERA_MODES.indexOf(prev) + 1) % CAMERA_MODES.length]
+      try {
+        window.localStorage.setItem(CAMERA_MODE_KEY, next)
+      } catch {
+        /* storage unavailable: the choice just isn't remembered */
+      }
+      return next
+    })
+  }, [])
   // Joining the game server: the ocean has no deposits until it answers.
   const [world, setWorld] = useState<
     | { status: "idle" | "signing" | "joining" | "ready" }
@@ -696,6 +723,9 @@ export function OceanMiningGame({
         case "i":
           setSidebarOpen((prev) => !prev)
           break
+        case "v":
+          if (!e.repeat) cycleCameraMode()
+          break
         // case "p": // open store (removed: store is a dedicated route now)
         //   break
       }
@@ -729,7 +759,7 @@ export function OceanMiningGame({
       window.removeEventListener("keydown", handleKeyDown)
       window.removeEventListener("keyup", handleKeyUp)
     }
-  }, [walletConnected, targetNode, setSidebarOpen])
+  }, [walletConnected, targetNode, setSidebarOpen, cycleCameraMode])
 
   // Game loop - runs even when not connected to server for offline play
   useEffect(() => {
@@ -1401,7 +1431,19 @@ export function OceanMiningGame({
           targetNodeId={targetNode?.id ?? null}
           hullColor={submarineData.color}
           isMining={gameState === "mining"}
+          cameraMode={cameraMode}
         />
+        {/* Looking out through the acrylic bubble */}
+        {cameraMode === "cockpit" && (
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-0"
+            style={{
+              background:
+                "radial-gradient(ellipse 78% 82% at 50% 46%, transparent 62%, rgba(4,16,19,0.55) 82%, rgba(4,16,19,0.92) 100%)",
+            }}
+          />
+        )}
 
         {/* HUD Overlay */}
         <div className="pointer-events-none absolute inset-0 z-10">
@@ -1444,6 +1486,19 @@ export function OceanMiningGame({
           </div>
 
           {/* Wallet info now shown in ResourceSidebar only */}
+          {/* Camera view toggle */}
+          <button
+            type="button"
+            onClick={cycleCameraMode}
+            aria-keyshortcuts="V"
+            aria-label={`Camera: ${CAMERA_MODE_LABELS[cameraMode]}. Change view`}
+            className="dive-hud dive-icon-button pointer-events-auto absolute right-[4.25rem] top-4 z-50 flex items-center gap-2 px-3 py-2 text-sm"
+          >
+            <span className="text-[var(--ink-dim)]">View</span>
+            <span>{CAMERA_MODE_LABELS[cameraMode]}</span>
+            <kbd className="rounded border border-[var(--rule)] px-1.5 text-xs text-[var(--ink-dim)]">V</kbd>
+          </button>
+
           {/* Resource Sidebar Toggle */}
           <button
             type="button"

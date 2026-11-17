@@ -6,8 +6,8 @@ import { useEffect, useRef, useState } from "react"
 const steps: { title: string; body: string; keys?: string[] }[] = [
   {
     title: "Steer with the lamp",
-    body: "W and S drive forward and back, A and D turn. Arrow keys work too. It is dark down here: your lamp lights the way.",
-    keys: ["W", "A", "S", "D"],
+    body: "W and S drive forward and back, A and D turn. Arrow keys work too. Press V to switch between the overhead, chase and cockpit views.",
+    keys: ["W", "A", "S", "D", "V"],
   },
   {
     title: "Follow the glow",

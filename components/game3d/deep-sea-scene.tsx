@@ -504,6 +504,120 @@ function DuctedThruster({
   )
 }
 
+/** Warm interior light, as seen through windows. */
+const CABIN_LIGHT = "#ffc47a"
+
+// Portholes along both sides of the hull and on the sail: [x, y, z, radius]
+const PORTHOLES: [number, number, number, number][] = [
+  [-0.55, 0.06, 0.545, 0.07],
+  [-0.15, 0.06, 0.552, 0.07],
+  [0.25, 0.06, 0.552, 0.07],
+  [-0.55, 0.06, -0.545, 0.07],
+  [-0.15, 0.06, -0.552, 0.07],
+  [0.25, 0.06, -0.552, 0.07],
+  [0.12, 0.72, 0.176, 0.04],
+  [0.3, 0.72, 0.176, 0.04],
+  [0.12, 0.72, -0.176, 0.04],
+  [0.3, 0.72, -0.176, 0.04],
+]
+
+/**
+ * Signs of life inside: lit portholes, and a cockpit behind the forward
+ * viewport with a pilot and a glowing instrument panel. The light shifts now
+ * and then, as if someone is moving around in the cabin; that is the only
+ * animation, and it is off when the viewer prefers reduced motion.
+ */
+function CabinLights({ frame }: { frame: THREE.Material }) {
+  const windows = useMemo(
+    () =>
+      PORTHOLES.map(
+        () =>
+          new THREE.MeshStandardMaterial({ color: "#120c05", emissive: CABIN_LIGHT, emissiveIntensity: 2.2, roughness: 0.2, toneMapped: false }),
+      ),
+    [],
+  )
+  const screen = useMemo(
+    () => new THREE.MeshStandardMaterial({ color: "#081514", emissive: "#5fe3d0", emissiveIntensity: 1.4, side: THREE.DoubleSide }),
+    [],
+  )
+  const cabinGlow = useMemo(
+    // the cabin's back wall: dim, so the pilot reads as a silhouette against it
+    () => new THREE.MeshStandardMaterial({ color: "#16100a", emissive: "#d98a3c", emissiveIntensity: 0.28, roughness: 0.9 }),
+    [],
+  )
+  const pilot = useMemo(() => new THREE.MeshStandardMaterial({ color: "#151311", roughness: 0.9 }), [])
+  const halo = useSoftDot()
+  const pilotRef = useRef<THREE.Group>(null)
+  const reduceMotion = useMemo(
+    () => typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches,
+    [],
+  )
+
+  useFrame(({ clock }) => {
+    if (reduceMotion) return
+    const t = clock.elapsedTime
+    windows.forEach((mat, i) => {
+      // slow drift, plus a rare dip when someone passes the window
+      const drift = 0.12 * Math.sin(t * 0.7 + i * 1.9)
+      const pass = Math.max(0, Math.sin(t * 0.23 + i * 2.7) - 0.92) * 9
+      mat.emissiveIntensity = 2.2 + drift - pass
+    })
+    // the instrument screen changes what it shows every few seconds
+    screen.emissiveIntensity = 1.2 + 0.35 * Math.sign(Math.sin(t * 0.45)) + 0.08 * Math.sin(t * 9)
+    // the pilot glances around
+    if (pilotRef.current) pilotRef.current.rotation.y = Math.sin(t * 0.3) * 0.5 + Math.sin(t * 1.1) * 0.08
+  })
+
+  return (
+    <>
+      {PORTHOLES.map(([x, y, z, r], i) => (
+        <group key={i} position={[x, y, z]} rotation={[0, z < 0 ? Math.PI : 0, 0]}>
+          <mesh material={windows[i]}>
+            <circleGeometry args={[r, 20]} />
+          </mesh>
+          <mesh material={frame} position={[0, 0, 0.004]}>
+            <torusGeometry args={[r, r * 0.17, 6, 20]} />
+          </mesh>
+          {/* light spilling out into the water */}
+          <sprite position={[0, 0, 0.02]} scale={[r * 5, r * 5, 1]}>
+            <spriteMaterial map={halo} color={CABIN_LIGHT} transparent opacity={0.32} depthWrite={false} blending={THREE.AdditiveBlending} toneMapped={false} />
+          </sprite>
+        </group>
+      ))}
+
+      {/* skylights along the top of the fairing (what you see from above) */}
+      {[-0.55, -0.2, 0.15].map((x, i) => (
+        <group key={x} position={[x - 0.05, 0.585, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+          <mesh material={windows[i]}>
+            <planeGeometry args={[0.16, 0.09]} />
+          </mesh>
+          <sprite position={[0, 0, 0.02]} scale={[0.5, 0.5, 1]}>
+            <spriteMaterial map={halo} color={CABIN_LIGHT} transparent opacity={0.22} depthWrite={false} blending={THREE.AdditiveBlending} toneMapped={false} />
+          </sprite>
+        </group>
+      ))}
+
+      {/* cockpit, seen through the forward viewport */}
+      {/* bulkhead behind the pilot: a dark, warmly lit cabin wall */}
+      <mesh position={[1.27, -0.06, 0]} rotation={[0, Math.PI / 2, 0]} material={cabinGlow}>
+        <circleGeometry args={[0.235, 28]} />
+      </mesh>
+      <group ref={pilotRef} position={[1.42, -0.15, 0]}>
+        <mesh material={pilot} position={[0, 0.1, 0]}>
+          <sphereGeometry args={[0.05, 12, 10]} />
+        </mesh>
+        <mesh material={pilot} rotation={[Math.PI / 2, 0, 0]}>
+          <capsuleGeometry args={[0.045, 0.09, 4, 10]} />
+        </mesh>
+      </group>
+      <mesh position={[1.55, -0.2, 0]} rotation={[0, -Math.PI / 2, 0.3]} material={screen}>
+        <planeGeometry args={[0.14, 0.06]} />
+      </mesh>
+      <pointLight position={[1.47, 0.08, 0]} color={CABIN_LIGHT} intensity={0.8} distance={0.7} decay={2} />
+    </>
+  )
+}
+
 /**
  * The submarine (forward is +x), modelled on deep research submersibles:
  * a white syntactic-foam body with a painted upper fairing in the tier
@@ -529,7 +643,7 @@ export function SubmarineModel({
       paint: new THREE.MeshStandardMaterial({ color: paint, roughness: 0.45, metalness: 0.15 }),
       metal: new THREE.MeshStandardMaterial({ color: "#5d5f5c", roughness: 0.42, metalness: 0.75 }),
       dark: new THREE.MeshStandardMaterial({ color: "#1f2322", roughness: 0.7, metalness: 0.4 }),
-      glass: new THREE.MeshStandardMaterial({ color: "#0e2226", roughness: 0.05, metalness: 0.2, emissive: "#3a2a12", emissiveIntensity: 0.4 }),
+      glass: new THREE.MeshStandardMaterial({ color: "#9fc4c4", roughness: 0.04, metalness: 0.1, transparent: true, opacity: 0.28, depthWrite: false }),
       lamp: new THREE.MeshStandardMaterial({ color: "#2a2722", emissive: PALETTE.lamp, emissiveIntensity: 2.4 }),
       strobe: new THREE.MeshStandardMaterial({ color: "#552", emissive: "#f2a33a", emissiveIntensity: 1.2 }),
     }
@@ -560,13 +674,16 @@ export function SubmarineModel({
         </mesh>
       ))}
 
-      {/* forward viewport with a bolted ring */}
-      <mesh position={[1.24, -0.12, 0]} material={m.glass}>
-        <sphereGeometry args={[0.17, 24, 16]} />
+      {/* forward acrylic bubble where the pilot sits, with a bolted ring */}
+      <mesh position={[1.38, -0.06, 0]} material={m.glass} renderOrder={3}>
+        <sphereGeometry args={[0.27, 32, 20]} />
       </mesh>
-      <mesh position={[1.2, -0.12, 0]} rotation={[0, Math.PI / 2, 0]} material={m.metal}>
-        <torusGeometry args={[0.17, 0.022, 8, 28]} />
+      <mesh position={[1.22, -0.06, 0]} rotation={[0, Math.PI / 2, 0]} material={m.metal}>
+        <torusGeometry args={[0.215, 0.026, 8, 32]} />
       </mesh>
+
+      {/* the crew's lights */}
+      <CabinLights frame={m.metal} />
 
       {/* lamp bar across the bow */}
       <mesh position={[1.05, -0.38, 0]} rotation={[Math.PI / 2, 0, 0]} material={m.metal}>
@@ -743,30 +860,84 @@ function Submarine({
   )
 }
 
+/** How the camera follows the submarine. */
+export type CameraMode = "overhead" | "chase" | "cockpit"
+
+export const CAMERA_MODES: CameraMode[] = ["overhead", "chase", "cockpit"]
+
+export const CAMERA_MODE_LABELS: Record<CameraMode, string> = {
+  overhead: "Overhead",
+  chase: "Chase",
+  cockpit: "Cockpit",
+}
+
+/** Shortest signed difference between two angles. */
+const angleDelta = (from: number, to: number) => Math.atan2(Math.sin(to - from), Math.cos(to - from))
+
 function FollowCamera({
   followRef,
+  playerRef,
   framing,
+  mode,
 }: {
   followRef: MutableRefObject<THREE.Vector3>
+  playerRef: MutableRefObject<PlayerPosition>
   framing: { x: number; z: number }
+  mode: CameraMode
 }) {
   const { camera } = useThree()
   const look = useRef(new THREE.Vector3())
+  const heading = useRef<number | null>(null)
   const ready = useRef(false)
+  const lastMode = useRef(mode)
+
   useFrame((_, delta) => {
-    // framing shifts the view so the submarine sits off-centre (e.g. to
-    // leave room for text on the landing page)
-    const f = followRef.current.clone().add(new THREE.Vector3(framing.x, 0, framing.z))
-    const desired = new THREE.Vector3(f.x, f.y + 15, f.z + 11)
+    const f = followRef.current
+    // Heading in scene space: the 2D game rotation maps to yaw -rotation.
+    const target = playerRef.current.rotation
+    if (heading.current === null) heading.current = target
+    const turnRate = mode === "cockpit" ? 14 : 4
+    heading.current += angleDelta(heading.current, target) * (1 - Math.exp(-delta * turnRate))
+    const h = heading.current
+    const fwd = new THREE.Vector3(Math.cos(h), 0, Math.sin(h))
+
+    let desired: THREE.Vector3
+    let focus: THREE.Vector3
+    if (mode === "cockpit") {
+      // the pilot's eye, inside the acrylic bubble, looking down the lamp beam
+      desired = f.clone().addScaledVector(fwd, 1.5).add(new THREE.Vector3(0, -0.02, 0))
+      focus = desired.clone().addScaledVector(fwd, 10).add(new THREE.Vector3(0, -2.6, 0))
+    } else if (mode === "chase") {
+      desired = f.clone().addScaledVector(fwd, -6.2).add(new THREE.Vector3(0, 2.9, 0))
+      focus = f.clone().addScaledVector(fwd, 3.5).add(new THREE.Vector3(0, -0.4, 0))
+    } else {
+      // framing shifts the view so the submarine sits off-centre (e.g. to
+      // leave room for text on the landing page)
+      focus = f.clone().add(new THREE.Vector3(framing.x, 0, framing.z))
+      desired = new THREE.Vector3(focus.x, focus.y + 15, focus.z + 11)
+    }
+
+    // Snap on the first frame; ease on a mode switch; then follow. The
+    // cockpit is rigidly attached to the hull, so it follows tightly.
+    const switching = lastMode.current !== mode
     if (!ready.current) {
       camera.position.copy(desired)
-      look.current.copy(f)
+      look.current.copy(focus)
       ready.current = true
     }
-    const k = 1 - Math.exp(-delta * 3)
+    const rate = mode === "cockpit" && !switching ? 18 : mode === "chase" ? 4 : 3
+    const k = 1 - Math.exp(-delta * rate)
     camera.position.lerp(desired, k)
-    look.current.lerp(f, k)
+    look.current.lerp(focus, k)
     camera.lookAt(look.current)
+    // wider lens in the cockpit, a touch wider when chasing
+    const cam = camera as THREE.PerspectiveCamera
+    const fov = mode === "cockpit" ? 64 : mode === "chase" ? 50 : 40
+    if (Math.abs(cam.fov - fov) > 0.05) {
+      cam.fov += (fov - cam.fov) * (1 - Math.exp(-delta * 4))
+      cam.updateProjectionMatrix()
+    }
+    if (switching && camera.position.distanceTo(desired) < 0.05) lastMode.current = mode
   })
   return null
 }
@@ -778,13 +949,23 @@ export interface DeepSeaSceneProps {
   targetNodeId: string | null
   hullColor: string
   isMining: boolean
-  /** Offset of the camera target from the submarine, in scene units. */
+  /** Offset of the camera target from the submarine, in scene units (overhead view). */
   framing?: { x: number; z: number }
+  /** Overhead (default), third-person chase, or first-person cockpit. */
+  cameraMode?: CameraMode
 }
 
 const CENTRED = { x: 0, z: 0 }
 
-export function DeepSeaScene({ playerRef, nodes, targetNodeId, hullColor, isMining, framing = CENTRED }: DeepSeaSceneProps) {
+export function DeepSeaScene({
+  playerRef,
+  nodes,
+  targetNodeId,
+  hullColor,
+  isMining,
+  framing = CENTRED,
+  cameraMode = "overhead",
+}: DeepSeaSceneProps) {
   const followRef = useRef(new THREE.Vector3(25, 0, 25))
   const geometries = useNoduleGeometries()
   const target = nodes.find((n) => n.id === targetNodeId) ?? null
@@ -817,7 +998,7 @@ export function DeepSeaScene({ playerRef, nodes, targetNodeId, hullColor, isMini
       <Submarine playerRef={playerRef} hullColor={hullColor} followRef={followRef} />
       <SiltPlume origin={plumeOrigin} active={isMining} />
       <MarineSnow followRef={followRef} />
-      <FollowCamera followRef={followRef} framing={framing} />
+      <FollowCamera followRef={followRef} playerRef={playerRef} framing={framing} mode={cameraMode} />
     </Canvas>
   )
 }
