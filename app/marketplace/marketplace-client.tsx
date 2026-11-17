@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { motion, AnimatePresence } from "framer-motion"
 import { ethers } from "ethers"
@@ -81,6 +81,49 @@ export default function MarketplaceClient({ playerData }: MarketplaceClientProps
   const [tradeStatus, setTradeStatus] = useState<string>("")
   const [txHash, setTxHash] = useState<string>("")
   const [tradeError, setTradeError] = useState<string>("")
+  // Trade dialog lifecycle helpers. `isTrading` is React state and is stale
+  // inside a handler that fires twice in one tick, so the double-submit guard
+  // is a ref; the auto-close timer is tracked so it cannot close a dialog the
+  // player has since reopened for a different resource.
+  const tradeInFlightRef = useRef(false)
+  const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const clearCloseTimer = useCallback(() => {
+    if (closeTimerRef.current) {
+      clearTimeout(closeTimerRef.current)
+      closeTimerRef.current = null
+    }
+  }, [])
+
+  const resetTradeStatus = useCallback(() => {
+    setTradeStep(0)
+    setTradeStatus("")
+    setTxHash("")
+    setTradeError("")
+  }, [])
+
+  /** Open the trade dialog for a resource with a clean status panel. */
+  const openTradeDialog = useCallback((resource: Resource) => {
+    if (tradeInFlightRef.current) return
+    clearCloseTimer()
+    resetTradeStatus()
+    setIsTrading(false)
+    setTradeAmount(1)
+    setSelectedResource(resource)
+  }, [clearCloseTimer, resetTradeStatus])
+
+  /** Close the dialog. An in-flight trade keeps running; its result is not lost. */
+  const closeTradeDialog = useCallback(() => {
+    clearCloseTimer()
+    setSelectedResource(null)
+    if (!tradeInFlightRef.current) {
+      resetTradeStatus()
+      setIsTrading(false)
+      setTradeAmount(1)
+    }
+  }, [clearCloseTimer, resetTradeStatus])
+
+  useEffect(() => clearCloseTimer, [clearCloseTimer])
 
   // Fetch OCX balance - prioritizes on-chain wallet balance
   const fetchOCXBalance = useCallback(async () => {
@@ -118,8 +161,7 @@ export default function MarketplaceClient({ playerData }: MarketplaceClientProps
   }, [playerData.wallet_address, playerData.total_ocx_earned])
 
   // Fetch player's actual resources from database with OCX rates matching backend
-  useEffect(() => {
-    const fetchPlayerResources = async () => {
+  const fetchPlayerResources = useCallback(async () => {
       try {
         const { data, error } = await supabase
           .from("players")
@@ -173,10 +215,11 @@ export default function MarketplaceClient({ playerData }: MarketplaceClientProps
       } catch (error) {
         console.error("Error loading resources:", error)
       }
-    }
-
-    fetchPlayerResources()
   }, [playerData.id])
+
+  useEffect(() => {
+    fetchPlayerResources()
+  }, [fetchPlayerResources])
 
   useEffect(() => {
     fetchOCXBalance()
@@ -215,23 +258,31 @@ export default function MarketplaceClient({ playerData }: MarketplaceClientProps
   const handleTrade = async () => {
     if (!selectedResource || tradeAmount <= 0 || tradeAmount > selectedResource.amount) return
 
-    // Prevent duplicate calls (double-click protection)
-    if (isTrading) {
+    // Prevent duplicate calls (double-click protection). Checked on a ref so
+    // two clicks in the same tick cannot both pass.
+    if (tradeInFlightRef.current || isTrading) {
       console.warn('⚠️ Trade already in progress, ignoring duplicate request');
       return;
     }
+    tradeInFlightRef.current = true
+    clearCloseTimer()
 
     // Reset state
     setIsTrading(true)
-    setTradeStep(0)
-    setTradeStatus("")
-    setTxHash("")
-    setTradeError("")
+    resetTradeStatus()
 
     try {
-      // Check wallet connection
+      // Check wallet connection. ensureConnected() reuses the live connection,
+      // or silently restores it after a reload / account switch.
       const walletManager = WalletManager.getInstance()
-      const connection = walletManager.getConnection()
+      let connection = walletManager.getConnection()
+      if (!connection) {
+        try {
+          connection = await walletManager.ensureConnected()
+        } catch (connectErr) {
+          console.warn("Wallet connection failed:", connectErr)
+        }
+      }
       
       if (!connection) {
         setTradeError("Please connect your wallet first")
@@ -255,21 +306,24 @@ export default function MarketplaceClient({ playerData }: MarketplaceClientProps
         return
       }
 
-      // Calculate total max claimable based on ALL resources
-      const totalMaxClaimable = resources.reduce((sum, r) => {
-        return sum + (r.ocxRate || 0) * r.amount
-      }, 0)
-
-      // Validate that requested amount doesn't exceed what backend allows
-      if (ocxToReceive > totalMaxClaimable) {
-        setTradeError(`Cannot trade ${ocxToReceive} OCX. Maximum claimable from all resources: ${totalMaxClaimable.toFixed(1)} OCX`)
+      // The server reserves exactly these units when it signs, so check them
+      // (not the value of all resources combined, which it no longer accepts).
+      if (!Number.isInteger(tradeAmount) || tradeAmount <= 0 || tradeAmount > selectedResource.amount) {
+        setTradeError(`You have ${selectedResource.amount} ${selectedResource.name}. Choose a whole number up to that.`)
         setIsTrading(false)
         return
       }
 
-      // Get signer from wallet
-      const provider = new ethers.BrowserProvider(window.ethereum)
-      const signer = await provider.getSigner()
+      // Signer on the contracts' chain (switches the wallet if needed; works
+      // for WalletConnect too, unlike reading window.ethereum directly).
+      let signer: ethers.Signer
+      try {
+        signer = (await walletManager.ensurePrimaryNetwork()).signer
+      } catch (networkErr: any) {
+        setTradeError(networkErr?.message || "Please switch your wallet to the game's network")
+        setIsTrading(false)
+        return
+      }
 
       // Execute blockchain trade
       const result = await executeMarketplaceTrade(
@@ -287,6 +341,9 @@ export default function MarketplaceClient({ playerData }: MarketplaceClientProps
       )
 
       if (!result.success) {
+        // The server may be holding the resources for this trade: show the
+        // real balance rather than the pre-trade one.
+        if (result.reservationHeld) void fetchPlayerResources()
         setTradeError(result.error || "Trade failed")
         setIsTrading(false)
         return
@@ -322,17 +379,23 @@ export default function MarketplaceClient({ playerData }: MarketplaceClientProps
       setTradeStep(5)
       setTradeStatus(`Successfully traded! Received ${result.ocxReceived} OCX`)
       
-      // Close modal after 3 seconds
-      setTimeout(() => {
+      // Close modal after 3 seconds (cancelled if the player closes or
+      // reopens the dialog first)
+      clearCloseTimer()
+      closeTimerRef.current = setTimeout(() => {
+        closeTimerRef.current = null
         setSelectedResource(null)
         setTradeAmount(1)
         setIsTrading(false)
+        resetTradeStatus()
       }, 3000)
 
     } catch (error: any) {
       console.error("Trade error:", error)
       setTradeError(error.message || "Unknown error occurred")
       setIsTrading(false)
+    } finally {
+      tradeInFlightRef.current = false
     }
   }
 
@@ -492,7 +555,7 @@ export default function MarketplaceClient({ playerData }: MarketplaceClientProps
                                 >
                                   <Card
                                     className={"relative overflow-hidden bg-gradient-to-br from-depth-800/80 to-depth-900/80 border-2 hover:border-cyan-400/50 transition-all duration-300 hover:shadow-2xl cursor-pointer backdrop-blur-sm"}
-                                    onClick={() => setSelectedResource(resource)}
+                                    onClick={() => openTradeDialog(resource)}
                                   >
                                     {/* Glow Effect */}
                                     <div className="absolute inset-0 bg-gradient-to-b from-transparent via-cyan-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
@@ -542,7 +605,7 @@ export default function MarketplaceClient({ playerData }: MarketplaceClientProps
                           disabled={resource.amount === 0}
                           onClick={(e) => {
                             e.stopPropagation()
-                            setSelectedResource(resource)
+                            openTradeDialog(resource)
                           }}
                         >
                           {resource.amount === 0 ? "Out of Stock" : "Trade Now"}
@@ -569,7 +632,7 @@ export default function MarketplaceClient({ playerData }: MarketplaceClientProps
         </div>
 
         {/* Trade Dialog */}
-        <Dialog open={!!selectedResource} onOpenChange={() => setSelectedResource(null)}>
+        <Dialog open={!!selectedResource} onOpenChange={(open) => { if (!open) closeTradeDialog() }}>
           <DialogContent className="bg-gradient-to-br from-depth-900 to-depth-950 border-2 border-cyan-500/30 text-white max-w-md">
             <DialogHeader>
               <DialogTitle className="text-2xl font-bold bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent">
@@ -659,13 +722,19 @@ export default function MarketplaceClient({ playerData }: MarketplaceClientProps
                 </div>
 
                 {/* Transaction Status */}
-                {isTrading && (
-                  <div className="space-y-3 p-4 bg-depth-800/50 rounded-lg border border-cyan-500/20">
+                {/* Also shown after a failure: errors used to be set at the same
+                    moment isTrading was cleared, so they were never visible. */}
+                {(isTrading || !!tradeError) && (
+                  <div
+                    role={tradeError ? "alert" : "status"}
+                    aria-live="polite"
+                    className="space-y-3 p-4 bg-depth-800/50 rounded-lg border border-cyan-500/20"
+                  >
                     <div className="flex items-center gap-3">
-                      {tradeStep < 5 ? (
-                        <Loader2 className="h-5 w-5 text-cyan-400 animate-spin" />
-                      ) : tradeError ? (
+                      {tradeError ? (
                         <AlertCircle className="h-5 w-5 text-red-400" />
+                      ) : tradeStep < 5 ? (
+                        <Loader2 className="h-5 w-5 text-cyan-400 animate-spin" />
                       ) : (
                         <CheckCircle className="h-5 w-5 text-green-400" />
                       )}
@@ -688,7 +757,7 @@ export default function MarketplaceClient({ playerData }: MarketplaceClientProps
                         )}
                       </div>
                     </div>
-                    {tradeStep > 0 && tradeStep < 5 && (
+                    {!tradeError && tradeStep > 0 && tradeStep < 5 && (
                       <div className="w-full bg-depth-700 rounded-full h-1.5">
                         <div
                           className="bg-gradient-to-r from-cyan-500 to-blue-500 h-1.5 rounded-full transition-all duration-500"
@@ -711,11 +780,7 @@ export default function MarketplaceClient({ playerData }: MarketplaceClientProps
                 <div className="flex gap-3">
                   <Button
                     variant="outline"
-                    onClick={() => {
-                      setSelectedResource(null)
-                      setTradeError("")
-                      setTxHash("")
-                    }}
+                    onClick={closeTradeDialog}
                     className="flex-1 border-cyan-500/30 hover:bg-cyan-500/10"
                     disabled={isTrading && tradeStep > 0 && tradeStep < 4}
                   >

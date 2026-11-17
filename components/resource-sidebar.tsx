@@ -24,8 +24,10 @@ export function ResourceSidebar({ isOpen, resources, balance, onTradeAll, onClai
   const router = useRouter()
   const isTrading = gameState === "trading" || gameState === "resourceTraded"
   const isClaiming = gameState === "claiming" || gameState === "claimed"
-  const isUpgrading = gameState === "upgrading" || gameState === "upgraded"
-  const isDisabled = isTrading || isClaiming || isUpgrading
+  // The game runs one action at a time (lib/state-machines/game-action.ts), so
+  // trade/claim are unavailable in *every* non-idle state — including mining,
+  // which used to leave these buttons clickable mid-action.
+  const isDisabled = gameState !== "idle"
 
   const handleBackToHome = () => {
     router.push("/home")

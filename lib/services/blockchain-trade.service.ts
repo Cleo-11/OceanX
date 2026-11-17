@@ -32,6 +32,11 @@ export interface ClaimSignatureResponse {
   r: string;
   s: string;
   message: string;
+  /** The resources the server reserved for this trade. */
+  resourceType?: string;
+  resourceAmount?: number;
+  /** True when the server handed back an unfinished trade's signature. */
+  resumed?: boolean;
 }
 
 export interface TradeConfirmResponse {
@@ -59,6 +64,8 @@ export interface TradeResult {
   ocxReceived: number;
   tradeId?: string | null;
   error?: string;
+  /** Resources were reserved by the server for a trade that did not complete. */
+  reservationHeld?: boolean;
 }
 
 /**
@@ -113,7 +120,16 @@ export async function requestClaimSignature(
 
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(`Backend error: ${response.status} ${errorText}`);
+      // Prefer the server's human-readable message (e.g. "You have an OCX
+      // claim in progress...") over dumping the raw JSON body at the player.
+      let serverMessage = '';
+      try {
+        const parsed = JSON.parse(errorText);
+        if (parsed && typeof parsed.error === 'string') serverMessage = parsed.error;
+      } catch {
+        // not JSON — fall through to the raw text
+      }
+      throw new Error(serverMessage || `Backend error: ${response.status} ${errorText}`);
     }
 
     const data = await response.json();
@@ -268,10 +284,12 @@ export async function executeMarketplaceTrade(
   wallet: ethers.Signer,
   onProgress?: (step: number, message: string) => void
 ): Promise<TradeResult> {
+  let signatureData: ClaimSignatureResponse | null = null;
   try {
-    // Step 1: Request signature
+    // Step 1: Request signature. The server prices the trade and reserves the
+    // resources now (they come back automatically if the trade never happens).
     onProgress?.(1, 'Requesting signature from server...');
-    const signatureData = await requestClaimSignature(params, wallet);
+    signatureData = await requestClaimSignature(params, wallet);
 
     // Step 2: Submit transaction
     onProgress?.(2, 'Please confirm the transaction in your wallet...');
@@ -291,11 +309,21 @@ export async function executeMarketplaceTrade(
     };
   } catch (error: any) {
     console.error('Trade execution failed:', error);
+    let message: string = error.message || 'Unknown error occurred';
+    if (signatureData) {
+      // The resources are held for this trade until its signature expires.
+      const minutes = Math.max(1, Math.ceil((Number(signatureData.deadline) + 180 - Date.now() / 1000) / 60));
+      const what = signatureData.resourceAmount && signatureData.resourceType
+        ? `${signatureData.resourceAmount} ${signatureData.resourceType}`
+        : 'resources';
+      message += ` — If the transaction did not go through, your ${what} are held for this trade: sell the same amount again to finish it, or they return to you automatically in about ${minutes} minute(s).`;
+    }
     return {
       success: false,
       txHash: '',
       ocxReceived: 0,
-      error: error.message || 'Unknown error occurred',
+      error: message,
+      reservationHeld: Boolean(signatureData),
     };
   }
 }

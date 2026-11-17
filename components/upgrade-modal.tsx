@@ -13,10 +13,12 @@ interface UpgradeModalProps {
   onUpgrade: (tier: number) => void
   onClose: () => void
   gameState: GameState
+  /** Live progress text while an upgrade is in flight (e.g. "Step 1 of 2 — approve..."). */
+  statusText?: string
 }
 
 
-export function UpgradeModal({ currentTier, resources, balance, onUpgrade, onClose, gameState }: UpgradeModalProps) {
+export function UpgradeModal({ currentTier, resources, balance, onUpgrade, onClose, gameState, statusText }: UpgradeModalProps) {
   const [selectedTier, setSelectedTier] = useState(currentTier + 1)
   const currentSubmarine = getSubmarineByTier(currentTier)
   const availableTiers = SUBMARINE_TIERS.filter(t => t.tier > currentTier)
@@ -192,6 +194,11 @@ export function UpgradeModal({ currentTier, resources, balance, onUpgrade, onClo
             </div>
           </div>
         </div>
+        {isUpgrading && statusText && (
+          <p role="status" aria-live="polite" className="mb-4 rounded-lg bg-slate-900/60 px-3 py-2 text-sm text-cyan-300">
+            {statusText}
+          </p>
+        )}
         <div className="flex justify-between">
           <button
             onClick={onClose}

@@ -123,7 +123,7 @@ describe('Frontend Integration: Submarine Upgrade Flow', () => {
       <OceanMiningGame
         walletConnected={true}
         gameState="idle"
-        setGameState={jest.fn()}
+        sendGameEvent={jest.fn(() => true)}
         sidebarOpen={false}
         setSidebarOpen={jest.fn()}
         onFullDisconnect={jest.fn()}
@@ -137,13 +137,13 @@ describe('Frontend Integration: Submarine Upgrade Flow', () => {
 
   test('should successfully upgrade submarine when button clicked', async () => {
     const user = userEvent.setup();
-    const setGameState = jest.fn();
+    const sendGameEvent = jest.fn(() => true);
 
     render(
       <OceanMiningGame
         walletConnected={true}
         gameState="idle"
-        setGameState={setGameState}
+        sendGameEvent={sendGameEvent}
         sidebarOpen={false}
         setSidebarOpen={jest.fn()}
         onFullDisconnect={jest.fn()}
@@ -165,11 +165,11 @@ describe('Frontend Integration: Submarine Upgrade Flow', () => {
 
     // Verify state changes
     await waitFor(() => {
-      expect(setGameState).toHaveBeenCalledWith('upgrading');
+      expect(sendGameEvent).toHaveBeenCalledWith('START_UPGRADING');
     });
 
     await waitFor(() => {
-      expect(setGameState).toHaveBeenCalledWith('upgraded');
+      expect(sendGameEvent).toHaveBeenCalledWith('SUCCEED');
     });
 
     // Verify API was called
@@ -185,7 +185,7 @@ describe('Frontend Integration: Submarine Upgrade Flow', () => {
       <OceanMiningGame
         walletConnected={true}
         gameState="idle"
-        setGameState={jest.fn()}
+        sendGameEvent={jest.fn(() => true)}
         sidebarOpen={false}
         setSidebarOpen={jest.fn()}
         onFullDisconnect={jest.fn()}
@@ -227,7 +227,7 @@ describe('Frontend Integration: Submarine Upgrade Flow', () => {
       <OceanMiningGame
         walletConnected={true}
         gameState="idle"
-        setGameState={jest.fn()}
+        sendGameEvent={jest.fn(() => true)}
         sidebarOpen={false}
         setSidebarOpen={jest.fn()}
         onFullDisconnect={jest.fn()}
@@ -256,7 +256,7 @@ describe('Frontend Integration: Submarine Upgrade Flow', () => {
       <OceanMiningGame
         walletConnected={true}
         gameState="idle"
-        setGameState={jest.fn()}
+        sendGameEvent={jest.fn(() => true)}
         sidebarOpen={false}
         setSidebarOpen={jest.fn()}
         onFullDisconnect={jest.fn()}
@@ -288,7 +288,7 @@ describe('Frontend Integration: Submarine Upgrade Flow', () => {
       <OceanMiningGame
         walletConnected={true}
         gameState="idle"
-        setGameState={jest.fn()}
+        sendGameEvent={jest.fn(() => true)}
         sidebarOpen={false}
         setSidebarOpen={jest.fn()}
         onFullDisconnect={jest.fn()}
@@ -330,7 +330,7 @@ describe('Frontend Integration: Submarine Upgrade Flow', () => {
       <OceanMiningGame
         walletConnected={true}
         gameState="idle"
-        setGameState={jest.fn()}
+        sendGameEvent={jest.fn(() => true)}
         sidebarOpen={false}
         setSidebarOpen={jest.fn()}
         onFullDisconnect={jest.fn()}

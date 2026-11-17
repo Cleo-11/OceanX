@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef, useMemo } from "react"
+import { useState, useEffect, useRef, useMemo, useCallback } from "react"
 import { PlayerHUD } from "./player-hud"
 // import { Compass } from "./compass"
 import { SonarRadar } from "./sonar-radar"
@@ -11,7 +11,8 @@ import { StorageFullAlert } from "./storage-full-alert"
 import { EnergyDepletedAlert } from "./energy-depleted-alert"
 import { apiClient, type SubmarineUpgradeResult } from "@/lib/api"
 import { walletManager } from "@/lib/wallet"
-import { wsManager } from "@/lib/websocket"
+import { wsManager, JOIN_ERROR_EVENT, type MiningResult } from "@/lib/websocket"
+import { createJoinSignaturePayload } from "@/lib/signature"
 import { ContractManager } from "@/lib/contracts"
 import { ethers } from "ethers"
 import { getSubmarineByTier } from "@/lib/submarine-tiers"
@@ -26,13 +27,23 @@ import type {
   ConnectionStatus,
 } from "@/lib/game-types"
 import { ScubaDiverGuide } from "./ScubaDiverGuide"
+import { GAME_STATE_LABELS, type GameActionEvent } from "@/lib/state-machines/game-action"
+import { CONNECTION_LABELS, connectionMachine, type ConnectionEvent } from "@/lib/state-machines/connection"
+import { classifyTxError, describeTx, explorerTxUrl, txError, type TxError } from "@/lib/state-machines/tx-lifecycle"
+import { useTxLifecycle } from "@/hooks/use-tx-lifecycle"
+import { CONNECTION_STATUS_EVENT } from "@/lib/websocket"
 import { loadGameState, setupAutoSave, clearGameState, getDefaultGameState } from "@/lib/gameStateStorage"
 import { getCurrentUser } from "@/lib/supabase"
 
 interface OceanMiningGameProps {
   walletConnected: boolean
   gameState: GameState
-  setGameState: (state: GameState) => void
+  /**
+   * Dispatch an event to the game action machine (lib/state-machines/game-action).
+   * Returns false when the event is not legal from the current state — use the
+   * return value of a START_* event as the re-entrancy guard for that action.
+   */
+  sendGameEvent: (event: GameActionEvent) => boolean
   sidebarOpen: boolean
   setSidebarOpen: (open: boolean | ((prev: boolean) => boolean)) => void
   onFullDisconnect: () => void // NEW PROP
@@ -50,6 +61,39 @@ interface OceanMiningGameProps {
   // Optional: initial submarine tier from database (avoids Express API dependency)
   initialTier?: number
 }
+
+/** Non-blocking in-HUD message (replaces window.alert, which froze the game loop). */
+interface GameNotice {
+  tone: "success" | "error" | "info"
+  message: string
+  /** Block-explorer link for the related transaction, when there is one. */
+  txUrl?: string | null
+}
+
+const NOTICE_DURATION_MS: Record<GameNotice["tone"], number> = {
+  success: 6000,
+  info: 6000,
+  error: 10000,
+}
+
+/** Position updates to the game server: at most this often while moving. */
+const MOVE_SEND_INTERVAL_MS = 150
+
+/** Player-facing text for a refused mine (server reason codes). */
+const MINING_FAILURE_TEXT: Record<string, string> = {
+  out_of_range: "Move closer to the deposit to mine it.",
+  storage_full: "Your hold is full for this resource. Trade resources to make space.",
+  node_depleted: "That deposit is depleted.",
+  node_not_found: "That deposit is gone. Find another one nearby.",
+  cooldown: "Your drill is cooling down.",
+  position_unknown: "Syncing your position with the server. Try again in a second.",
+  not_joined: "Reconnecting to the game server. Try again in a moment.",
+  disconnected: "Not connected to the game server. Reconnecting…",
+  timeout: "The game server did not answer. Please try again.",
+}
+
+/** Reuse a wallet auth signature for follow-up calls while it is comfortably fresh. */
+const AUTH_SIGNATURE_REUSE_MS = 3 * 60 * 1000
 
 // ── Build submarine SVG string (pixel-identical to SubmarineIcon.tsx) ────────
 function buildSubmarineSVG(tier: number, color: string): string {
@@ -86,7 +130,7 @@ function buildSubmarineSVG(tier: number, color: string): string {
 export function OceanMiningGame({
   walletConnected,
   gameState,
-  setGameState,
+  sendGameEvent,
   sidebarOpen,
   setSidebarOpen,
   onFullDisconnect, // NEW PROP
@@ -101,6 +145,11 @@ export function OceanMiningGame({
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const gameLoopRef = useRef<number>(0)
   const lastTimeRef = useRef<number>(0)
+  // Server position sync: last time a move was sent, and the latest position
+  // (read by socket handlers, which are registered once and would otherwise
+  // see a stale value).
+  const lastMoveSentRef = useRef<number>(0)
+  const playerPositionRef = useRef<PlayerPosition>({ x: 500, y: 500, rotation: 0 })
   const subImgCacheRef = useRef<Record<string, HTMLImageElement>>({})
 
   // --- CINEMATIC FEEDBACK STATE ---
@@ -123,6 +172,7 @@ export function OceanMiningGame({
 
   // Player position and movement
   const [playerPosition, setPlayerPosition] = useState<PlayerPosition>({ x: 500, y: 500, rotation: 0 })
+  playerPositionRef.current = playerPosition
   const [movementKeys, setMovementKeys] = useState<MovementKeys>({
     forward: false,
     backward: false,
@@ -133,6 +183,8 @@ export function OceanMiningGame({
   // Player stats and resources
   const [playerTier, setPlayerTier] = useState<number>(initialTier)
   const [sessionId, setSessionId] = useState<string | null>(null)
+  const sessionIdRef = useRef<string | null>(null)
+  sessionIdRef.current = sessionId
   // Multiplayer disabled: Only single player state is used
   // const [otherPlayers, setOtherPlayers] = useState<OtherPlayer[]>([])
   const [walletAddress, setWalletAddress] = useState<string>(initialWalletAddress)
@@ -187,6 +239,52 @@ export function OceanMiningGame({
   const [showEnergyAlert, setShowEnergyAlert] = useState<boolean>(false)
   const [viewportOffset, setViewportOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 })
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>("disconnected")
+  // All connection changes go through the connection machine so the HUD can
+  // never claim "connected" after the socket has dropped.
+  const sendConnectionEvent = useCallback((event: ConnectionEvent) => {
+    setConnectionStatus((prev) => connectionMachine.transition(prev, event))
+  }, [])
+
+  // Wallet / on-chain progress of the action in flight (claim or upgrade).
+  // The game action machine guarantees there is only ever one.
+  const actionTx = useTxLifecycle()
+  const [actionChainId, setActionChainIdState] = useState<number | null>(null)
+  const actionChainIdRef = useRef<number | null>(null)
+  const setActionChainId = useCallback((chainId: number | null) => {
+    actionChainIdRef.current = chainId
+    setActionChainIdState(chainId)
+  }, [])
+
+  // Close the upgrade modal when the "upgraded" success state settles to idle
+  const prevGameStateRef = useRef<GameState>(gameState)
+  useEffect(() => {
+    if (prevGameStateRef.current === "upgraded" && gameState === "idle") {
+      setShowUpgradeModal(false)
+    }
+    prevGameStateRef.current = gameState
+  }, [gameState])
+
+  const [notice, setNotice] = useState<GameNotice | null>(null)
+  const noticeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const showNotice = useCallback((next: GameNotice) => {
+    if (noticeTimerRef.current) clearTimeout(noticeTimerRef.current)
+    setNotice(next)
+    noticeTimerRef.current = setTimeout(() => {
+      noticeTimerRef.current = null
+      setNotice(null)
+    }, NOTICE_DURATION_MS[next.tone])
+  }, [])
+  const dismissNotice = useCallback(() => {
+    if (noticeTimerRef.current) clearTimeout(noticeTimerRef.current)
+    noticeTimerRef.current = null
+    setNotice(null)
+  }, [])
+  useEffect(
+    () => () => {
+      if (noticeTimerRef.current) clearTimeout(noticeTimerRef.current)
+    },
+    [],
+  )
   const [showGuide, setShowGuide] = useState<boolean>(!hasCompletedTutorial);
   const [userId, setUserId] = useState<string | null>(null);
 
@@ -227,8 +325,10 @@ export function OceanMiningGame({
   // Generate initial resource nodes immediately when component mounts
   // Restore backend and database connectivity, but keep multiplayer visuals disabled
   useEffect(() => {
-    generateInitialResourceNodes();
-    
+    // Deposits come from the game server (game-state), which owns them: they
+    // are no longer generated in the browser, where a reload produced a fresh
+    // set and mined amounts were whatever the client said.
+
     // Load userId and restore game state from localStorage
     const initGameState = async () => {
       try {
@@ -250,7 +350,7 @@ export function OceanMiningGame({
               energy: savedState.energy,
               health: savedState.hull,
             }));
-            setSessionId(savedState.sessionId);
+            // sessionId is assigned by the server on join, never restored.
           } else {
             console.log("ℹ️ No saved game state found, using defaults");
             const defaults = getDefaultGameState();
@@ -266,37 +366,46 @@ export function OceanMiningGame({
     
     const init = async () => {
       try {
-        setConnectionStatus("connecting");
+        sendConnectionEvent("CONNECT");
+        // Subscribe before connecting so no socket lifecycle event is missed
+        // (drops and reconnects keep arriving for the life of the socket).
+        wsManager.on(CONNECTION_STATUS_EVENT, sendConnectionEvent);
         await wsManager.connect();
         // Only listen for resource/game state and player data, not multiplayer events
         wsManager.on("game-state", handleGameState);
-        wsManager.on("resource-mined", handleResourceMined);
+        wsManager.on("resource-nodes", handleResourceNodes);
+        wsManager.on("movement-rejected", handleMovementRejected);
+        wsManager.on(JOIN_ERROR_EVENT, handleJoinError);
         wsManager.on("error", handleWebSocketError);
         const connection = walletManager.getConnection();
         if (connection) {
           setWalletAddress(connection.address);
-          // Join session with signed payload
-          const joinMessage = `Sign this message to join session global with your account ${connection.address}`;
-          const joinSignature = await walletManager.signMessage(joinMessage);
-          wsManager.joinSession({
-            walletAddress: connection.address,
-            sessionId: "global",
-            message: joinMessage,
-            signature: joinSignature,
-          });
+          await signAndJoin(connection.address);
           await loadPlayerData(connection.address);
         } else {
           console.warn("[OceanMiningGame] walletManager.getConnection() returned null or undefined");
         }
-        setConnectionStatus("connected");
+        sendConnectionEvent("CONNECTED");
       } catch (error) {
         console.error("Failed to initialize game:", error);
-        setConnectionStatus("disconnected");
+        sendConnectionEvent("FAILED");
       }
     };
     if (walletConnected) {
       init();
     }
+    return () => {
+      // Leaving the game screen: stop listening and close the socket so a
+      // later visit starts from a clean "disconnected" state instead of
+      // stacking a second socket and duplicate handlers.
+      wsManager.off(CONNECTION_STATUS_EVENT, sendConnectionEvent);
+      wsManager.off("game-state", handleGameState);
+      wsManager.off("resource-nodes", handleResourceNodes);
+      wsManager.off("movement-rejected", handleMovementRejected);
+      wsManager.off(JOIN_ERROR_EVENT, handleJoinError);
+      wsManager.off("error", handleWebSocketError);
+      wsManager.disconnect();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [walletConnected]);
 
@@ -322,35 +431,38 @@ export function OceanMiningGame({
     };
   }, [userId, playerPosition.x, playerPosition.y, playerStats.energy, playerStats.health, sessionId]);
 
-  // Generate resource nodes function
-  const generateInitialResourceNodes = () => {
-    const types = ["nickel", "cobalt", "copper", "manganese"] as const
-    const nodes: ResourceNode[] = []
+  /**
+   * Join the game server with a signed join message (one wallet prompt).
+   * The server expects the JSON message from createJoinSignaturePayload; the
+   * plain-text message used before was always rejected, so the game never
+   * actually joined and ran entirely in the browser. After a dropped
+   * connection the socket rejoins with a resume token, without a prompt.
+   */
+  const signAndJoin = async (address: string) => {
+    const payload = createJoinSignaturePayload(address)
+    const signature = await walletManager.signMessage(payload.message)
+    wsManager.joinSession({
+      walletAddress: address,
+      sessionId: payload.session,
+      message: payload.message,
+      signature,
+    })
+  }
 
-    console.log("🎯 Generating resource nodes...")
-
-    for (let i = 0; i < 30; i++) {
-      const node: ResourceNode = {
-        id: `node-${i}`,
-        position: {
-          x: Math.random() * 1800 + 100, // 100-1900 range
-          y: Math.random() * 1800 + 100,
-        },
-        type: types[Math.floor(Math.random() * types.length)],
-  amount: Math.floor(Math.random() * 11) + 5, // 5-15 resources per node
-        depleted: false,
-        size: Math.random() * 10 + 15, // Size between 15-25 for rendering
-      }
-      nodes.push(node)
-    }
-
-    console.log(`✅ Generated ${nodes.length} resource nodes`)
-    setResourceNodes(nodes)
+  /** Send the current position to the server (throttled unless forced). */
+  const syncPositionToServer = (position: PlayerPosition, force = false) => {
+    const connection = walletManager.getConnection()
+    if (!connection || !wsManager.isConnected()) return
+    const nowMs = Date.now()
+    if (!force && nowMs - lastMoveSentRef.current < MOVE_SEND_INTERVAL_MS) return
+    if (nowMs - lastMoveSentRef.current < 20) return // server minimum interval
+    lastMoveSentRef.current = nowMs
+    wsManager.sendPlayerMove(position, connection.address, sessionIdRef.current || "auto")
   }
 
   const cleanup = () => {
     wsManager.disconnect()
-    setConnectionStatus("disconnected")
+    sendConnectionEvent("DISCONNECT")
     setSessionId(null)
     // Clear saved game state from localStorage on disconnect
     if (userId) {
@@ -424,12 +536,10 @@ export function OceanMiningGame({
             copper: 0,
             manganese: 0,
           },
-          maxCapacity: {
-            nickel: currentSubmarine.storage,
-            cobalt: currentSubmarine.storage,
-            copper: currentSubmarine.storage,
-            manganese: currentSubmarine.storage,
-          },
+          // Per-resource limits for the tier — the same table the game server
+          // enforces. (The single `storage` figure is the nickel limit; using
+          // it for every resource let the HUD promise space the server refuses.)
+          maxCapacity: { ...getSubmarineByTier(currentSubmarine.id).baseStats.maxCapacity },
           depth: 0, // Default depth
           speed: currentSubmarine.speed,
           miningRate: currentSubmarine.miningPower,
@@ -444,6 +554,13 @@ export function OceanMiningGame({
   // WebSocket event handlers
   const handleGameState = (state: any) => {
     console.log("Received game state:", state);
+
+    if (typeof state?.sessionId === "string") {
+      setSessionId(state.sessionId)
+      sessionIdRef.current = state.sessionId
+      // The server needs a position before it allows mining.
+      syncPositionToServer(playerPositionRef.current, true)
+    }
     
     // Handle resource nodes
     if (state.resources && state.resources.length > 0) {
@@ -480,30 +597,37 @@ export function OceanMiningGame({
 
   // Multiplayer disabled: no other players to update
 
-  const handleResourceMined = (data: any) => {
-    setResourceNodes((prev) =>
-      prev.map((node) =>
-        node.id === data.nodeId ? { ...node, amount: data.remainingAmount, depleted: data.depleted } : node,
-      ),
-    )
+  // Depleted deposits were replaced by the server.
+  const handleResourceNodes = (data: { resources?: ResourceNode[] }) => {
+    if (Array.isArray(data?.resources)) setResourceNodes(data.resources)
+  }
 
-    // If this player mined the resource, update their inventory
+  // The server refused a move (too fast / teleport): snap back to its position
+  // so the client and server agree again (mining range is checked server-side).
+  const handleMovementRejected = (data: any) => {
+    const p = data?.currentPosition
+    if (!p || !Number.isFinite(p.x) || !Number.isFinite(p.y)) return
+    setPlayerPosition((prev) => {
+      const next = { ...prev, x: p.x, y: p.y }
+      playerPositionRef.current = next
+      return next
+    })
+  }
+
+  // The resume token was refused after a reconnect: sign in again (one prompt).
+  const handleJoinError = (data: { code?: string }) => {
     const connection = walletManager.getConnection()
-    if (connection && data.minedBy === connection.address) {
-      // Update resources based on node type
-      const nodeType = resourceNodes.find((n) => n.id === data.nodeId)?.type
-      if (nodeType) {
-        setResources((prev) => ({
-          ...prev,
-          [nodeType]: prev[nodeType] + data.minedAmount,
-        }))
-      }
+    if (data?.code === "RESUME_INVALID" && connection) {
+      signAndJoin(connection.address).catch((err) => {
+        console.error("Rejoin failed:", err)
+        showNotice({ tone: "error", message: "Could not rejoin the game server. Reload the page to continue mining." })
+      })
     }
   }
 
   const handleWebSocketError = (error: any) => {
     console.error("WebSocket error:", error)
-    setConnectionStatus("disconnected")
+    sendConnectionEvent("FAILED")
   }
 
   // Update storage percentage when resources change
@@ -625,7 +749,9 @@ export function OceanMiningGame({
 
     const gameLoop = (timestamp: number) => {
       if (!lastTimeRef.current) lastTimeRef.current = timestamp
-      const deltaTime = timestamp - lastTimeRef.current
+      // Capped: after a background tab resumes, one huge frame would jump the
+      // submarine far enough for the server to reject it as a teleport.
+      const deltaTime = Math.min(timestamp - lastTimeRef.current, 50)
       lastTimeRef.current = timestamp
 
       if (gameState !== "mining") {
@@ -705,12 +831,14 @@ export function OceanMiningGame({
     newY = Math.max(50, Math.min(1950, newY))
 
     const newPosition = { x: newX, y: newY, rotation: newRotation }
+    const moved = newX !== playerPosition.x || newY !== playerPosition.y || newRotation !== playerPosition.rotation
     setPlayerPosition(newPosition)
+    playerPositionRef.current = newPosition
 
-    // Send position update to server if connected
-    const connection = walletManager.getConnection()
-    if (connectionStatus === "connected" && sessionId && connection) {
-      wsManager.sendPlayerMove(newPosition, connection.address, sessionId)
+    // Position updates to the server (throttled): it checks mining range
+    // against the position it last accepted.
+    if (moved && connectionStatus === "connected" && sessionId) {
+      syncPositionToServer(newPosition)
     }
 
     const canvas = canvasRef.current
@@ -1072,71 +1200,86 @@ export function OceanMiningGame({
   }
 
   const handleMine = async (node: ResourceNode) => {
-    if (!walletConnected || gameState !== "idle" || !targetNode) return
+    if (!walletConnected || !targetNode) return
 
-    setGameState("mining")
-
-    // Check if player has enough storage
-    const { canMine, amountToMine } = canMineResource(playerStats, resources, node.type, node.amount)
-
+    // Quick local check so a full hold answers instantly. The server makes the
+    // real decision (range, capacity, deposit amount) below.
+    const { canMine } = canMineResource(playerStats, resources, node.type, node.amount)
     if (!canMine) {
+      if (gameState !== "idle") return
       setShowStorageAlert(true)
-      setTimeout(() => {
-        setShowStorageAlert(false)
-        setGameState("idle")
-      }, 2000)
+      setTimeout(() => setShowStorageAlert(false), 2000)
       return
     }
 
-    try {
-      // Send mining request to server if connected
-      if (connectionStatus === "connected" && walletAddress && sessionId) {
-        wsManager.mineResource({
-          nodeId: node.id,
-          sessionId: sessionId,
-          walletAddress: walletAddress,
-          amount: amountToMine,
-          resourceType: node.type,
-        })
+    // Mining is decided and saved by the game server; without a connection
+    // nothing would be saved, so do not pretend.
+    if (connectionStatus !== "connected" || !sessionId) {
+      if (gameState === "idle") {
+        showNotice({ tone: "info", message: MINING_FAILURE_TEXT.disconnected })
       }
+      return
+    }
 
-      // Update local state optimistically
-      setResources((prev) => ({
-        ...prev,
-        [node.type]: prev[node.type] + amountToMine,
-      }))
+    // Single entry point for mining: ignored unless the game is idle. The
+    // check is synchronous, so key-repeat on "F" cannot start a second mine.
+    if (!sendGameEvent("START_MINING")) return
 
-      setPlayerStats((prev) => ({
-        ...prev,
-        energy: Math.max(prev.energy - 5, 0),
-        capacity: {
-          ...prev.capacity,
-          [node.type]: prev.capacity[node.type] + amountToMine,
-        },
-      }))
+    // Make sure the server has our latest position before it checks range
+    // (socket.io keeps order, so this move is processed first).
+    syncPositionToServer(playerPositionRef.current, true)
 
-      // Update the node locally
-      setResourceNodes((prev) =>
-        prev.map((n) =>
-          n.id === node.id
-            ? {
-                ...n,
-                amount: Math.max(0, n.amount - amountToMine),
-                depleted: n.amount - amountToMine <= 0,
-              }
-            : n,
-        ),
-      )
-
-      setGameState("resourceGained")
-
-      setTimeout(() => {
-        setGameState("idle")
-      }, 2000)
+    let result: MiningResult
+    try {
+      result = await wsManager.requestMine(node.id)
     } catch (error) {
       console.error("Mining failed:", error)
-      setGameState("idle")
+      result = { success: false, reason: "error", message: "Mining failed. Please try again." }
     }
+
+    if (!result.success) {
+      if (result.reason === "storage_full") {
+        setShowStorageAlert(true)
+        setTimeout(() => setShowStorageAlert(false), 2000)
+      } else {
+        showNotice({
+          tone: result.reason === "cooldown" ? "info" : "error",
+          message: (result.reason && MINING_FAILURE_TEXT[result.reason]) || result.message || "Mining failed.",
+        })
+      }
+      if (result.reason === "node_depleted" || result.reason === "node_not_found") {
+        setResourceNodes((prev) =>
+          prev.map((n) => (n.id === node.id ? { ...n, amount: 0, depleted: true } : n)),
+        )
+      }
+      sendGameEvent("FAIL")
+      return
+    }
+
+    // Render the server's numbers: authoritative totals and deposit state.
+    if (result.resources) {
+      setResources(result.resources)
+    }
+    const minedType = result.resourceType ?? node.type
+    const minedAmount = result.amount ?? 0
+    setPlayerStats((prev) => ({
+      ...prev,
+      energy: Math.max(prev.energy - 5, 0),
+      capacity: {
+        ...prev.capacity,
+        [minedType]: prev.capacity[minedType] + minedAmount,
+      },
+    }))
+    setResourceNodes((prev) =>
+      prev.map((n) =>
+        n.id === node.id
+          ? { ...n, amount: result.remainingAmount ?? Math.max(0, n.amount - minedAmount), depleted: Boolean(result.depleted) }
+          : n,
+      ),
+    )
+
+    // mining → resourceGained; the machine returns to idle on its own timer
+    sendGameEvent("SUCCEED")
   }
 
   // Calculate total storage used
@@ -1144,16 +1287,18 @@ export function OceanMiningGame({
 
   const handleTradeAll = async () => {
     if (totalUsed === 0) return; // Only allow if player has resources
-    setGameState("trading");
-    
-    try {
-      // Require wallet connection
-      if (!walletConnected || !initialWalletAddress) {
-        alert("Please connect your wallet to trade resources for OCX tokens!");
-        setGameState("idle");
-        return;
-      }
 
+    // Require wallet connection
+    if (!walletConnected || !initialWalletAddress) {
+      showNotice({ tone: "error", message: "Please connect your wallet to trade resources for OCX tokens!" });
+      return;
+    }
+
+    // One action at a time: ignored while mining, claiming, upgrading or
+    // while a previous trade is still in flight (prevents double submits).
+    if (!sendGameEvent("START_TRADING")) return;
+
+    try {
       // Use Next.js API route with JWT cookie auth — NO MetaMask popup needed
       const response = await fetch('/api/marketplace/trade-resources', {
         method: 'POST',
@@ -1177,66 +1322,126 @@ export function OceanMiningGame({
         ...prev,
         capacity: { nickel: 0, cobalt: 0, copper: 0, manganese: 0 },
       }));
-      setBalance(result.newOcxBalance || (balance + (result.ocxEarned || 0)));
-      setGameState("resourceTraded");
-      setTimeout(() => setGameState("idle"), 2000);
+      setBalance((prev) => result.newOcxBalance || (prev + (result.ocxEarned || 0)));
+      sendGameEvent("SUCCEED");
     } catch (e: any) {
       console.error("Trade error:", e);
-      alert(e.message || "Trade failed. Please try again.");
-      setGameState("idle");
+      showNotice({ tone: "error", message: e?.message || "Trade failed. Please try again." });
+      sendGameEvent("FAIL");
     }
   };
 
+  const shortAddress = (value: string) => `${value.slice(0, 6)}…${value.slice(-4)}`;
+
   /**
    * Claim OCX: Withdraw accumulated OCX from DB to the user's wallet on-chain.
-   * This triggers the blockchain signature + transaction flow.
+   *
+   * Lifecycle (lib/state-machines/tx-lifecycle.ts):
+   *   preparing → awaitingSignature → authorizing → awaitingWallet → pending → syncing → succeeded
+   * Every step is shown to the player, and any failure is classified into a
+   * plain-language message that says whether funds moved.
    */
   const handleClaimOcx = async () => {
     if (!walletConnected || !initialWalletAddress) {
-      alert("Please connect your wallet to claim OCX tokens!");
+      showNotice({ tone: "error", message: "Please connect your wallet to claim OCX tokens!" });
       return;
     }
 
-    setGameState("claiming");
+    // One claim at a time. A second click — or a click while another action
+    // is in flight — is rejected here, synchronously, before any request.
+    if (!sendGameEvent("START_CLAIMING")) return;
+    actionTx.send({ type: "RESET" });
+    actionTx.send({ type: "START", note: "Connecting to your wallet..." });
+    dismissNotice();
+
+    let chainId: number | null = null;
+    // True once the server has issued (and reserved OCX for) a claim signature.
+    let claimAuthorised = false;
 
     try {
       const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
-      const { ethers } = await import("ethers");
-      const { getOCXTokenContractWithSigner } = await import("@/lib/contracts/ocx-token");
+      const { getOCXTokenContractWithSigner, OCX_TOKEN_ADDRESS } = await import("@/lib/contracts/ocx-token");
 
-      const provider = new ethers.BrowserProvider(window.ethereum);
-      const signer = await provider.getSigner();
+      // Works for MetaMask and WalletConnect, silently restores the session
+      // after a page reload, and switches the wallet to the contracts' chain.
+      const connection = await walletManager.ensurePrimaryNetwork();
+      const { signer, provider } = connection;
       const address = await signer.getAddress();
+      chainId = Number((await provider.getNetwork()).chainId);
+      setActionChainId(chainId);
 
-      // Step 1: Request claim signature from backend (checks DB balance)
-      const authMessage = `AbyssX claim\nWallet: ${address}\nTimestamp: ${Date.now()}\nNetwork: sepolia`;
-      const authSignature = await signer.signMessage(authMessage);
+      // Preflight 1: the wallet account must be the player's account,
+      // otherwise the server looks up the wrong (or no) player.
+      if (address.toLowerCase() !== initialWalletAddress.toLowerCase()) {
+        throw txError(
+          "wallet_mismatch",
+          `Your wallet is on account ${shortAddress(address)}, but this game profile belongs to ${shortAddress(initialWalletAddress)}. Switch accounts in your wallet and try again.`,
+        );
+      }
 
+      // Preflight 2: the OCX contract must exist on the wallet's network. A
+      // claim sent to a network without the contract "succeeds" as an empty
+      // transaction: the player pays gas and receives nothing.
+      let contractCode: string | null = null;
+      try {
+        contractCode = await provider.getCode(OCX_TOKEN_ADDRESS);
+      } catch (codeErr) {
+        console.warn("Could not verify OCX contract on current network:", codeErr);
+      }
+      if (contractCode === "0x") {
+        throw txError(
+          "wrong_network",
+          "OCX is not available on the network your wallet is using. Switch your wallet to the game's network and try again.",
+          true,
+        );
+      }
+
+      // Step 1: prove wallet ownership to the game server (free signature)
+      const signAuth = async () => {
+        const message = `AbyssX claim\nWallet: ${address}\nTimestamp: ${Date.now()}\nNetwork: sepolia`;
+        const signature = await signer.signMessage(message);
+        return { message, signature, signedAt: Date.now() };
+      };
+      actionTx.send({ type: "REQUEST_SIGNATURE" });
+      let auth = await signAuth();
+
+      // Step 2: request claim signature from backend (checks DB balance)
+      actionTx.send({ type: "AUTHORIZE", note: "Authorising your claim with the game server..." });
       const signResponse = await fetch(`${BACKEND_URL}/marketplace/claim-ocx`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           walletAddress: address,
           address: address,
-          authMessage,
-          authSignature,
+          authMessage: auth.message,
+          authSignature: auth.signature,
         }),
       });
 
       if (!signResponse.ok) {
         const errorData = await signResponse.json().catch(() => ({ error: 'Claim failed' }));
-        throw new Error(errorData.error || `Server error: ${signResponse.status}`);
+        const message = errorData.error || `Server error: ${signResponse.status}`;
+        if (errorData.code === "CLAIM_SETTLING") {
+          throw txError("settling", message, true);
+        }
+        throw txError("server", message, signResponse.status >= 500);
       }
 
       const signatureData = await signResponse.json();
 
       if (!signatureData.success) {
-        throw new Error(signatureData.error || "Failed to get claim signature");
+        throw txError("server", signatureData.error || "Failed to get claim signature", true);
       }
 
-      console.log(`📝 Claim signature received for ${signatureData.claimableOcx} OCX`);
+      claimAuthorised = true;
+      const claimedAmount = Number(signatureData.claimableOcx) || 0;
+      console.log(`📝 Claim signature received for ${claimedAmount} OCX`);
 
-      // Step 2: Submit on-chain claim transaction (user pays gas)
+      // Step 3: submit on-chain claim transaction (user pays gas)
+      actionTx.send({
+        type: "REQUEST_WALLET",
+        note: `Confirm the claim of ${claimedAmount.toLocaleString()} OCX in your wallet...`,
+      });
       const contract = getOCXTokenContractWithSigner(signer);
 
       const tx = await contract.claim(
@@ -1249,6 +1454,7 @@ export function OceanMiningGame({
       );
 
       console.log("Transaction submitted:", tx.hash);
+      actionTx.send({ type: "BROADCAST", txHash: tx.hash });
       const receipt = await tx.wait();
 
       if (!receipt) {
@@ -1256,45 +1462,87 @@ export function OceanMiningGame({
       }
 
       console.log("✅ Claim transaction confirmed in block:", receipt.blockNumber);
+      actionTx.send({ type: "MINED" });
 
-      // Step 3: Confirm with backend
+      // Step 4: confirm with backend (best effort — the tokens are already in
+      // the wallet). The auth signature from step 1 is reused while it is
+      // fresh, so the player is not asked to sign a third time.
       try {
-        const confirmAuth = `AbyssX claim\nWallet: ${address}\nTimestamp: ${Date.now()}\nNetwork: sepolia`;
-        const confirmSig = await signer.signMessage(confirmAuth);
+        const confirmWithServer = (credentials: { message: string; signature: string }) =>
+          fetch(`${BACKEND_URL}/marketplace/trade/confirm`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              walletAddress: address,
+              address: address,
+              authMessage: credentials.message,
+              authSignature: credentials.signature,
+              txHash: tx.hash,
+              tradeId: signatureData.tradeId,
+            }),
+          });
 
-        await fetch(`${BACKEND_URL}/marketplace/trade/confirm`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            walletAddress: address,
-            address: address,
-            authMessage: confirmAuth,
-            authSignature: confirmSig,
-            txHash: tx.hash,
-            tradeId: signatureData.tradeId,
-          }),
-        });
+        let reusedAuth = true;
+        if (Date.now() - auth.signedAt > AUTH_SIGNATURE_REUSE_MS) {
+          actionTx.send({ type: "REQUEST_SIGNATURE", note: "Sign once more to sync your game (free, no gas)..." });
+          auth = await signAuth();
+          reusedAuth = false;
+        }
+
+        let confirmResponse = await confirmWithServer(auth);
+        if (reusedAuth && (confirmResponse.status === 401 || confirmResponse.status === 403)) {
+          // Server no longer accepts the earlier signature — ask for a new one.
+          actionTx.send({ type: "REQUEST_SIGNATURE", note: "Sign once more to sync your game (free, no gas)..." });
+          auth = await signAuth();
+          confirmResponse = await confirmWithServer(auth);
+        }
+        if (!confirmResponse.ok) {
+          console.warn("Backend confirmation returned", confirmResponse.status, "(tx already on-chain)");
+        }
       } catch (confirmErr) {
         console.warn("Backend confirmation failed (tx already on-chain):", confirmErr);
       }
 
-      // Update frontend state
-      const claimedAmount = signatureData.claimableOcx || 0;
-      setBalance((prev) => Math.max(0, prev - claimedAmount));
+      // Update frontend state. Prefer the server's authoritative remaining
+      // balance; fall back to subtracting the claimed amount.
+      const remainingOcx = Number(signatureData.remainingOcx);
+      setBalance((prev) =>
+        signatureData.remainingOcx !== undefined && signatureData.remainingOcx !== null && Number.isFinite(remainingOcx)
+          ? Math.max(0, remainingOcx)
+          : Math.max(0, prev - claimedAmount),
+      );
 
-      alert(`Successfully claimed ${claimedAmount} OCX to your wallet!`);
-      setGameState("claimed");
-      setTimeout(() => setGameState("idle"), 2000);
-    } catch (e: any) {
+      actionTx.send({ type: "SUCCEED" });
+      showNotice({
+        tone: "success",
+        message: `Claimed ${claimedAmount.toLocaleString()} OCX to your wallet.`,
+        txUrl: explorerTxUrl(tx.hash, chainId),
+      });
+      sendGameEvent("SUCCEED");
+    } catch (e: unknown) {
       console.error("Claim error:", e);
-      if (e.code === 'ACTION_REJECTED') {
-        alert("Transaction rejected by user");
-      } else if (e.message?.includes('insufficient funds')) {
-        alert("Insufficient ETH for gas fees");
+      const error = classifyTxError(e, "Claim failed. Please try again.");
+      const txBefore = actionTx.current();
+      const broadcastHash = "txHash" in txBefore ? txBefore.txHash : undefined;
+      actionTx.send({ type: "FAIL", error });
+
+      if (broadcastHash) {
+        // Funds may have moved: never tell the player "nothing happened".
+        showNotice({
+          tone: "error",
+          message:
+            "Your claim transaction was sent, but we could not confirm it yet. Check it on the block explorer before trying again — if it succeeded, your OCX is already in your wallet.",
+          txUrl: chainId !== null ? explorerTxUrl(broadcastHash, chainId) : null,
+        });
+      } else if (claimAuthorised) {
+        showNotice({
+          tone: error.kind === "rejected" ? "info" : "error",
+          message: `${error.message} Your OCX is safe: press Claim again within a few minutes to finish this claim, otherwise it is returned to your game balance.`,
+        });
       } else {
-        alert(e.message || "Claim failed. Please try again.");
+        showNotice({ tone: error.kind === "rejected" ? "info" : "error", message: error.message });
       }
-      setGameState("idle");
+      sendGameEvent("FAIL");
     }
   };
 
@@ -1328,123 +1576,154 @@ export function OceanMiningGame({
 
   const executeSubmarineUpgrade = async (targetTierOverride?: number): Promise<SubmarineUpgradeResult> => {
     const targetTier = targetTierOverride ?? playerTier + 1
-    
-    // Wallet MUST be connected — auto-reconnect or prompt MetaMask
-    let connection = walletManager.getConnection()
-    if (!connection) {
-      try {
-        connection = await walletManager.ensureConnected()
-      } catch (err) {
-        throw new Error("Wallet not connected. Please connect MetaMask or WalletConnect to authorize the transaction.")
+
+    actionTx.send({ type: "RESET" })
+    actionTx.send({ type: "START", note: "Connecting to your wallet..." })
+
+    // Wallet MUST be connected, on the contracts' chain — auto-reconnects,
+    // prompts to connect, or asks the wallet to switch network.
+    let connection
+    try {
+      connection = await walletManager.ensurePrimaryNetwork()
+    } catch (err: any) {
+      if (!walletManager.getConnection()) {
+        throw txError(
+          "no_wallet",
+          "Wallet not connected. Please connect MetaMask or WalletConnect to authorize the transaction.",
+          true,
+        )
       }
+      throw txError("wrong_network", err?.message || "Please switch your wallet to the game's network.", true)
     }
 
     const walletAddress = connection.address
     if (!walletAddress) {
-      throw new Error("No wallet address available. Please reconnect your wallet.")
+      throw txError("no_wallet", "No wallet address available. Please reconnect your wallet.", true)
     }
+    setActionChainId(connection.chainId)
 
     const tierDefinition = getSubmarineByTier(targetTier)
     const upgradeCost = tierDefinition.upgradeCost.tokens
 
-    // Check balance client-side before calling server
-    if (balance < upgradeCost) {
-      throw new Error(`Insufficient OCX tokens (have: ${balance}, need: ${upgradeCost})`)
-    }
-
+    // The upgrade spends OCX from the WALLET (on-chain). The in-game balance
+    // is unclaimed OCX that is not in the wallet yet, so checking it let a
+    // player with in-game OCX but an empty wallet approve, then fail.
+    let walletOcx: number | null = null
     try {
-      // Blockchain transaction is mandatory — no database fallback
-      console.log(`🔐 Executing on-chain upgrade to tier ${targetTier}...`)
-      const approvalTx = await ContractManager.approveTokens(
-        ethers.parseEther(upgradeCost.toString()).toString()
-      )
-      await approvalTx.wait()
-      console.log("✅ Token approval successful")
-
-      const contractTx = await ContractManager.upgradeSubmarine(targetTier)
-      await contractTx.wait()
-      console.log("✅ Smart contract upgrade confirmed on blockchain")
-
-      // Sync tier in DB (tokens already deducted on-chain)
-      let upgradeResponse: any = { success: false }
-      try {
-        const resp = await fetch("/api/submarine/sync-tier", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ targetTier }),
-        })
-        const data = await resp.json()
-        if (resp.ok && data.success) {
-          upgradeResponse = data
-        }
-      } catch (syncErr) {
-        console.warn("Tier sync after on-chain upgrade failed:", syncErr)
-      }
-
-      if (!upgradeResponse.success || !upgradeResponse.data) {
-        const errorMessage =
-          upgradeResponse.error || upgradeResponse.data?.message || "Failed to process upgrade via API"
-        throw new Error(errorMessage)
-      }
-
-      const upgradeData = upgradeResponse.data
-      applyUpgradeStateFromResponse(upgradeData)
-
-      // Update balance from server response (may be in 'balance' or 'coins')
-      const newBal = upgradeData.balance ?? upgradeData.coins
-      if (typeof newBal === "number" && Number.isFinite(newBal)) {
-        setBalance(newBal)
-      }
-
-      console.info("✅ Submarine upgrade confirmed", {
-        wallet: upgradeData.wallet,
-        tier: upgradeData.newTier,
-        balanceRemaining: newBal,
-        onChain: true,
-      })
-
-      await loadPlayerData(walletAddress)
-
-      return upgradeData
-    } catch (error: any) {
-      // Handle specific errors
-      if (error.code === 'ACTION_REJECTED' || error.message?.includes("rejected by user")) {
-        throw new Error("Transaction rejected by user")
-      }
-      if (error.message?.includes("insufficient funds")) {
-        throw new Error("Insufficient ETH for gas fees")
-      }
-      if (error.message?.includes("Insufficient OCX")) {
-        throw error
-      }
-      if (error.message?.includes("sequential only")) {
-        throw new Error("Submarines must be upgraded sequentially")
-      }
-      throw error
+      walletOcx = Number(ethers.formatEther(await ContractManager.getTokenBalance(walletAddress)))
+    } catch (balanceErr) {
+      console.warn("Could not read wallet OCX balance; the wallet will check it:", balanceErr)
     }
+    if (walletOcx !== null && walletOcx < upgradeCost) {
+      const unclaimed = balance > 0 ? ` You have ${balance} OCX in the game — use Claim OCX to move it to your wallet first.` : ""
+      throw txError(
+        "insufficient_balance",
+        `Upgrading needs ${upgradeCost} OCX in your wallet; it holds ${walletOcx}.${unclaimed}`,
+      )
+    }
+
+    // Blockchain transaction is mandatory — no database fallback.
+    // Two wallet confirmations: (1) allow the UpgradeManager to spend OCX,
+    // (2) the upgrade itself. Each is surfaced as its own step.
+    console.log(`🔐 Executing on-chain upgrade to tier ${targetTier}...`)
+    actionTx.send({ type: "REQUEST_WALLET", note: `Step 1 of 2 — approve ${upgradeCost} OCX in your wallet...` })
+    const approvalTx = await ContractManager.approveTokens(
+      ethers.parseEther(upgradeCost.toString()).toString()
+    )
+    actionTx.send({
+      type: "BROADCAST",
+      txHash: approvalTx.hash,
+      note: "Step 1 of 2 — waiting for the approval to confirm...",
+    })
+    await approvalTx.wait()
+    console.log("✅ Token approval successful")
+
+    actionTx.send({
+      type: "REQUEST_WALLET",
+      note: `Step 2 of 2 — confirm the upgrade to tier ${targetTier} in your wallet...`,
+    })
+    const contractTx = await ContractManager.upgradeSubmarine(targetTier)
+    actionTx.send({
+      type: "BROADCAST",
+      txHash: contractTx.hash,
+      note: "Step 2 of 2 — waiting for the upgrade to confirm...",
+    })
+    await contractTx.wait()
+    console.log("✅ Smart contract upgrade confirmed on blockchain")
+    actionTx.send({ type: "MINED" })
+
+    // Sync tier in DB (tokens already deducted on-chain)
+    let upgradeResponse: any = { success: false }
+    try {
+      const resp = await fetch("/api/submarine/sync-tier", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ targetTier }),
+      })
+      const data = await resp.json()
+      if (resp.ok && data.success) {
+        upgradeResponse = data
+      }
+    } catch (syncErr) {
+      console.warn("Tier sync after on-chain upgrade failed:", syncErr)
+    }
+
+    if (!upgradeResponse.success || !upgradeResponse.data) {
+      // The chain is the source of truth and it says the upgrade happened.
+      // Say so, instead of a generic failure that invites paying twice.
+      throw txError(
+        "server",
+        "Your upgrade is confirmed on-chain, but the game server has not synced it yet. Reload the page to finish syncing — you will not be charged again.",
+      )
+    }
+
+    const upgradeData = upgradeResponse.data
+    applyUpgradeStateFromResponse(upgradeData)
+
+    // Update balance from server response (may be in 'balance' or 'coins')
+    const newBal = upgradeData.balance ?? upgradeData.coins
+    if (typeof newBal === "number" && Number.isFinite(newBal)) {
+      setBalance(newBal)
+    }
+
+    console.info("✅ Submarine upgrade confirmed", {
+      wallet: upgradeData.wallet,
+      tier: upgradeData.newTier,
+      balanceRemaining: newBal,
+      onChain: true,
+    })
+
+    await loadPlayerData(walletAddress)
+
+    return upgradeData
   }
 
   const handleUpgradeSubmarine = async () => {
     if (playerTier >= 15) return
 
-    setGameState("upgrading")
+    // Ignored unless the game is idle — no double upgrades, no upgrade while
+    // a claim or trade is in flight.
+    if (!sendGameEvent("START_UPGRADING")) return
+    dismissNotice()
 
     try {
       await executeSubmarineUpgrade(playerTier + 1)
 
-      setGameState("upgraded")
-
-      setTimeout(() => {
-        setShowUpgradeModal(false)
-        setGameState("idle")
-      }, 2000)
-    } catch (error) {
-      console.error("Upgrade failed:", error)
-      const message = error instanceof Error ? error.message : "Upgrade failed. Please try again."
-      if (typeof window !== "undefined") {
-        window.alert(message)
-      }
-      setGameState("idle")
+      actionTx.send({ type: "SUCCEED" })
+      // upgrading → upgraded; the modal closes when the machine settles to idle
+      sendGameEvent("SUCCEED")
+    } catch (err) {
+      console.error("Upgrade failed:", err)
+      const error: TxError = classifyTxError(err, "Upgrade failed. Please try again.")
+      const txBefore = actionTx.current()
+      const broadcastHash = "txHash" in txBefore ? txBefore.txHash : undefined
+      actionTx.send({ type: "FAIL", error })
+      showNotice({
+        tone: error.kind === "rejected" ? "info" : "error",
+        message: error.message,
+        txUrl: broadcastHash && actionChainIdRef.current !== null ? explorerTxUrl(broadcastHash, actionChainIdRef.current) : null,
+      })
+      sendGameEvent("FAIL")
     }
   }
 
@@ -1474,7 +1753,7 @@ export function OceanMiningGame({
 
   const handleDisconnect = () => {
     cleanup();
-    setGameState("idle");
+    sendGameEvent("RESET");
     setSidebarOpen(false);
     onFullDisconnect(); // Call parent to fully disconnect and return to landing page
   };
@@ -1503,6 +1782,13 @@ export function OceanMiningGame({
   }
 
 
+  // What the HUD says about the action in flight. Claims and upgrades have
+  // several wallet/on-chain waits, so their text comes from the tx lifecycle.
+  const txInFlight = (gameState === "claiming" || gameState === "upgrading") && actionTx.isBusy
+  const actionStatusText = txInFlight ? describeTx(actionTx.tx) : GAME_STATE_LABELS[gameState]
+  const actionTxHash = txInFlight && "txHash" in actionTx.tx ? actionTx.tx.txHash : undefined
+  const actionTxUrl = actionTxHash && actionChainId !== null ? explorerTxUrl(actionTxHash, actionChainId) : null
+
   return (
     <>
       {showGuide && (
@@ -1517,7 +1803,7 @@ export function OceanMiningGame({
           {/* Connection Status */}
           {connectionStatus !== "connected" && walletConnected && (
             <div className="absolute left-1/2 top-4 -translate-x-1/2 transform rounded-lg bg-slate-900/80 px-4 py-2 text-cyan-400 backdrop-blur-sm">
-              {connectionStatus === "connecting" ? "Connecting to game server..." : "Playing offline"}
+              {CONNECTION_LABELS[connectionStatus]}
             </div>
           )}
 
@@ -1604,13 +1890,22 @@ export function OceanMiningGame({
 
         {/* Game State Notifications */}
         {gameState !== "idle" && (
-          <div className="pointer-events-none absolute left-1/2 top-1/4 -translate-x-1/2 transform rounded-lg bg-slate-900/80 px-6 py-3 text-lg font-bold text-cyan-400 backdrop-blur-sm">
-            {gameState === "mining" && "Mining in progress..."}
-            {gameState === "resourceGained" && "Resource acquired!"}
-            {gameState === "trading" && "Trading resource..."}
-            {gameState === "resourceTraded" && "Resource traded successfully!"}
-            {gameState === "upgrading" && "Upgrading submarine..."}
-            {gameState === "upgraded" && "Submarine upgraded successfully!"}
+          <div
+            role="status"
+            aria-live="polite"
+            className="pointer-events-none absolute left-1/2 top-1/4 max-w-[90vw] -translate-x-1/2 transform rounded-lg bg-slate-900/80 px-6 py-3 text-center text-lg font-bold text-cyan-400 backdrop-blur-sm"
+          >
+            {actionStatusText}
+            {actionTxUrl && (
+              <a
+                href={actionTxUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="pointer-events-auto mt-1 block text-sm font-normal text-cyan-300 underline"
+              >
+                View transaction
+              </a>
+            )}
           </div>
         )}
 
@@ -1637,7 +1932,41 @@ export function OceanMiningGame({
           onUpgrade={handleUpgradeSubmarine}
           onClose={() => setShowUpgradeModal(false)}
           gameState={gameState}
+          {...(gameState === "upgrading" && actionStatusText ? { statusText: actionStatusText } : {})}
         />
+      )}
+
+      {/* Action notices (non-blocking replacement for window.alert) */}
+      {notice && (
+        <div
+          role={notice.tone === "error" ? "alert" : "status"}
+          aria-live={notice.tone === "error" ? "assertive" : "polite"}
+          style={{ zIndex: 100000 }}
+          className={`fixed left-1/2 top-4 w-[min(92vw,30rem)] -translate-x-1/2 transform rounded-lg border px-4 py-3 text-sm shadow-lg backdrop-blur-sm ${
+            notice.tone === "error"
+              ? "border-red-500/50 bg-red-950/90 text-red-100"
+              : notice.tone === "success"
+                ? "border-emerald-500/50 bg-emerald-950/90 text-emerald-100"
+                : "border-cyan-500/50 bg-slate-900/90 text-cyan-100"
+          }`}
+        >
+          <div className="flex items-start gap-3">
+            <p className="flex-1 leading-snug">{notice.message}</p>
+            <button
+              type="button"
+              onClick={dismissNotice}
+              aria-label="Dismiss message"
+              className="-mr-1 rounded px-1 text-base leading-none opacity-70 transition-opacity hover:opacity-100"
+            >
+              ✕
+            </button>
+          </div>
+          {notice.txUrl && (
+            <a href={notice.txUrl} target="_blank" rel="noopener noreferrer" className="mt-1 inline-block underline">
+              View transaction
+            </a>
+          )}
+        </div>
       )}
     </>
   );

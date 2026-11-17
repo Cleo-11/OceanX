@@ -1,6 +1,14 @@
 import { walletManager } from "./wallet"
 import { env } from "./env"
 import { ethers, BrowserProvider } from 'ethers'
+import type { TxEvent } from './state-machines/tx-lifecycle'
+
+/**
+ * Optional progress sink for multi-step on-chain flows. Receives tx-lifecycle
+ * events (REQUEST_WALLET before each wallet prompt, BROADCAST once a hash
+ * exists) so the UI can show exactly which confirmation is pending.
+ */
+export type TxProgressListener = (event: TxEvent) => unknown
 
 // Import full ABIs
 import UpgradeManagerABI from '@/server/abis/UpgradeManager.json'
@@ -99,22 +107,13 @@ export async function getBrowserProvider(): Promise<BrowserProvider> {
 }
 
 /**
- * Connect wallet and return connection details
+ * Connect wallet and return connection details — on the chain the contracts
+ * are deployed on (the wallet is asked to switch if it is elsewhere). Uses the
+ * shared wallet manager, so WalletConnect sessions work here too.
  */
 export async function connectWallet() {
-  const provider = await getBrowserProvider()
-  await provider.send('eth_requestAccounts', [])
-  
-  const signer = await provider.getSigner()
-  const address = await signer.getAddress()
-  const network = await provider.getNetwork()
-  
-  return {
-    provider,
-    signer,
-    address,
-    chainId: Number(network.chainId),
-  }
+  const { provider, signer, address, chainId } = await walletManager.ensurePrimaryNetwork()
+  return { provider, signer, address, chainId }
 }
 
 /**
@@ -166,11 +165,13 @@ export async function checkTokenAllowance(
 /**
  * Approve OCX tokens for UpgradeManager
  */
-export async function approveOCXTokens(amount: bigint) {
+export async function approveOCXTokens(amount: bigint, onProgress?: TxProgressListener) {
   const { signer } = await connectWallet()
   const tokenContract = await getOceanXTokenContract(signer)
   
+  onProgress?.({ type: 'REQUEST_WALLET', note: `Step 1 of 2 — approve ${ethers.formatEther(amount)} OCX in your wallet...` })
   const tx = await tokenContract.approve(CONTRACT_ADDRESSES.UPGRADE_MANAGER, amount)
+  onProgress?.({ type: 'BROADCAST', txHash: tx.hash, note: 'Step 1 of 2 — waiting for the approval to confirm...' })
   const receipt = await tx.wait()
   
   return { tx, receipt, txHash: receipt.hash }
@@ -182,7 +183,7 @@ export async function approveOCXTokens(amount: bigint) {
  * If it fails (e.g. user has no on-chain OCX tokens), returns null
  * so callers can fall back to signature-based server upgrade.
  */
-export async function executeSubmarineUpgrade(targetTier: number) {
+export async function executeSubmarineUpgrade(targetTier: number, onProgress?: TxProgressListener) {
   const { signer, address } = await connectWallet()
   const upgradeContract = await getUpgradeManagerContract(signer)
   
@@ -190,15 +191,20 @@ export async function executeSubmarineUpgrade(targetTier: number) {
   const cost = await upgradeContract.getUpgradeCost(targetTier)
   
   // Check and approve tokens if needed
+  let neededApproval = false
   if (cost > BigInt(0)) {
     const hasAllowance = await checkTokenAllowance(address, cost)
     if (!hasAllowance) {
-      await approveOCXTokens(cost)
+      neededApproval = true
+      await approveOCXTokens(cost, onProgress)
     }
   }
   
   // Execute upgrade transaction
+  const stepLabel = neededApproval ? 'Step 2 of 2 — ' : ''
+  onProgress?.({ type: 'REQUEST_WALLET', note: `${stepLabel}confirm the upgrade to tier ${targetTier} in your wallet...` })
   const tx = await upgradeContract.upgradeSubmarine(targetTier)
+  onProgress?.({ type: 'BROADCAST', txHash: tx.hash, note: `${stepLabel}waiting for the upgrade to confirm...` })
   const receipt = await tx.wait()
   
   // Parse events to get upgrade details
@@ -228,9 +234,9 @@ export async function executeSubmarineUpgrade(targetTier: number) {
  * Callers should fall back to signed server-side upgrade on null.
  * Rethrows ACTION_REJECTED so user cancellation isn't silently swallowed.
  */
-export async function tryOnChainUpgrade(targetTier: number) {
+export async function tryOnChainUpgrade(targetTier: number, onProgress?: TxProgressListener) {
   try {
-    return await executeSubmarineUpgrade(targetTier)
+    return await executeSubmarineUpgrade(targetTier, onProgress)
   } catch (err: any) {
     // If user explicitly rejected the MetaMask popup, rethrow
     if (err?.code === 'ACTION_REJECTED' || err?.message?.includes('user rejected')) {

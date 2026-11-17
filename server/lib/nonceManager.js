@@ -168,13 +168,23 @@ class NonceManager {
    * @param {string} walletAddress - Ethereum wallet address
    * @param {string|number} nonce - Nonce used
    * @param {string} signature - EIP-712 signature
+   * @param {number|string} [deadline] - Deadline (unix seconds) that was signed.
+   *   When given it replaces the provisional 1-hour reservation expiry, so
+   *   `expires_at` is exactly the moment the signature stops working on-chain.
+   *   Callers return `expires_at` to clients as the claim `deadline`; with the
+   *   reservation value the contract rejected every re-issued signature
+   *   ("Invalid signature"), and a dead signature blocked new claims for an hour.
    */
-  async storeSignature(walletAddress, nonce, signature) {
+  async storeSignature(walletAddress, nonce, signature, deadline) {
+    const update = { signature: signature };
+    const signedDeadline = Number(deadline);
+    if (deadline !== undefined && deadline !== null && Number.isFinite(signedDeadline) && signedDeadline > 0) {
+      update.expires_at = Math.floor(signedDeadline);
+    }
+
     const { error } = await this.supabase
       .from('claim_signatures')
-      .update({
-        signature: signature,
-      })
+      .update(update)
       .eq('wallet', walletAddress.toLowerCase())
       .eq('nonce', parseInt(nonce));
 

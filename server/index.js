@@ -17,6 +17,18 @@ import { tokenContract } from "./claimService.js";
 import * as miningService from "./miningService.js";
 import * as resourceService from "./resourceService.js";
 import NonceManager from "./lib/nonceManager.js";
+import { mineNode, PlayerWorlds } from "./lib/authoritativeMining.js";
+import { updatePlayerBalances, LedgerError, isResourceType } from "./lib/playerLedger.js";
+import {
+  CLAIM_TRADE_TYPE,
+  CLAIM_REFUND_GRACE_SEC,
+  RESERVED_TRADE_KEY_PREFIX,
+  claimKind,
+  claimAmountToOcx,
+  secondsUntilRefundable,
+  settlePendingClaims,
+  sweepPendingClaims,
+} from "./lib/claimLifecycle.js";
 import {
   verifyJoinSignature,
   createAuthMiddleware,
@@ -255,7 +267,9 @@ function isValidMovement(previousPosition, newPosition, deltaTime) {
   }
   
   // Configuration (adjust based on your game physics)
-  const MAX_SPEED = 50; // units per second (submarine max speed)
+  // Fastest submarine (tier 15, speed 8) moves 8 * 0.2 * 62.5 = 100 units/s
+  // on the client; allow headroom for frame-time jitter.
+  const MAX_SPEED = 120; // units per second
   const TELEPORT_ABILITY_RANGE = 100; // max teleport distance for special ability
   const MIN_UPDATE_INTERVAL = 16; // minimum ms between updates (60 FPS)
   
@@ -1043,6 +1057,29 @@ try {
         console.error("❌ Nonce cleanup error:", error);
       }
     }, 5 * 60 * 1000);
+
+    // Claim lifecycle safety net (server/lib/claimLifecycle.js): confirm claims
+    // that were mined and refund claims whose signature expired unused, for
+    // players who do not come back and press "Claim" again.
+    // Disable with CLAIM_SETTLEMENT_SWEEP=false.
+    if (process.env.CLAIM_SETTLEMENT_SWEEP !== "false") {
+      const claimSweepTimer = setInterval(async () => {
+        try {
+          const summary = await sweepPendingClaims({
+            supabase,
+            getOnChainNonce: (wallet) => nonceManager.getCurrentNonce(wallet),
+          });
+          if (summary.confirmed || summary.refunded || summary.errors) {
+            console.log(
+              `🧾 Claim sweep: ${summary.confirmed} confirmed, ${summary.refunded} refunded (${summary.refundedOcx} OCX), ${summary.errors} wallet error(s)`
+            );
+          }
+        } catch (error) {
+          console.error("❌ Claim sweep error:", error);
+        }
+      }, 5 * 60 * 1000);
+      claimSweepTimer.unref?.();
+    }
   } else {
     console.warn("⚠️ Nonce Manager not initialized - missing dependencies");
   }
@@ -1388,10 +1425,46 @@ const buildSubmarineResponse = (tierDefinition) => {
 
 // Game state management
 const gameSessions = new Map(); // Map<sessionId, { id, players: Map<walletAddress, playerData>, resourceNodes }>
+// Each player's own deposits (what they see and mine). Kept across reconnects.
+const playerWorlds = new PlayerWorlds();
+// Reconnect without a new wallet signature: token issued on a signed join.
+const resumeTokens = new Map(); // token -> { wallet, expiresAt }
+const RESUME_TOKEN_TTL_MS = 12 * 60 * 60 * 1000;
+const issueResumeToken = (wallet) => {
+    for (const [token, entry] of resumeTokens) {
+        if (entry.wallet === wallet || entry.expiresAt < Date.now()) resumeTokens.delete(token);
+    }
+    const token = crypto.randomBytes(24).toString("hex");
+    resumeTokens.set(token, { wallet, expiresAt: Date.now() + RESUME_TOKEN_TTL_MS });
+    return token;
+};
+const gameStateFor = (session, walletAddress, resumeToken) => ({
+    sessionId: session.id,
+    players: Array.from(session.players.values()),
+    resources: Array.from(playerWorlds.get(walletAddress).nodes.values()),
+    myPlayerId: walletAddress,
+    resumeToken,
+});
+
+// Replace depleted deposits that are due, and tell connected owners.
+setInterval(() => {
+    const now = Date.now();
+    for (const socket of io.sockets.sockets.values()) {
+        const wallet = socket.walletAddress;
+        if (wallet && playerWorlds.refresh(wallet, now)) {
+            socket.emit("resource-nodes", { resources: Array.from(playerWorlds.get(wallet, now).nodes.values()) });
+        }
+    }
+    playerWorlds.prune(now);
+}, 15 * 1000).unref?.();
 const MAX_PLAYERS_PER_SESSION = 20;
 
 // Resource generation parameters
-const MAP_SIZE = 1000;
+// The client world is 2000 x 2000 with the player clamped to 50..1950 on each
+// axis. Nodes used to be generated around (0,0) in ±500, which put most of
+// them at negative coordinates the submarine can never reach.
+const WORLD_MIN = 100;
+const WORLD_MAX = 1900;
 const NUM_RESOURCE_NODES = 50;
 const RESOURCE_TYPES = ["nickel", "cobalt", "copper", "manganese"];
 
@@ -1431,9 +1504,9 @@ function generateInitialResourceNodes() {
             id: `node-${Date.now()}-${i}`,
             type,
             position: {
-                x: Math.random() * MAP_SIZE - MAP_SIZE / 2,
-                y: Math.random() * MAP_SIZE - MAP_SIZE / 2,
-                z: Math.random() * 500 - 250,
+                x: WORLD_MIN + Math.random() * (WORLD_MAX - WORLD_MIN),
+                y: WORLD_MIN + Math.random() * (WORLD_MAX - WORLD_MIN),
+                z: 0,
             },
             amount: amount,
             maxAmount: amount,
@@ -1454,6 +1527,14 @@ io.on("connection", (socket) => {
       
       // Skip internal events
       if (event === 'ping' || event === 'pong') return next();
+
+      // Movement has its own (much higher) budget below. Counting it against
+      // the global 100/min budget meant a few seconds of steering blocked
+      // every other event, including mining.
+      if (event === 'player-move') {
+        if (isSocketRateLimited(socket, 'move', 30, 1000)) return;
+        return next();
+      }
       
       // Global rate limit per socket
       if (isSocketRateLimited(socket, 'global', 100, 60000)) {
@@ -1483,6 +1564,7 @@ io.on("connection", (socket) => {
     const message = typeof payload?.message === "string" ? payload.message : undefined
     const rawWalletAddress = typeof payload?.walletAddress === "string" ? payload.walletAddress : undefined
     const rawSessionId = typeof payload?.sessionId === "string" ? payload.sessionId : undefined
+    const rawResumeToken = typeof payload?.resumeToken === "string" ? payload.resumeToken.trim() : undefined
 
     const sanitizedWallet = sanitizePlainText(rawWalletAddress ? rawWalletAddress.toLowerCase() : undefined)
     const sanitizedSessionId = rawSessionId ? sanitizePlainText(rawSessionId) : undefined
@@ -1492,13 +1574,23 @@ io.on("connection", (socket) => {
       return
     }
 
-    if (!signature || !message) {
+    let verification
+    if (rawResumeToken && !signature) {
+      // Reconnect after a drop: no new wallet prompt.
+      const entry = resumeTokens.get(rawResumeToken)
+      if (!entry || entry.wallet !== sanitizedWallet || entry.expiresAt < Date.now()) {
+        resumeTokens.delete(rawResumeToken)
+        socket.emit("join-error", { code: "RESUME_INVALID", message: "Please sign in to the game again." })
+        return
+      }
+      verification = { wallet: sanitizedWallet, session: "auto", timestamp: Date.now() }
+    } else if (!signature || !message) {
       socket.emit("error", { message: "Wallet signature is required to join." })
+      socket.emit("join-error", { code: "SIGNATURE_REQUIRED", message: "Wallet signature is required to join." })
       return
     }
 
-    let verification
-    try {
+    if (!verification) try {
       verification = verifyJoinSignature({
         walletAddress: sanitizedWallet,
         sessionId: sanitizedSessionId,
@@ -1513,10 +1605,12 @@ io.on("connection", (socket) => {
         reason,
       })
       socket.emit("error", { message: reason })
+      socket.emit("join-error", { code: "SIGNATURE_INVALID", message: reason })
       return
     }
 
     const walletAddress = verification.wallet
+    const resumeToken = rawResumeToken && !signature ? rawResumeToken : issueResumeToken(walletAddress)
     const signatureSession = verification.session && verification.session !== "auto" ? verification.session : undefined
     const sessionId = sanitizedSessionId && sanitizedSessionId !== "auto" ? sanitizedSessionId : signatureSession
 
@@ -1532,15 +1626,7 @@ io.on("connection", (socket) => {
             const currentSession = gameSessions.get(socket.sessionId);
             if (currentSession) {
                 // Send current game state
-                const playersArray = Array.from(currentSession.players.values());
-                const resourcesArray = Array.from(currentSession.resourceNodes.values());
-                
-                socket.emit("game-state", {
-                    sessionId: currentSession.id,
-                    players: playersArray,
-                    resources: resourcesArray,
-                    myPlayerId: walletAddress
-                });
+                socket.emit("game-state", gameStateFor(currentSession, walletAddress, resumeToken));
                 return;
             }
         }
@@ -1599,6 +1685,11 @@ io.on("connection", (socket) => {
             id: walletAddress,
             socketId: socket.id,
             position: { x: 0, y: 0, z: 0, rotation: 0 },
+            // The client restores its own spawn point (saved game state), so the
+            // first position it reports is accepted; every later one is checked
+            // against the speed limit. Mining requires a known position.
+            positionKnown: false,
+            lastMineAt: 0,
             lastMoveTime: Date.now(), // Track last movement time for physics validation
             resources: { nickel: 0, cobalt: 0, copper: 0, manganese: 0 },
             submarineTier: 1, // Default tier
@@ -1662,16 +1753,12 @@ io.on("connection", (socket) => {
         console.log(`➕ Player ${walletAddress} joined session ${sessionToJoin.id}. Total players: ${sessionToJoin.players.size}`);
         console.log(`Current players in session:`, Array.from(sessionToJoin.players.keys()));
 
-        // Send the complete game state to the newly joined player
-        const playersArray = Array.from(sessionToJoin.players.values());
-        const resourcesArray = Array.from(sessionToJoin.resourceNodes.values());
-        
-        socket.emit("game-state", {
-            sessionId: sessionToJoin.id,
-            players: playersArray,
-            resources: resourcesArray,
-            myPlayerId: walletAddress
-        });
+        // Send the complete game state to the newly joined player: their own
+        // deposits (server-authoritative) plus a token to rejoin after a drop.
+        const gameState = gameStateFor(sessionToJoin, walletAddress, resumeToken);
+        const playersArray = gameState.players;
+        const resourcesArray = gameState.resources;
+        socket.emit("game-state", gameState);
 
         // Notify all other players in the room that a new player has joined
         socket.to(sessionToJoin.id).emit("player-joined", player);
@@ -1721,28 +1808,39 @@ io.on("connection", (socket) => {
         const actualSessionId = socket.sessionId || sessionId;
         const session = gameSessions.get(actualSessionId);
         
-        if (!session) {
-            console.log(`❌ Session not found: ${actualSessionId}`);
-            socket.emit("error", { message: "Session not found" });
-            return;
-        }
+        // Moves are fire-and-forget; one that arrives before (re)joining is
+        // simply dropped rather than reported to the client as an error.
+        if (!session) return;
         
-        // Verify that the wallet address matches the socket's authenticated address
-        if (socket.walletAddress && socket.walletAddress !== walletAddress) {
+        // Only a joined socket may move, and only its own submarine (an
+        // unjoined socket could previously move anyone's — and position now
+        // decides mining range).
+        if (!socket.walletAddress) return;
+        if (socket.walletAddress !== walletAddress) {
             console.log(`❌ Wallet address mismatch: ${walletAddress} vs ${socket.walletAddress}`);
             socket.emit("error", { message: "Wallet address mismatch" });
             return;
         }
         
         const player = session.players.get(walletAddress);
-        if (!player) {
-            console.log(`❌ Player not found in session: ${walletAddress}`);
-            socket.emit("error", { message: "Player not found in session" });
+        if (!player) return;
+
+        const now = Date.now();
+
+        // First report after joining: this is the spawn point.
+        if (!player.positionKnown) {
+            player.position = {
+                ...position,
+                x: Math.max(0, Math.min(2000, position.x)),
+                y: Math.max(0, Math.min(2000, position.y)),
+            };
+            player.positionKnown = true;
+            player.lastMoveTime = now;
+            socket.to(actualSessionId).emit("player-moved", { id: walletAddress, position: player.position, timestamp: now });
             return;
         }
 
         // Physics validation: prevent teleportation exploits
-        const now = Date.now();
         const deltaTime = player.lastMoveTime ? now - player.lastMoveTime : null;
         const previousPosition = player.position;
         
@@ -1781,178 +1879,55 @@ io.on("connection", (socket) => {
     });
 
     /**
-     * Server-Authoritative Mining Handler
-     * Requirement #1: Server-side mining authority with full validation
+     * Server-authoritative mining (server/lib/authoritativeMining.js).
+     * The client sends only { nodeId, requestId }; the server decides whether
+     * the mine is allowed and how much it yields, writes it to the players row,
+     * and replies with the player's new totals.
      */
     socket.on("mine-resource", async (data) => {
-        const startTime = Date.now();
-        
+        const requestId = typeof data?.requestId === "string" ? sanitizePlainText(data.requestId, 64) : undefined;
+        const reply = (result) => socket.emit("mining-result", { ...result, requestId });
+
         try {
-            // Per-socket rate limiting (prevents multi-connection spam)
-            if (isSocketRateLimited(socket, 'mine-resource', 30, 60000)) {
-                console.warn(`⚠️ Mining rate limit exceeded for socket: ${socket.id}`);
-                socket.emit("mining-result", {
-                    success: false,
-                    reason: "rate_limit_exceeded",
-                    message: "Too many mining attempts from this connection. Please wait a minute."
-                });
-                return;
-            }
-            
-            // Sanitize and validate input
+            const walletAddress = socket.walletAddress;
+            const sessionId = socket.sessionId;
             const nodeId = typeof data?.nodeId === "string" ? sanitizePlainText(data.nodeId.trim(), 128) : null;
-            const sessionId = typeof data?.sessionId === "string" ? sanitizePlainText(data.sessionId.trim(), 128) : null;
-            const walletAddress = typeof data?.walletAddress === "string" ? sanitizePlainText(data.walletAddress.toLowerCase().trim(), 64) : null;
-            const requestedResourceType = data?.resourceType;
-            
-            // Validate required fields
-            if (!nodeId || !sessionId || !walletAddress) {
-                console.log(`❌ Invalid mine-resource data:`, { nodeId, sessionId, walletAddress });
-                socket.emit("mining-result", {
-                    success: false,
-                    reason: "invalid_request",
-                    message: "Missing required fields: nodeId, sessionId, walletAddress"
-                });
-                return;
+
+            if (!walletAddress || !sessionId) {
+                return reply({ success: false, reason: "not_joined", message: "Reconnecting to the game server. Try again in a moment." });
             }
-            
-            // Validate wallet address format
-            if (!isValidWalletAddress(walletAddress)) {
-                console.log(`❌ Invalid wallet address format: ${walletAddress}`);
-                socket.emit("mining-result", {
-                    success: false,
-                    reason: "invalid_wallet",
-                    message: "Invalid wallet address format"
-                });
-                return;
+            if (!nodeId) {
+                return reply({ success: false, reason: "invalid_request", message: "Missing nodeId" });
             }
-            
-            // Per-wallet rate limiting (additional layer)
             if (isSocketRateLimited(socket, `mining:${walletAddress}`, 30, 60000)) {
-                console.log(`⚠️ Mining rate limit exceeded for wallet: ${walletAddress}`);
-                socket.emit("mining-result", {
-                    success: false,
-                    reason: "rate_limit_exceeded",
-                    message: "Too many mining attempts. Please wait a minute."
-                });
-                return;
+                return reply({ success: false, reason: "rate_limit_exceeded", message: "Too many mining attempts. Please wait a minute." });
             }
-            
-            // Get player position from session
-            const session = gameSessions.get(sessionId);
-            if (!session) {
-                console.log(`❌ Session not found: ${sessionId}`);
-                socket.emit("mining-result", {
-                    success: false,
-                    reason: "session_not_found",
-                    message: "Game session not found"
-                });
-                return;
-            }
-            
-            const player = session.players.get(walletAddress);
-            if (!player) {
-                console.log(`❌ Player not found in session: ${walletAddress}`);
-                socket.emit("mining-result", {
-                    success: false,
-                    reason: "player_not_found",
-                    message: "Player not found in session"
-                });
-                return;
-            }
-            
-            // Requirement #5: Idempotency - Generate unique attempt ID
-            const attemptId = miningService.generateAttemptId(walletAddress, nodeId);
-            
-            // Get IP address for rate limiting and fraud detection (Requirement #6)
-            const ipAddress = socket.handshake.headers['x-forwarded-for'] || 
-                             socket.handshake.headers['x-real-ip'] || 
-                             socket.handshake.address;
-            const userAgent = socket.handshake.headers['user-agent'] || 'unknown';
-            
-            // Requirement #8: Comprehensive logging
-            console.log(`⛏️ Mining attempt from ${walletAddress}:`, {
-                nodeId,
-                sessionId,
-                position: player.position,
-                attemptId: attemptId.slice(0, 30) + '...',
-                ip: ipAddress
-            });
-            
             if (!supabase) {
-                console.error(`❌ Database not available`);
-                socket.emit("mining-result", {
-                    success: false,
-                    reason: "service_unavailable",
-                    message: "Mining service temporarily unavailable"
-                });
-                return;
+                return reply({ success: false, reason: "service_unavailable", message: "Mining service temporarily unavailable" });
             }
-            
-            // Requirement #1-7: Execute server-authoritative mining
-            const result = await miningService.executeMiningAttempt(supabase, {
-                walletAddress,
-                sessionId,
+
+            const session = gameSessions.get(sessionId);
+            const player = session?.players.get(walletAddress);
+            if (!session || !player) {
+                return reply({ success: false, reason: "not_joined", message: "Reconnecting to the game server. Try again in a moment." });
+            }
+
+            const result = await mineNode({
+                supabase,
+                nodes: playerWorlds.get(walletAddress).nodes,
+                player,
                 nodeId,
-                playerPosition: player.position,
-                requestedResourceType,
-                attemptId,
-                ipAddress,
-                userAgent
+                getMaxCapacity: (tier) => getTierDefinition(tier)?.baseStats?.maxCapacity || null,
             });
-            
-            const processingTime = Date.now() - startTime;
-            
-            // Requirement #8: Log result
-            if (result.success) {
-                console.log(`✅ Mining success: ${walletAddress} mined ${result.amount}x ${result.resourceType} (${processingTime}ms)`);
-            } else {
-                console.log(`⚠️ Mining failed: ${walletAddress} - ${result.reason} (${processingTime}ms)`);
-            }
-            
-            // Send authoritative result to client
-            socket.emit("mining-result", {
-                ...result,
-                processingTime
-            });
-            
-            // If successful, broadcast to session (so other players see node claimed)
-            if (result.success) {
-                socket.to(sessionId).emit("resource-mined", {
-                    nodeId,
-                    minedBy: walletAddress,
-                    resourceType: result.resourceType,
-                    amount: result.amount,
-                    timestamp: Date.now()
-                });
-            }
-            
+
+            // Deposits are per player, so there is nothing to broadcast.
+            reply(result);
         } catch (error) {
-            // Capture error in Sentry
             if (process.env.SENTRY_DSN) {
-                Sentry.captureException(error, {
-                    extra: {
-                        wallet: data?.walletAddress,
-                        nodeId: data?.nodeId,
-                        sessionId: data?.sessionId,
-                    },
-                    tags: {
-                        handler: 'mine-resource',
-                    },
-                });
+                Sentry.captureException(error, { extra: { wallet: socket.walletAddress, nodeId: data?.nodeId }, tags: { handler: "mine-resource" } });
             }
-            
-            logServerError("mine-resource", error, {
-                wallet: data?.walletAddress,
-                nodeId: data?.nodeId,
-                sessionId: data?.sessionId
-            });
-            
-            socket.emit("mining-result", {
-                success: false,
-                reason: "server_error",
-                message: "Internal server error during mining"
-            });
+            logServerError("mine-resource", error, { wallet: socket.walletAddress, nodeId: data?.nodeId });
+            reply({ success: false, reason: "server_error", message: "Mining failed on the server. Please try again." });
         }
     });
 
@@ -2306,7 +2281,92 @@ app.post("/marketplace/claim-ocx", claimLimiter, requireClaimAuth, async (req, r
             return respondWithError(res, 404, "Player not found", "PLAYER_NOT_FOUND");
         }
 
-        const availableOcx = Number(player.total_ocx_earned) || 0;
+        let availableOcx = Number(player.total_ocx_earned) || 0;
+
+        // ── Claim lifecycle: settle earlier claims BEFORE reading the balance ──
+        // (server/lib/claimLifecycle.js). OCX is reserved when a signature is
+        // issued, so an earlier claim that was never submitted on-chain must be
+        // resumed (signature still usable) or refunded (signature expired)
+        // before the balance check below — otherwise a player who dismissed the
+        // wallet prompt is told "No OCX available" and the OCX is stranded.
+        // Fail-open: if settlement itself errors, continue with the old flow.
+        if (nonceManager) {
+            try {
+                const nowSec = Math.floor(Date.now() / 1000);
+                const onChainNonce = await nonceManager.getCurrentNonce(wallet);
+                const settlement = await settlePendingClaims({ supabase, wallet, onChainNonce, nowSec });
+
+                if (settlement.refundedOcx > 0) {
+                    const { data: refreshed } = await supabase
+                        .from("players")
+                        .select("total_ocx_earned")
+                        .eq("id", player.id)
+                        .single();
+                    if (refreshed) {
+                        availableOcx = Number(refreshed.total_ocx_earned) || 0;
+                        leaderboard.updatePlayer(wallet, { ocxEarned: availableOcx });
+                    }
+                }
+
+                const openTrade = settlement.live || settlement.settling;
+                if (openTrade && openTrade.kind === "resource_trade") {
+                    // A marketplace sale holds this wallet's nonce.
+                    const waitSec = secondsUntilRefundable(openTrade.deadline, nowSec);
+                    return res.status(409).json({
+                        error: `You have a marketplace trade in progress. Finish it in the marketplace or try again in about ${Math.ceil(waitSec / 60)} minute(s).`,
+                        code: "TRADE_IN_PROGRESS",
+                        retryAfterSec: waitSec,
+                    });
+                }
+
+                if (settlement.live) {
+                    // A signature for this wallet is still valid: hand the SAME one
+                    // back (with its real signed deadline) so the claim can be finished.
+                    const liveClaim = settlement.live;
+                    const record = await nonceManager.checkNonceUsage(wallet, liveClaim.nonce);
+                    if (record && !record.used && record.signature) {
+                        const liveSig = ethers.Signature.from(record.signature);
+                        console.log(`🔁 Resuming live OCX claim ${liveClaim.id} for ${wallet} (nonce ${liveClaim.nonce})`);
+                        return res.json({
+                            success: true,
+                            resumed: true,
+                            isExisting: true,
+                            tradeId: liveClaim.id,
+                            wallet,
+                            claimableOcx: claimAmountToOcx(liveClaim.ocx_amount),
+                            remainingOcx: availableOcx,
+                            amountWei: String(liveClaim.ocx_amount),
+                            nonce: String(liveClaim.nonce),
+                            deadline: Number(liveClaim.deadline),
+                            signature: record.signature,
+                            v: liveSig.v,
+                            r: liveSig.r,
+                            s: liveSig.s,
+                            message: "Resuming your claim in progress. Submit OCXToken.claim() to receive tokens.",
+                        });
+                    }
+                    // Reserved, but the signature can no longer be recovered: it
+                    // will be refunded automatically once it has expired.
+                    const waitSec = secondsUntilRefundable(liveClaim.deadline, nowSec);
+                    return res.status(409).json({
+                        error: `A previous claim is still open. Its OCX returns to your balance in about ${Math.ceil(waitSec / 60)} minute(s) — then you can claim again.`,
+                        code: "CLAIM_SETTLING",
+                        retryAfterSec: waitSec,
+                    });
+                }
+
+                if (settlement.settling) {
+                    const waitSec = secondsUntilRefundable(settlement.settling.deadline, nowSec);
+                    return res.status(409).json({
+                        error: `Your previous claim is being finalised. Please try again in about ${Math.ceil(waitSec / 60)} minute(s).`,
+                        code: "CLAIM_SETTLING",
+                        retryAfterSec: waitSec,
+                    });
+                }
+            } catch (settleErr) {
+                logServerError("claim-ocx-settle", settleErr, { wallet });
+            }
+        }
 
         if (availableOcx <= 0) {
             return respondWithError(res, 400, "No OCX available to claim. Trade resources first.", "NO_OCX_TO_CLAIM");
@@ -2346,19 +2406,14 @@ app.post("/marketplace/claim-ocx", claimLimiter, requireClaimAuth, async (req, r
                 if (existingClaim.expires_at <= now) {
                     await nonceManager.deleteStaleRecord(wallet, currentNonce);
                 } else {
-                    const existingSig = ethers.Signature.from(existingClaim.signature);
-                    return res.json({
-                        success: true,
-                        message: "Signature already generated for this nonce",
-                        claimableOcx: claimAmount,
-                        amountWei: existingClaim.amount,
-                        nonce: existingClaim.nonce.toString(),
-                        deadline: existingClaim.expires_at,
-                        signature: existingClaim.signature,
-                        v: existingSig.v,
-                        r: existingSig.r,
-                        s: existingSig.s,
-                        isExisting: true,
+                    // A live signature that no tracked claim owns (settlement above
+                    // found none) is never handed out again: returning it used to
+                    // mint its amount without deducting anything.
+                    const waitSec = Math.max(1, Number(existingClaim.expires_at) - now + CLAIM_REFUND_GRACE_SEC + 1);
+                    return res.status(409).json({
+                        error: `An earlier signature for your wallet is still active. Please try again in about ${Math.ceil(waitSec / 60)} minute(s).`,
+                        code: "SIGNATURE_ACTIVE",
+                        retryAfterSec: waitSec,
                     });
                 }
             } else {
@@ -2373,20 +2428,7 @@ app.post("/marketplace/claim-ocx", claimLimiter, requireClaimAuth, async (req, r
             nonceReserved = true;
 
             if (reservationData.signature) {
-                const concurrentSig = ethers.Signature.from(reservationData.signature);
-                return res.json({
-                    success: true,
-                    message: "Signature already generated by concurrent request",
-                    claimableOcx: claimAmount,
-                    amountWei: reservationData.amount,
-                    nonce: reservationData.nonce.toString(),
-                    deadline: reservationData.expires_at,
-                    signature: reservationData.signature,
-                    v: concurrentSig.v,
-                    r: concurrentSig.r,
-                    s: concurrentSig.s,
-                    isExisting: true,
-                });
+                return respondWithError(res, 409, "Another claim was just started. Please try again.", "NONCE_CONFLICT");
             }
         } catch (error) {
             if (error.message.includes('already in use')) {
@@ -2402,67 +2444,80 @@ app.post("/marketplace/claim-ocx", claimLimiter, requireClaimAuth, async (req, r
             return respondWithError(res, 503, "Claim service not available", "SERVICE_UNAVAILABLE");
         }
 
-        // Generate signature
-        console.log(`🔐 Generating claim signature for ${wallet}: ${claimAmount} OCX (nonce: ${currentNonce})`);
-        const signatureData = await claimService.generateClaimSignature(wallet, amountWei.toString());
-
-        // Store signature
-        await nonceManager.storeSignature(wallet, currentNonce, signatureData.signature);
-
-        // Create pending trade record
-        let tradeId = null;
-        const idempotencyKey = generateIdempotencyKey();
+        // Reserve (deduct) the OCX BEFORE signing, atomically. Previously the
+        // balance was overwritten with an absolute value after signing, so OCX
+        // credited in between (a trade, a refund) was silently lost, and a
+        // failed deduction still handed out the signature.
+        let remainingOcx;
         try {
-            const { data: trade, error: tradeError } = await supabase
-                .from('trades')
-                .insert({
-                    player_id: player.id,
-                    wallet_address: wallet.toLowerCase(),
-                    resource_type: 'ocx_claim',
-                    resource_amount: 0,
-                    ocx_amount: amountWei.toString(),
-                    status: 'pending',
-                    nonce: signatureData.nonce,
-                    deadline: signatureData.deadline,
-                    idempotency_key: idempotencyKey,
-                    created_at: new Date().toISOString()
-                })
-                .select('id')
-                .single();
-
-            if (!tradeError && trade) {
-                tradeId = trade.id;
-                console.log(`✅ Created pending OCX claim trade: ${tradeId}`);
+            const { after } = await updatePlayerBalances(supabase, {
+                playerId: player.id,
+                compute: () => ({ ocx: -claimAmount }),
+            });
+            remainingOcx = Number(after.total_ocx_earned) || 0;
+        } catch (ledgerErr) {
+            await nonceManager.deleteIncompleteReservation(wallet, currentNonce);
+            if (ledgerErr instanceof LedgerError) {
+                return respondWithError(res, 409, "Your OCX balance just changed. Please try again.", ledgerErr.code);
             }
-        } catch (dbErr) {
-            logServerError('claim-ocx-trade-record', dbErr, { wallet, amount: claimAmount });
+            throw ledgerErr;
         }
 
-        // Deduct the claimed amount from total_ocx_earned immediately
-        // This prevents double-claiming. If the on-chain tx fails, the player
-        // can re-claim since the resources are already converted.
-        const { error: deductError } = await supabase
-            .from("players")
-            .update({
-                total_ocx_earned: Math.max(0, availableOcx - claimAmount),
-                updated_at: new Date().toISOString(),
+        const refundReservedOcx = async () => {
+            try {
+                await updatePlayerBalances(supabase, { playerId: player.id, compute: () => ({ ocx: claimAmount }) });
+            } catch (refundErr) {
+                logServerError("claim-ocx-refund", refundErr, { wallet, claimAmount });
+            }
+        };
+
+        let signatureData;
+        try {
+            console.log(`🔐 Generating claim signature for ${wallet}: ${claimAmount} OCX (nonce: ${currentNonce})`);
+            signatureData = await claimService.generateClaimSignature(wallet, amountWei.toString());
+            // Store signature together with the deadline that was actually signed
+            await nonceManager.storeSignature(wallet, currentNonce, signatureData.signature, signatureData.deadline);
+        } catch (signErr) {
+            await refundReservedOcx();
+            await nonceManager.deleteStaleRecord(wallet, currentNonce).catch(() => {});
+            throw signErr;
+        }
+
+        // Create pending trade record — it is what lets an unused claim be
+        // refunded later, so without it the signature is not handed out.
+        const { data: trade, error: tradeError } = await supabase
+            .from('trades')
+            .insert({
+                player_id: player.id,
+                wallet_address: wallet.toLowerCase(),
+                resource_type: CLAIM_TRADE_TYPE,
+                resource_amount: 0,
+                ocx_amount: amountWei.toString(),
+                status: 'pending',
+                nonce: signatureData.nonce,
+                deadline: signatureData.deadline,
+                idempotency_key: generateIdempotencyKey(),
+                created_at: new Date().toISOString()
             })
-            .eq("id", player.id);
+            .select('id')
+            .single();
 
-        if (deductError) {
-            logServerError("claim-ocx-deduct", deductError, { wallet });
-            // Don't fail — signature already issued. Log for manual reconciliation.
-        } else {
-            // Update in-memory leaderboard to reflect deducted balance
-            leaderboard.updatePlayer(wallet, { ocxEarned: Math.max(0, availableOcx - claimAmount) });
+        if (tradeError || !trade) {
+            logServerError('claim-ocx-trade-record', tradeError || new Error("no row"), { wallet, amount: claimAmount });
+            await refundReservedOcx();
+            await nonceManager.deleteStaleRecord(wallet, currentNonce).catch(() => {});
+            return respondWithError(res, 500, "The claim could not be recorded. Nothing was deducted — please try again.", "CLAIM_NOT_RECORDED");
         }
+        const tradeId = trade.id;
+        console.log(`✅ Created pending OCX claim trade: ${tradeId}`);
+        leaderboard.updatePlayer(wallet, { ocxEarned: remainingOcx });
 
         res.json({
             success: true,
             tradeId,
             wallet,
             claimableOcx: claimAmount,
-            remainingOcx: Math.max(0, availableOcx - claimAmount),
+            remainingOcx,
             amountWei: signatureData.amountWei,
             nonce: signatureData.nonce,
             deadline: signatureData.deadline,
@@ -2478,283 +2533,279 @@ app.post("/marketplace/claim-ocx", claimLimiter, requireClaimAuth, async (req, r
     }
 });
 
+// Marketplace resource prices in tenths of an OCX per unit. Must match the
+// ocxRate values shown in app/marketplace/marketplace-client.tsx.
+const RESOURCE_PRICE_TENTHS = Object.freeze({ nickel: 1n, cobalt: 5n, copper: 10n, manganese: 20n });
+const MAX_RESOURCES_PER_TRADE = 1_000_000;
+
+/** Wei for `amount` units of `resourceType` at the marketplace price. */
+const resourceTradeWei = (resourceType, amount) =>
+    BigInt(amount) * RESOURCE_PRICE_TENTHS[resourceType] * 10n ** 17n;
+
+const signatureResponse = (sigHex, fields) => {
+    const sig = ethers.Signature.from(sigHex);
+    return { success: true, signature: sigHex, v: sig.v, r: sig.r, s: sig.s, ...fields };
+};
+
 /**
  * POST /marketplace/sign-claim
- * Generate EIP-712 signature for a claim (does NOT submit transaction)
- * Client will receive signature and submit claim tx themselves (user pays gas)
+ * Sell resources for OCX minted on-chain (the player submits OCXToken.claim()
+ * themselves and pays gas).
+ *
+ * The resources are RESERVED (deducted) when the signature is issued, exactly
+ * like OCX in /marketplace/claim-ocx, and returned automatically if the
+ * signature expires unused (server/lib/claimLifecycle.js). Previously they
+ * were only deducted if the client called /marketplace/trade/confirm after
+ * the transaction, so a client that skipped it kept both. The OCX amount is
+ * computed here from the resources sold; the client's figure is ignored.
  */
 app.post("/marketplace/sign-claim", claimLimiter, requireClaimAuth, async (req, res) => {
+    const wallet = req?.auth?.wallet;
+    let reservation = null; // { playerId, resourceType, amount } while resources are held
+    let reservedNonce = null; // nonce reserved in claim_signatures by this request
+    let tradeRecorded = false;
+
+    const releaseReservation = async () => {
+        if (!reservation) return;
+        const held = reservation;
+        reservation = null;
+        try {
+            await updatePlayerBalances(supabase, {
+                playerId: held.playerId,
+                compute: () => ({ resources: { [held.resourceType]: held.amount } }),
+            });
+        } catch (releaseErr) {
+            logServerError("sign-claim-release", releaseErr, { wallet, ...held });
+        }
+    };
+
     try {
-        const wallet = req?.auth?.wallet;
         if (!wallet) {
             return respondWithError(res, 401, "Wallet authentication required", "WALLET_REQUIRED");
         }
-
-        // Get amount from request (in OCX, will convert to wei)
-        const ocxAmount = parseFloat(req.body?.ocxAmount || req.body?.amount || 0);
-        if (isNaN(ocxAmount) || ocxAmount <= 0) {
-            return respondWithError(res, 400, "Invalid OCX amount", "INVALID_AMOUNT");
+        if (!supabase) {
+            return respondWithError(res, 503, "Database not available", "DB_UNAVAILABLE");
         }
 
-        // Convert OCX to wei
-        const amountWei = ethers.parseEther(ocxAmount.toString());
+        const resourceType = String(req.body?.resourceType || "").toLowerCase();
+        const resourceAmount = Number(req.body?.resourceAmount);
+        if (
+            !isResourceType(resourceType) ||
+            !Number.isInteger(resourceAmount) ||
+            resourceAmount <= 0 ||
+            resourceAmount > MAX_RESOURCES_PER_TRADE
+        ) {
+            return respondWithError(res, 400, "Choose a resource and a whole number of units to sell.", "RESOURCE_REQUIRED");
+        }
 
-        // Optional: resource type and amount (for marketplace trades)
-        const resourceType = req.body?.resourceType;
-        const resourceAmount = parseInt(req.body?.resourceAmount || 0);
+        const amountWei = resourceTradeWei(resourceType, resourceAmount);
+        const ocxAmount = Number(ethers.formatEther(amountWei));
+        console.log(`📝 Marketplace trade request: ${wallet} sells ${resourceAmount} ${resourceType} for ${ocxAmount} OCX`);
 
-        console.log(`📝 Sign-only claim request: ${wallet} wants ${ocxAmount} OCX (${amountWei.toString()} wei)`);
-
-        // 🔒 CRITICAL: Check nonce for replay attack prevention
         if (!nonceManager) {
-            console.error("❌ Nonce Manager not available");
             return respondWithError(res, 503, "Signature service temporarily unavailable", "SERVICE_UNAVAILABLE");
         }
 
-        // Get current nonce from blockchain
         const currentNonce = await nonceManager.getCurrentNonce(wallet);
-        console.log(`🔍 [${wallet.slice(0,6)}] Current nonce from blockchain: ${currentNonce} (type: ${typeof currentNonce})`);
-        
-        // Clean up any expired reservations for this wallet before checking
-        const cleanedCount = await nonceManager.cleanupExpiredForWallet(wallet);
-        if (cleanedCount > 0) {
-            console.log(`🧹 [${wallet.slice(0,6)}] Cleaned ${cleanedCount} expired reservations`);
+        const nowSec = Math.floor(Date.now() / 1000);
+
+        // Bring earlier claims/trades up to date with the chain. A reservation
+        // that is still open holds this wallet's nonce: resume it if it is the
+        // same trade, otherwise ask the player to wait. This fails CLOSED —
+        // issuing a second signature for a held nonce could leave a reservation
+        // marked as completed when it was the other signature that was mined.
+        let settlement;
+        try {
+            settlement = await settlePendingClaims({ supabase, wallet, onChainNonce: currentNonce, nowSec });
+        } catch (settleErr) {
+            logServerError("sign-claim-settle", settleErr, { wallet });
+            return respondWithError(res, 503, "Could not check your earlier trades. Please try again in a moment.", "SETTLEMENT_UNAVAILABLE");
         }
 
-        // Check if this nonce already has a signature (prevents replay)
-        console.log(`🔍 [${wallet.slice(0,6)}] Checking if nonce ${currentNonce} already in use...`);
+        const open = settlement.live || settlement.settling;
+        if (open) {
+            const sameTrade =
+                settlement.live &&
+                open.kind === "resource_trade" &&
+                open.resource_type === resourceType &&
+                Number(open.resource_amount) === resourceAmount;
+            if (sameTrade) {
+                const record = await nonceManager.checkNonceUsage(wallet, open.nonce);
+                if (record && !record.used && record.signature) {
+                    console.log(`🔁 Resuming marketplace trade ${open.id} for ${wallet}`);
+                    return res.json(
+                        signatureResponse(record.signature, {
+                            resumed: true,
+                            isExisting: true,
+                            tradeId: open.id,
+                            wallet,
+                            ocxAmount: claimAmountToOcx(open.ocx_amount),
+                            resourceType,
+                            resourceAmount,
+                            amountWei: String(open.ocx_amount),
+                            nonce: String(open.nonce),
+                            deadline: Number(open.deadline),
+                            message: "Resuming your trade in progress. Submit OCXToken.claim() to receive OCX.",
+                        })
+                    );
+                }
+            }
+            const waitSec = secondsUntilRefundable(open.deadline, nowSec);
+            const minutes = Math.max(1, Math.ceil(waitSec / 60));
+            const what =
+                open.kind === "resource_trade"
+                    ? `a trade of ${open.resource_amount} ${open.resource_type}`
+                    : "an OCX claim";
+            return res.status(409).json({
+                error:
+                    open.kind === "resource_trade" && settlement.live
+                        ? `You have ${what} in progress. Sell that same amount to finish it, or wait about ${minutes} minute(s) and the resources return to you automatically.`
+                        : `You have ${what} in progress. Please try again in about ${minutes} minute(s).`,
+                code: open.kind === "resource_trade" ? "TRADE_IN_PROGRESS" : "CLAIM_IN_PROGRESS",
+                retryAfterSec: waitSec,
+            });
+        }
+
+        const cleanedCount = await nonceManager.cleanupExpiredForWallet(wallet);
+        if (cleanedCount > 0) {
+            console.log(`🧹 [${wallet.slice(0, 6)}] Cleaned ${cleanedCount} expired reservations`);
+        }
+
+        // A signature for this nonce that no tracked reservation owns (e.g. one
+        // issued before this version was deployed) is never handed out again —
+        // that used to return a signature for whatever amount it was made for,
+        // without checking resources. Wait for it to expire instead.
         const existingClaim = await nonceManager.checkNonceUsage(wallet, currentNonce);
-        console.log(`🔍 [${wallet.slice(0,6)}] Nonce check result:`, existingClaim ? `FOUND (used=${existingClaim.used}, hasSig=${!!existingClaim.signature})` : 'Available');
-        
         if (existingClaim) {
             if (existingClaim.used) {
-                // Record marked as used but on-chain nonce hasn't incremented
-                // This means: tx failed, was never submitted, or expired and was auto-marked used
-                // Safe to delete and allow a fresh attempt
-                console.warn(`⚠️ Stale used=true record for nonce ${currentNonce}, deleting to allow fresh reservation...`);
                 await nonceManager.deleteStaleRecord(wallet, currentNonce);
             } else if (existingClaim.signature) {
-                // Existing unused claim with valid signature
-                // But first verify it's still valid (correct signer, not expired)
-                try {
-                    const existingSig = ethers.Signature.from(existingClaim.signature);
-                    const currentBackendAddress = claimService?.signerAddress || process.env.BACKEND_SIGNER_ADDRESS;
-                    
-                    // Quick check: is the deadline still valid?
-                    const now = Math.floor(Date.now() / 1000);
-                    if (existingClaim.expires_at <= now) {
-                        console.warn(`⚠️ Cached signature expired (deadline: ${existingClaim.expires_at}, now: ${now}). Deleting...`);
-                        await nonceManager.deleteStaleRecord(wallet, currentNonce);
-                        // Fall through to generate fresh signature
-                    } else {
-                        console.warn(`⚠️ Nonce ${currentNonce} already signed for ${wallet}, returning existing signature`);
-                        return res.json({
-                            success: true,
-                            message: "Signature already generated for this nonce",
-                            signature: existingClaim.signature,
-                            nonce: existingClaim.nonce.toString(),
-                            amount: existingClaim.amount,
-                            amountWei: existingClaim.amount,
-                            deadline: existingClaim.expires_at,
-                            v: existingSig.v,
-                            r: existingSig.r,
-                            s: existingSig.s,
-                            isExisting: true,
-                        });
-                    }
-                } catch (sigErr) {
-                    console.warn(`⚠️ Cached signature invalid, deleting and regenerating:`, sigErr.message);
+                const expiresAt = Number(existingClaim.expires_at) || 0;
+                if (expiresAt + CLAIM_REFUND_GRACE_SEC < nowSec) {
                     await nonceManager.deleteStaleRecord(wallet, currentNonce);
-                    // Fall through to generate fresh signature
+                } else {
+                    const waitSec = Math.max(1, expiresAt + CLAIM_REFUND_GRACE_SEC - nowSec + 1);
+                    return res.status(409).json({
+                        error: `An earlier signature for your wallet is still active. Please try again in about ${Math.ceil(waitSec / 60)} minute(s).`,
+                        code: "SIGNATURE_ACTIVE",
+                        retryAfterSec: waitSec,
+                    });
                 }
             } else {
-                // Existing reservation without signature - delete it and allow retry
-                console.warn(`⚠️ Found incomplete reservation for nonce ${currentNonce}, cleaning up...`);
                 await nonceManager.deleteIncompleteReservation(wallet, currentNonce);
             }
         }
 
-        // 🔒 Reserve nonce IMMEDIATELY to prevent race conditions
-        // This must happen before expensive validations to minimize race window
-        let nonceReserved = false;
-        let reservationData = null;
-        const reserveStartTime = Date.now();
+        // Reserve the nonce first: of two concurrent requests only one gets it.
         try {
-            console.log(`🔒 [${wallet.slice(0,6)}] Attempting to reserve nonce ${currentNonce}...`);
-            reservationData = await nonceManager.reserveNonce(wallet, currentNonce, amountWei.toString());
-            nonceReserved = true;
-            const reserveTime = Date.now() - reserveStartTime;
-            console.log(`✅ [${wallet.slice(0,6)}] Nonce ${currentNonce} reserved successfully (${reserveTime}ms)`);
-            
-            // Check if this was a concurrent request that found an existing signature
-            if (reservationData.signature) {
-                console.log(`ℹ️ [${wallet.slice(0,6)}] Returning existing signature from concurrent request`);
-                const concurrentSig = ethers.Signature.from(reservationData.signature);
-                return res.json({
-                    success: true,
-                    message: "Signature already generated by concurrent request",
-                    signature: reservationData.signature,
-                    nonce: reservationData.nonce.toString(),
-                    amount: reservationData.amount,
-                    amountWei: reservationData.amount,
-                    deadline: reservationData.expires_at,
-                    v: concurrentSig.v,
-                    r: concurrentSig.r,
-                    s: concurrentSig.s,
-                    isExisting: true,
-                });
+            const reservationData = await nonceManager.reserveNonce(wallet, currentNonce, amountWei.toString());
+            if (reservationData?.signature) {
+                return respondWithError(res, 409, "Another trade was just started. Please try again.", "NONCE_CONFLICT");
             }
+            reservedNonce = currentNonce;
         } catch (error) {
-            const reserveTime = Date.now() - reserveStartTime;
-            console.error(`❌ [${wallet.slice(0,6)}] Nonce reservation failed after ${reserveTime}ms:`, error.message);
-            if (error.message.includes('already in use')) {
-                return respondWithError(res, 409, "Concurrent claim detected. Please try again.", "NONCE_CONFLICT");
+            if (String(error?.message).includes("already in use")) {
+                return respondWithError(res, 409, "Another trade was just started. Please try again.", "NONCE_CONFLICT");
             }
             throw error;
         }
 
-        // 🔒 CRITICAL: Server-side validation before signing
-        const { maxClaimable, reason, playerData } = await computeMaxClaimableAmount(wallet);
-        
-        if (amountWei > maxClaimable) {
-            console.warn(`⚠️ Sign-claim rejected: ${wallet} requested ${ocxAmount} OCX but max is ${ethers.formatEther(maxClaimable)}`);
-            // Rollback nonce reservation
-            if (nonceReserved) {
-                await nonceManager.deleteIncompleteReservation(wallet, currentNonce);
-            }
-            return respondWithError(
-                res,
-                403,
-                `Requested amount exceeds allowable claim. Max: ${ethers.formatEther(maxClaimable)} OCX. Reason: ${reason}`,
-                "AMOUNT_EXCEEDS_LIMIT"
-            );
-        }
-        
-        if (!playerData) {
-            // Rollback nonce reservation
-            if (nonceReserved) {
-                await nonceManager.deleteIncompleteReservation(wallet, currentNonce);
-            }
-            return respondWithError(res, 404, "Player not found", "PLAYER_NOT_FOUND");
-        }
-
-        // Verify player has resources if this is a trade
-        if (resourceType && resourceAmount > 0) {
-            if (resourceType === "mixed") {
-                // For "mixed" type, validate against sum of all resources
-                const totalAvailable = 
-                    (playerData.resources.nickel || 0) +
-                    (playerData.resources.cobalt || 0) +
-                    (playerData.resources.copper || 0) +
-                    (playerData.resources.manganese || 0);
-                
-                if (resourceAmount > totalAvailable) {
-                    // Rollback nonce reservation
-                    if (nonceReserved) {
-                        await nonceManager.deleteIncompleteReservation(wallet, currentNonce);
-                    }
+        // Reserve the resources (atomic compare-and-swap; fails if not enough).
+        let playerId;
+        try {
+            const { before } = await updatePlayerBalances(supabase, {
+                wallet,
+                compute: () => ({ resources: { [resourceType]: -resourceAmount } }),
+            });
+            playerId = before.id;
+            reservation = { playerId, resourceType, amount: resourceAmount };
+        } catch (ledgerErr) {
+            await nonceManager.deleteIncompleteReservation(wallet, currentNonce);
+            reservedNonce = null;
+            if (ledgerErr instanceof LedgerError) {
+                if (ledgerErr.code === "INSUFFICIENT_RESOURCES") {
                     return respondWithError(
                         res,
                         403,
-                        `Insufficient resources. Total available: ${totalAvailable}, requested: ${resourceAmount}`,
+                        `Not enough ${resourceType}: you have ${ledgerErr.details?.available ?? 0}, tried to sell ${resourceAmount}.`,
                         "INSUFFICIENT_RESOURCES"
                     );
                 }
-            } else {
-                // For specific resource type, validate against that resource
-                const availableResource = playerData.resources[resourceType] || 0;
-                if (resourceAmount > availableResource) {
-                    // Rollback nonce reservation
-                    if (nonceReserved) {
-                        await nonceManager.deleteIncompleteReservation(wallet, currentNonce);
-                    }
-                    return respondWithError(
-                        res,
-                        403,
-                        `Insufficient ${resourceType}. Available: ${availableResource}, requested: ${resourceAmount}`,
-                        "INSUFFICIENT_RESOURCES"
-                    );
+                if (ledgerErr.code === "PLAYER_NOT_FOUND") {
+                    return respondWithError(res, 404, "Player not found", "PLAYER_NOT_FOUND");
                 }
+                return respondWithError(res, 409, ledgerErr.message, ledgerErr.code);
             }
+            throw ledgerErr;
         }
 
         if (!claimService || !claimService.generateClaimSignature) {
-            // Rollback nonce reservation
-            if (nonceReserved) {
-                await nonceManager.deleteIncompleteReservation(wallet, currentNonce);
-            }
+            await releaseReservation();
+            await nonceManager.deleteIncompleteReservation(wallet, currentNonce);
+            reservedNonce = null;
             return respondWithError(res, 503, "Claim service not available", "SERVICE_UNAVAILABLE");
         }
 
-        // Log signature generation event
-        console.log(`🔐 Generating signature for ${wallet}: ${ocxAmount} OCX (nonce: ${currentNonce})`);
-        
-        // Generate signature (does NOT submit transaction)
-        const signatureData = await claimService.generateClaimSignature(
-            wallet,
-            amountWei.toString()
+        console.log(`🔐 Generating trade signature for ${wallet}: ${ocxAmount} OCX (nonce: ${currentNonce})`);
+        const signatureData = await claimService.generateClaimSignature(wallet, amountWei.toString());
+        await nonceManager.storeSignature(wallet, currentNonce, signatureData.signature, signatureData.deadline);
+
+        const { data: trade, error: tradeError } = await supabase
+            .from("trades")
+            .insert({
+                player_id: playerId,
+                wallet_address: wallet.toLowerCase(),
+                resource_type: resourceType,
+                resource_amount: resourceAmount,
+                ocx_amount: amountWei.toString(),
+                status: "pending",
+                nonce: signatureData.nonce,
+                deadline: signatureData.deadline,
+                idempotency_key: `${RESERVED_TRADE_KEY_PREFIX}${crypto.randomUUID()}`,
+                created_at: new Date().toISOString(),
+            })
+            .select("id")
+            .single();
+
+        if (tradeError || !trade) {
+            // Without a trade row nothing could ever refund the reservation, so
+            // undo everything and do not hand out the signature.
+            logServerError("trade-creation-failed", tradeError || new Error("no row"), { wallet, ocxAmount });
+            await releaseReservation();
+            await nonceManager.deleteStaleRecord(wallet, currentNonce);
+            reservedNonce = null;
+            return respondWithError(res, 500, "The trade could not be recorded. Nothing was charged — please try again.", "TRADE_NOT_RECORDED");
+        }
+        tradeRecorded = true;
+        reservation = null; // now owned by the trade row (refunded by claimLifecycle if unused)
+        console.log(`✅ Reserved ${resourceAmount} ${resourceType} for trade ${trade.id}`);
+
+        return res.json(
+            signatureResponse(signatureData.signature, {
+                tradeId: trade.id,
+                wallet,
+                ocxAmount,
+                resourceType,
+                resourceAmount,
+                amountWei: signatureData.amountWei,
+                nonce: signatureData.nonce,
+                deadline: signatureData.deadline,
+                message: "Signature generated. Submit OCXToken.claim() to receive OCX.",
+            })
         );
-
-        // 🔒 Store signature in database (critical for audit trail)
-        await nonceManager.storeSignature(wallet, currentNonce, signatureData.signature);
-
-        // Create pending trade record in DB (for marketplace tracking)
-        let tradeId = null;
-        const idempotencyKey = req.body?.idempotencyKey || generateIdempotencyKey();
-        if (supabase && playerData) {
-            try {
-                const { data: trade, error: tradeError } = await supabase
-                    .from('trades')
-                    .insert({
-                        player_id: playerData.id,
-                        wallet_address: wallet.toLowerCase(),
-                        resource_type: resourceType || null,
-                        resource_amount: resourceAmount || null,
-                        ocx_amount: amountWei.toString(),
-                        status: 'pending',
-                        nonce: signatureData.nonce,
-                        deadline: signatureData.deadline,
-                        idempotency_key: idempotencyKey,
-                        created_at: new Date().toISOString()
-                    })
-                    .select('id')
-                    .single();
-
-                if (!tradeError && trade) {
-                    tradeId = trade.id;
-                    console.log(`✅ Created pending trade: ${tradeId}`);
-                } else {
-                    console.error('❌ Failed to create trade record:', tradeError);
-                    // This is a critical failure - signature issued but not tracked
-                    logServerError('trade-creation-failed', tradeError, { wallet, amount: ocxAmount });
+    } catch (err) {
+        logServerError("sign-claim", err, { wallet });
+        if (!tradeRecorded) {
+            await releaseReservation();
+            if (reservedNonce !== null && nonceManager) {
+                try {
+                    await nonceManager.deleteStaleRecord(wallet, reservedNonce);
+                } catch (cleanupErr) {
+                    logServerError("sign-claim-cleanup", cleanupErr, { wallet });
                 }
-            } catch (dbErr) {
-                logServerError('trade-db-error', dbErr, { wallet, amount: ocxAmount });
             }
         }
-
-        // Return signature data for client to submit
-        res.json({
-            success: true,
-            tradeId,
-            wallet,
-            ocxAmount,
-            amountWei: signatureData.amountWei,
-            nonce: signatureData.nonce,
-            deadline: signatureData.deadline,
-            signature: signatureData.signature,
-            v: signatureData.v,
-            r: signatureData.r,
-            s: signatureData.s,
-            message: "Signature generated. Client must call OCXToken.claim() to execute transaction."
-        });
-
-    } catch (err) {
-        console.error("❌ Sign-claim error:", err);
-        res.status(500).json({ 
-            error: err.message || "Internal error",
-            details: process.env.NODE_ENV !== "production" ? err.stack : undefined
-        });
+        return respondWithError(res, 500, "Trade failed. Nothing was charged — please try again.", "SIGN_CLAIM_ERROR");
     }
 });
 
@@ -2797,11 +2848,21 @@ app.post("/marketplace/trade/confirm", claimLimiter, requireClaimAuth, async (re
             trade = data;
 
             if (trade.status === 'confirmed') {
-                return res.status(400).json({ error: "Trade already confirmed" });
+                // Idempotent: the settlement sweep (or a retry of this request)
+                // may already have confirmed it. That is success, not an error.
+                return res.json({ success: true, tradeId, txHash, alreadyConfirmed: true });
             }
 
-            // Convert OCX amount back to wei for verification
-            expectedAmount = ethers.parseEther(trade.ocx_amount).toString();
+            // ocx_amount is stored in WEI by /marketplace/claim-ocx and
+            // /marketplace/sign-claim. It was previously passed through
+            // parseEther() again here (×1e18), so the amount check in
+            // verifyClaimTransaction could never pass and no trade ever left
+            // 'pending'. Legacy rows holding a decimal OCX value still parse.
+            try {
+                expectedAmount = BigInt(trade.ocx_amount).toString();
+            } catch {
+                expectedAmount = ethers.parseEther(String(trade.ocx_amount)).toString();
+            }
             
             // 🔒 CRITICAL: Verify nonce was actually consumed on-chain (replay protection)
             if (claimService && tokenContract) {
@@ -2841,9 +2902,10 @@ app.post("/marketplace/trade/confirm", claimLimiter, requireClaimAuth, async (re
         // Update trade record and player balance
         if (supabase && trade) {
             try {
-                // Begin transaction-like updates
-                // 1. Mark trade as confirmed
-                const { error: tradeUpdateError } = await supabase
+                // 1. pending → confirmed. The status filter makes this a
+                //    compare-and-swap, so a retried confirm (or the settlement
+                //    sweep confirming it first) never deducts twice.
+                const { data: movedRows, error: tradeUpdateError } = await supabase
                     .from('trades')
                     .update({
                         status: 'confirmed',
@@ -2851,48 +2913,53 @@ app.post("/marketplace/trade/confirm", claimLimiter, requireClaimAuth, async (re
                         confirmed_at: new Date().toISOString(),
                         block_number: verification.blockNumber
                     })
-                    .eq('id', tradeId);
+                    .eq('id', tradeId)
+                    .eq('status', 'pending')
+                    .select('id');
 
                 if (tradeUpdateError) {
                     throw new Error(`Failed to update trade: ${tradeUpdateError.message}`);
                 }
-
-                // 2. Get player record
-                const { data: player, error: playerError } = await supabase
-                    .from('players')
-                    .select('*')
-                    .eq('wallet_address', wallet.toLowerCase())
-                    .single();
-
-                if (playerError || !player) {
-                    throw new Error(`Player not found: ${playerError?.message}`);
+                if (!movedRows || movedRows.length !== 1) {
+                    return res.json({ success: true, tradeId, txHash, alreadyConfirmed: true });
                 }
 
-                // 3. Update player: deduct resources, increment OCX earned
-                const updates = {
-                    total_ocx_earned: (player.total_ocx_earned || 0) + parseFloat(trade.ocx_amount)
-                };
+                // 2. Update player.
+                // total_ocx_earned is the UNCLAIMED off-chain balance. The OCX in
+                // this trade has just been minted to the wallet on-chain, so it is
+                // never credited here as well (that would make it claimable twice;
+                // the old code would also have added the raw wei figure). For an
+                // 'ocx_claim' the balance was already reduced when the signature
+                // was issued, so confirming is bookkeeping only.
+                // Trades issued by the current /marketplace/sign-claim reserved
+                // their resources up front (claimKind === "resource_trade"), so
+                // confirming them is bookkeeping only. Older trades deduct here.
+                const isOcxClaim = trade.resource_type === CLAIM_TRADE_TYPE;
+                const alreadyReserved = claimKind(trade) !== null;
+                const resourceKey = String(trade.resource_type || '').toLowerCase();
 
-                // Deduct resources if this was a resource trade
-                if (trade.resource_type && trade.resource_amount > 0) {
-                    const resourceKey = trade.resource_type.toLowerCase();
-                    const currentAmount = player[resourceKey] || 0;
-                    
-                    if (currentAmount < trade.resource_amount) {
-                        console.warn(`⚠️ Resource underflow: ${resourceKey} ${currentAmount} < ${trade.resource_amount}`);
-                        // Still proceed but log the issue
+                if (!isOcxClaim && !alreadyReserved && trade.resource_amount > 0) {
+                    if (isResourceType(resourceKey)) {
+                        await updatePlayerBalances(supabase, {
+                            wallet,
+                            compute: (row) => {
+                                const take = Math.min(Number(row[resourceKey]) || 0, Number(trade.resource_amount));
+                                if (take < trade.resource_amount) {
+                                    console.warn(`⚠️ Resource underflow: ${resourceKey} ${row[resourceKey]} < ${trade.resource_amount}`);
+                                }
+                                return take > 0 ? { resources: { [resourceKey]: -take } } : null;
+                            },
+                        });
+                    } else {
+                        // e.g. 'mixed': no per-resource breakdown is recorded, and
+                        // writing an unknown column would fail the whole confirm.
+                        console.warn(`⚠️ Trade ${tradeId} has non-deductible resource type '${trade.resource_type}'; resources not adjusted`);
                     }
-
-                    updates[resourceKey] = Math.max(0, currentAmount - trade.resource_amount);
                 }
 
-                const { error: playerUpdateError } = await supabase
-                    .from('players')
-                    .update(updates)
-                    .eq('id', player.id);
-
-                if (playerUpdateError) {
-                    throw new Error(`Failed to update player: ${playerUpdateError.message}`);
+                // The signature for this nonce has been consumed on-chain.
+                if (nonceManager && trade.nonce !== null && trade.nonce !== undefined) {
+                    await nonceManager.markAsClaimed(wallet, trade.nonce);
                 }
 
                 console.log(`✅ Trade confirmed: ${tradeId}, player ${wallet} received ${trade.ocx_amount} OCX`);

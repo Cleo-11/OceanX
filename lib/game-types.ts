@@ -92,7 +92,8 @@ export interface ResourceMinedData {
 }
 
 // Connection status type
-export type ConnectionStatus = "connecting" | "connected" | "disconnected";
+// Single source of truth lives with the connection state machine.
+export type { ConnectionState as ConnectionStatus } from "./state-machines/connection";
 
 // WebSocket event handlers
 export interface WebSocketHandlers {

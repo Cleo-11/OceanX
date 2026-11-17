@@ -12,10 +12,89 @@ export interface WalletConnection {
   providerType?: WalletProviderType
 }
 
+/**
+ * Wallet lifecycle notifications. The wallet is an external state machine the
+ * app does not control: the user can switch account or network, or disconnect,
+ * from the wallet UI at any time. Subscribe with `walletManager.subscribe()`.
+ */
+export type WalletEvent =
+  | { type: "accountChanged"; address: string | null }
+  | { type: "chainChanged"; chainId: number }
+  | { type: "disconnected" }
+
+type WalletListener = (event: WalletEvent) => void
+
+interface Eip1193Events {
+  on?: (event: string, handler: (...args: any[]) => void) => void
+}
+
 export class WalletManager {
   private static instance: WalletManager
   private connection: WalletConnection | null = null
   private wcProvider: any = null // WalletConnect EthereumProvider instance
+  private listeners = new Set<WalletListener>()
+  private watchedProviders = new WeakSet<object>()
+
+  /**
+   * Listen for account / network / disconnect changes made in the wallet.
+   * Returns an unsubscribe function.
+   */
+  subscribe(listener: WalletListener): () => void {
+    this.listeners.add(listener)
+    return () => {
+      this.listeners.delete(listener)
+    }
+  }
+
+  private notify(event: WalletEvent): void {
+    this.listeners.forEach((listener) => {
+      try {
+        listener(event)
+      } catch (err) {
+        console.warn("Wallet listener threw:", err)
+      }
+    })
+  }
+
+  /**
+   * Keep the cached connection honest. A cached signer is bound to one account
+   * on one chain; if the user changes either in their wallet, the cache is
+   * dropped so the next `ensureConnected()` rebuilds it instead of signing
+   * with a stale account or sending to the wrong network.
+   * Idempotent per provider object.
+   */
+  private watchProvider(raw: unknown, providerType: WalletProviderType): void {
+    if (typeof raw !== "object" || raw === null) return
+    const provider = raw as Eip1193Events
+    if (typeof provider.on !== "function" || this.watchedProviders.has(raw)) return
+    this.watchedProviders.add(raw)
+
+    const isActive = () => this.connection?.providerType === providerType
+
+    provider.on("accountsChanged", (accounts: string[]) => {
+      if (!isActive()) return
+      const next = Array.isArray(accounts) && accounts.length > 0 ? accounts[0] : null
+      if (next && this.connection && next.toLowerCase() === this.connection.address.toLowerCase()) return
+      this.connection = null
+      this.notify(next ? { type: "accountChanged", address: next } : { type: "disconnected" })
+    })
+
+    provider.on("chainChanged", (chainIdHex: string | number) => {
+      if (!isActive()) return
+      const chainId = typeof chainIdHex === "number" ? chainIdHex : parseInt(String(chainIdHex), 16)
+      if (this.connection && this.connection.chainId === chainId) return
+      this.connection = null
+      this.notify({ type: "chainChanged", chainId })
+    })
+
+    provider.on("disconnect", () => {
+      // MetaMask also fires this on transient RPC hiccups; only WalletConnect
+      // uses it to mean "session ended".
+      if (!isActive() || providerType !== "walletconnect") return
+      this.connection = null
+      this.notify({ type: "disconnected" })
+    })
+  }
 
   static getInstance(): WalletManager {
     if (!WalletManager.instance) {
@@ -51,7 +130,14 @@ export class WalletManager {
    * Switch to a specific network
    */
   async switchNetwork(targetChainId: number): Promise<void> {
-    if (typeof window === "undefined" || !window.ethereum) {
+    // Ask the wallet that is actually connected (WalletConnect or injected).
+    const eth: any =
+      this.connection?.providerType === "walletconnect" && this.wcProvider
+        ? this.wcProvider
+        : typeof window !== "undefined"
+          ? window.ethereum
+          : undefined
+    if (!eth) {
       throw new Error("MetaMask not installed")
     }
 
@@ -62,7 +148,7 @@ export class WalletManager {
 
     try {
       // Try to switch to the network
-      await window.ethereum.request({
+      await eth.request({
         method: "wallet_switchEthereumChain",
         params: [{ chainId: chainConfig.chainIdHex }],
       })
@@ -70,7 +156,7 @@ export class WalletManager {
       // This error code indicates that the chain has not been added to MetaMask
       if (switchError.code === 4902) {
         try {
-          await window.ethereum.request({
+          await eth.request({
             method: "wallet_addEthereumChain",
             params: [
               {
@@ -133,6 +219,7 @@ export class WalletManager {
       const chainId = Number(network.chainId)
 
       this.connection = { address, provider, signer, chainId, providerType: 'metamask' }
+      this.watchProvider(window.ethereum, 'metamask')
       return this.connection
     } catch (error) {
       if (error instanceof Error) {
@@ -184,6 +271,7 @@ export class WalletManager {
       const chainId = Number(network.chainId)
 
       this.connection = { address, provider, signer, chainId, providerType: 'walletconnect' }
+      this.watchProvider(this.wcProvider, 'walletconnect')
       return this.connection
     } catch (error: any) {
       if (error.code === 'MODULE_NOT_FOUND' || error.message?.includes('Cannot find module')) {
@@ -223,6 +311,7 @@ export class WalletManager {
           // Verify we're on an allowed network
           if (isChainAllowed(chainId)) {
             this.connection = { address, provider, signer, chainId, providerType: 'metamask' }
+            this.watchProvider(window.ethereum, 'metamask')
             console.log('🔄 Wallet auto-reconnected:', address)
             return this.connection
           }
@@ -236,6 +325,41 @@ export class WalletManager {
     }
 
     throw new Error('No Web3 wallet detected. Please install MetaMask or use WalletConnect.')
+  }
+
+  /**
+   * Make sure the wallet is on the chain the game's contracts live on
+   * (getPrimaryChain) before a transaction, switching it if needed (one
+   * wallet prompt). Signing in is allowed on several chains, so a wallet can
+   * be connected and still be on a network where the contracts do not exist.
+   * Returns a connection bound to the primary chain.
+   */
+  async ensurePrimaryNetwork(): Promise<WalletConnection> {
+    const connection = await this.ensureConnected()
+    const primary = getPrimaryChain()
+    if (connection.chainId === primary.chainId) return connection
+
+    console.log(`🔀 Switching wallet from ${getChainName(connection.chainId)} to ${primary.name} for this transaction`)
+    try {
+      await this.switchNetwork(primary.chainId)
+    } catch (err: any) {
+      if (err?.code === 4001 || /reject|denied/i.test(String(err?.message))) {
+        throw new Error(`Please switch your wallet to ${primary.name} to continue.`)
+      }
+      throw new Error(`Could not switch your wallet to ${primary.name}. Switch it manually and try again.`)
+    }
+
+    // Rebuild the signer on the new chain (a signer is bound to one chain).
+    const raw: any = connection.providerType === "walletconnect" && this.wcProvider ? this.wcProvider : window.ethereum
+    const provider = new ethers.BrowserProvider(raw)
+    const signer = await provider.getSigner()
+    const address = await signer.getAddress()
+    const chainId = Number((await provider.getNetwork()).chainId)
+    if (chainId !== primary.chainId) {
+      throw new Error(`Your wallet is still on ${getChainName(chainId)}. Switch it to ${primary.name} and try again.`)
+    }
+    this.connection = { address, provider, signer, chainId, providerType: connection.providerType ?? "metamask" }
+    return this.connection
   }
 
   async signMessage(message: string): Promise<string> {
@@ -293,7 +417,9 @@ export class WalletManager {
       throw new Error("Wallet not connected")
     }
 
-    const contract = new ethers.Contract(contractAddress, abi, this.connection.signer)
+    // Transactions go to the contracts' chain only.
+    const connection = await this.ensurePrimaryNetwork()
+    const contract = new ethers.Contract(contractAddress, abi, connection.signer)
     const options = value ? { value: ethers.parseEther(value) } : {}
 
     return await contract[methodName](...params, options)

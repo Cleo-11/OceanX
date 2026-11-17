@@ -29,8 +29,12 @@ export default async function GamePage() {
     console.error("[game/page] Error loading player data:", playerError)
   }
 
+  // Track whether this is a brand-new wallet (no prior DB record)
+  let isNewPlayer = false
+
   // If no player record exists, create one
   if (!playerData) {
+    isNewPlayer = true
     console.warn("[game/page] No player record found, creating...")
     
     const username = `Captain-${auth.walletAddress.slice(2, 8)}`
@@ -67,7 +71,8 @@ export default async function GamePage() {
   console.info("[game/page] Player data loaded:", {
     wallet: auth.walletAddress,
     hasPlayerData: !!playerData,
+    isNewPlayer,
   })
 
-  return <GameClient userId={auth.userId} playerData={playerData} walletAddress={auth.walletAddress} />
+  return <GameClient userId={auth.userId} playerData={playerData} walletAddress={auth.walletAddress} isNewPlayer={isNewPlayer} />
 }

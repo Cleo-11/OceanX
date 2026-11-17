@@ -2,13 +2,12 @@
 
 import { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
-import { Loader2 } from "lucide-react"
 import { signOut } from "@/lib/supabase"
 import { supabase } from "@/lib/supabase"
 import { OceanMiningGame } from "@/components/ocean-mining-game"
 import { ErrorBoundary } from "@/components/error-boundary"
 import { StyleWrapper } from "@/components/style-wrapper"
-import { GameState } from "@/lib/types"
+import { useGameAction } from "@/hooks/use-game-action"
 
 interface GameClientProps {
   userId: string
@@ -23,6 +22,8 @@ interface GameClientProps {
     has_completed_tutorial?: boolean | null
   } | null
   walletAddress: string
+  /** True only when the wallet has no prior DB record (first-ever sign-in). */
+  isNewPlayer?: boolean
 }
 
 function logCssDiagnostics(context: string) {
@@ -53,12 +54,13 @@ function logCssDiagnostics(context: string) {
   })
 }
 
-export default function GameClient({ userId, playerData, walletAddress }: GameClientProps) {
-  const [gameState, setGameState] = useState<GameState>("idle")
+export default function GameClient({ userId, playerData, walletAddress, isNewPlayer = false }: GameClientProps) {
+  // Explicit state machine for the player's current action (mine / trade /
+  // claim / upgrade). See lib/state-machines/game-action.ts.
+  const { state: gameState, send: sendGameEvent } = useGameAction()
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [isSaving, setIsSaving] = useState(false)
-  const savingRef = useRef(false)
-  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  // Resources are saved by the game server as they are mined (server-
+  // authoritative); the browser no longer writes resource totals.
   const latestResourcesRef = useRef<{
     nickel: number
     cobalt: number
@@ -92,13 +94,6 @@ export default function GameClient({ userId, playerData, walletAddress }: GameCl
       }
     }
     updateLastLogin()
-
-    // Cleanup timeout on unmount
-    return () => {
-      if (saveTimeoutRef.current) {
-        clearTimeout(saveTimeoutRef.current)
-      }
-    }
   }, [userId, playerData])
 
   const handleSignOut = async () => {
@@ -118,23 +113,15 @@ export default function GameClient({ userId, playerData, walletAddress }: GameCl
     <StyleWrapper>
       <ErrorBoundary>
         <div className="min-h-screen bg-depth-900">
-          {/* Saving indicator */}
-          {isSaving && (
-            <div className="fixed top-4 right-4 z-50 bg-depth-800 border border-ocean-500 rounded-lg px-4 py-2 flex items-center gap-2 shadow-lg">
-              <Loader2 className="w-4 h-4 text-ocean-400 animate-spin" />
-              <span className="text-sm text-ocean-300">Saving resources...</span>
-            </div>
-          )}
-
           {/* Render game directly */}
           <OceanMiningGame
             walletConnected={true}
             gameState={gameState}
-            setGameState={setGameState}
+            sendGameEvent={sendGameEvent}
             sidebarOpen={sidebarOpen}
             setSidebarOpen={setSidebarOpen}
             onFullDisconnect={handleFullDisconnect}
-            hasCompletedTutorial={playerData?.has_completed_tutorial ?? false}
+            hasCompletedTutorial={!isNewPlayer}
             initialWalletAddress={walletAddress}
             initialBalance={playerData?.total_ocx_earned ?? 0}
             initialTier={playerData?.submarine_tier ?? 1}
@@ -146,53 +133,6 @@ export default function GameClient({ userId, playerData, walletAddress }: GameCl
             }}
             onResourcesChange={(res) => {
               latestResourcesRef.current = res
-
-              // Clear any existing timeout
-              if (saveTimeoutRef.current) {
-                clearTimeout(saveTimeoutRef.current)
-              }
-
-              // Debounce save to avoid too many DB calls
-              saveTimeoutRef.current = setTimeout(async () => {
-                if (savingRef.current) return
-
-                savingRef.current = true
-                setIsSaving(true)
-                try {
-                  const totals = res.nickel + res.cobalt + res.copper + res.manganese
-
-                  console.info("[GameClient] 💾 Saving resources to database", {
-                    userId,
-                    resources: res,
-                    total: totals,
-                  })
-
-                  // Use API route to bypass RLS
-                  const response = await fetch("/api/player/save-resources", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                      nickel: res.nickel,
-                      cobalt: res.cobalt,
-                      copper: res.copper,
-                      manganese: res.manganese,
-                    }),
-                  })
-
-                  const result = await response.json()
-
-                  if (!response.ok) {
-                    console.error("[GameClient] ❌ Failed to save resources:", result.error)
-                  } else {
-                    console.info("[GameClient] ✅ Resources saved successfully", result.data)
-                  }
-                } catch (err) {
-                  console.error("[GameClient] ❌ Unexpected error saving resources:", err)
-                } finally {
-                  savingRef.current = false
-                  setIsSaving(false)
-                }
-              }, 500) // 500ms debounce for faster saves
             }}
           />
         </div>

@@ -46,7 +46,9 @@ export const CHAINS: Record<string, ChainConfig> = {
     chainId: 11155111,
     chainIdHex: '0xaa36a7',
     name: 'Sepolia Testnet',
-    rpcUrl: process.env.NEXT_PUBLIC_RPC_URL || 'https://sepolia.infura.io/v3/',
+    // The old default ('https://sepolia.infura.io/v3/' without a key) could
+    // not serve requests, so "add network" in the wallet produced a broken RPC.
+    rpcUrl: process.env.NEXT_PUBLIC_RPC_URL || 'https://ethereum-sepolia-rpc.publicnode.com',
     blockExplorer: 'https://sepolia.etherscan.io',
     nativeCurrency: {
       name: 'Ethereum',
@@ -64,11 +66,29 @@ export const ALLOWED_CHAIN_IDS = [
 ]
 
 /**
- * Get the primary chain configuration based on environment
+ * The chain the game's contracts (OCXToken, UpgradeManager) are deployed on.
+ * Every transaction is sent here. Defaults to Ethereum Sepolia, matching
+ * lib/contracts/ocx-token.ts (CHAIN_ID) and the server (CHAIN_ID=11155111).
+ *
+ *   NEXT_PUBLIC_CHAIN_ID=11155111   explicit (recommended)
+ *   NEXT_PUBLIC_USE_BASE_MAINNET=true   legacy switch, honoured only when
+ *                                       NEXT_PUBLIC_CHAIN_ID is not set
+ *
+ * It used to default to BASE Sepolia, where the contracts do not exist: the
+ * wallet was asked to switch there and transactions went nowhere.
  */
+export const DEFAULT_PRIMARY_CHAIN_ID = CHAINS.SEPOLIA.chainId
+
 export function getPrimaryChain(): ChainConfig {
-  const useMainnet = process.env.NEXT_PUBLIC_USE_BASE_MAINNET === 'true'
-  return useMainnet ? CHAINS.BASE_MAINNET : CHAINS.BASE_SEPOLIA
+  const configured = Number.parseInt(process.env.NEXT_PUBLIC_CHAIN_ID ?? '', 10)
+  if (Number.isFinite(configured)) {
+    const chain = getChainConfig(configured)
+    if (chain) return chain
+    console.warn(`NEXT_PUBLIC_CHAIN_ID=${configured} is not a known chain; using ${CHAINS.SEPOLIA.name}`)
+  } else if (process.env.NEXT_PUBLIC_USE_BASE_MAINNET === 'true') {
+    return CHAINS.BASE_MAINNET
+  }
+  return CHAINS.SEPOLIA
 }
 
 /**

@@ -14,6 +14,10 @@ import {
 } from "@/lib/contracts"
 import { walletManager } from "@/lib/wallet"
 import { supabase } from "@/lib/supabase"
+import { useTxLifecycle } from "@/hooks/use-tx-lifecycle"
+import { classifyTxError, describeTx, explorerTxUrl, txError } from "@/lib/state-machines/tx-lifecycle"
+
+const UPGRADE_COMPLETE_NOTE = 'Upgrade complete! Loading your new submarine...'
 
 /**
  * Submarine Hangar - Client Component
@@ -49,9 +53,20 @@ export default function SubmarineHangarClient({
   // dbBalance = off-chain earned OCX in DB (total_ocx_earned; starts from server prop)
   const [balance, setBalance] = useState(0)
   const [dbBalance, setDbBalance] = useState(initialBalance)
-  const [isUpgrading, setIsUpgrading] = useState(false)
-  const [upgradeStatus, setUpgradeStatus] = useState<string | null>(null)
-  const [upgradeError, setUpgradeError] = useState<string | null>(null)
+  // One explicit lifecycle for the upgrade (lib/state-machines/tx-lifecycle.ts)
+  // instead of separate isUpgrading / status-string / error-string flags that
+  // could disagree with each other.
+  const upgradeTx = useTxLifecycle()
+  const [txChainId, setTxChainId] = useState<number | null>(null)
+  const upgradeSucceeded = upgradeTx.tx.status === "succeeded"
+  // Stay locked after success until the redirect to /game happens.
+  const isUpgrading = upgradeTx.isBusy || upgradeSucceeded
+  const upgradeStatus = isUpgrading ? describeTx(upgradeTx.tx) : null
+  const upgradeError = upgradeTx.tx.status === "failed" ? upgradeTx.tx.error.message : null
+  const upgradeTxHash = "txHash" in upgradeTx.tx ? upgradeTx.tx.txHash : undefined
+  const upgradeTxUrl = upgradeTxHash && txChainId !== null ? explorerTxUrl(upgradeTxHash, txChainId) : null
+  // Latest balances for async handlers (state captured in a closure goes stale)
+  const dbBalanceRef = useRef(initialBalance)
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
   /**
@@ -59,7 +74,8 @@ export default function SubmarineHangarClient({
    * Wallet balance = what you can spend
    * DB balance = what you've earned (needs to be claimed)
    */
-  const fetchBalance = async () => {
+  const fetchBalance = async (): Promise<{ onChain: number | null; db: number | null }> => {
+    let dbVal: number | null = null
     try {
       // Fetch wallet balance (on-chain, spendable)
       const onChainStr = await getOCXBalanceReadOnly(walletAddress)
@@ -74,19 +90,21 @@ export default function SubmarineHangarClient({
           .ilike("wallet_address", walletAddress.toLowerCase())
           .single()
         
-        if (data?.total_ocx_earned !== undefined) {
-          setDbBalance(data.total_ocx_earned)
+        if (data?.total_ocx_earned !== undefined && data?.total_ocx_earned !== null) {
+          dbVal = Number(data.total_ocx_earned) || 0
+          setDbBalance(dbVal)
+          dbBalanceRef.current = dbVal
         }
       } catch (dbErr) {
         console.warn("Failed to fetch DB balance:", dbErr)
       }
       
-      return onChainVal
+      return { onChain: onChainVal, db: dbVal }
     } catch (err) {
       console.warn('Failed to fetch wallet balance:', err)
       // Explicitly set on-chain balance to 0 so it doesn't fall back to the off-chain DB value
       setBalance(0)
-      return null
+      return { onChain: null, db: dbVal }
     }
   }
 
@@ -113,10 +131,14 @@ export default function SubmarineHangarClient({
   }, [])
 
   /**
-   * Update balance when initial balance prop changes
+   * Update the earned (off-chain) balance when the server prop changes.
+   * `initialBalance` is total_ocx_earned from the DB, so it belongs in
+   * `dbBalance` — writing it into `balance` briefly showed earned OCX as
+   * spendable on-chain OCX until the next poll corrected it.
    */
   useEffect(() => {
-    setBalance(initialBalance)
+    setDbBalance(initialBalance)
+    dbBalanceRef.current = initialBalance
   }, [initialBalance])
 
   /**
@@ -140,20 +162,24 @@ export default function SubmarineHangarClient({
    *   - Will fail until the contract owner calls OCXToken.setTransferAgent(upgradeManagerAddr, true)
    */
   const handlePurchase = async (targetTier: number) => {
-    try {
-      setIsUpgrading(true)
-      setUpgradeError(null)
-      setUpgradeStatus('Verifying balance...')
+    // Synchronous re-entrancy guard: START is rejected while an upgrade is in
+    // flight, and a finished upgrade is about to navigate away.
+    if (upgradeTx.current().status === "succeeded") return
+    if (!upgradeTx.send({ type: "START", note: "Verifying balance..." })) return
 
-      // Refresh balances before checking
-      await fetchBalance()
+    try {
+      // Refresh balances and decide on the *fresh* values (React state read
+      // here would still hold the values from before the refresh).
+      const fresh = await fetchBalance()
+      const onChainBalance = fresh.onChain ?? 0
+      const earnedBalance = fresh.db ?? dbBalanceRef.current
 
       const costNum = UPGRADE_COSTS[targetTier] ?? 0
       console.log(`Upgrade to Tier ${targetTier} costs ${costNum} OCX`)
 
       // ── Primary path: off-chain upgrade (deducts from total_ocx_earned) ──────
-      if (dbBalance >= costNum) {
-        setUpgradeStatus(`Upgrading to Tier ${targetTier}...`)
+      if (earnedBalance >= costNum) {
+        upgradeTx.send({ type: "AUTHORIZE", note: `Upgrading to Tier ${targetTier}...` })
 
         const upgradeResp = await fetch('/api/submarine/upgrade', {
           method: 'POST',
@@ -165,42 +191,49 @@ export default function SubmarineHangarClient({
           const result = await upgradeResp.json()
           if (result.success) {
             setDbBalance(result.newOcxBalance)
-            setUpgradeStatus('Upgrade complete! Loading your new submarine...')
+            dbBalanceRef.current = result.newOcxBalance
+            upgradeTx.send({ type: "SUCCEED", note: UPGRADE_COMPLETE_NOTE })
             await new Promise(resolve => setTimeout(resolve, 1500))
             router.push('/game')
             router.refresh()
             return
           }
           // Server returned success:false — treat as error below
-          throw new Error(result.error || 'Upgrade failed')
+          throw txError("server", result.error || 'Upgrade failed', true)
         }
 
         const errBody = await upgradeResp.json().catch(() => ({ error: 'Upgrade failed' }))
-        throw new Error(errBody.error || `Server error ${upgradeResp.status}`)
+        throw txError("server", errBody.error || `Server error ${upgradeResp.status}`, upgradeResp.status >= 500)
       }
 
       // ── Fallback: on-chain upgrade (requires OCX in wallet + transferAgent setup) ──
       // Check if user has enough on-chain OCX instead
-      if (balance >= costNum) {
-        setUpgradeStatus('Connecting wallet...')
+      if (onChainBalance >= costNum) {
+        upgradeTx.send({ type: "AUTHORIZE", note: "Connecting wallet..." })
         let connection
         try {
           connection = await walletManager.ensureConnected()
         } catch {
-          throw new Error('Please connect MetaMask or WalletConnect to authorise this transaction.')
+          throw txError("no_wallet", 'Please connect MetaMask or WalletConnect to authorise this transaction.', true)
         }
         if (!connection?.address) {
-          throw new Error('Wallet not connected. Please connect MetaMask to proceed.')
+          throw txError("no_wallet", 'Wallet not connected. Please connect MetaMask to proceed.', true)
         }
+        setTxChainId(connection.chainId)
 
-        setUpgradeStatus(`Requesting on-chain approval for ${costNum} OCX...`)
-        const txResult = await tryOnChainUpgrade(targetTier)
+        // approve (if needed) → upgrade; each wallet prompt and each pending
+        // transaction is reported through the lifecycle as it happens.
+        const txResult = await tryOnChainUpgrade(targetTier, upgradeTx.send)
 
         if (!txResult) {
-          throw new Error('Blockchain transaction failed. Ensure you have on-chain OCX tokens and sufficient ETH for gas.')
+          throw txError(
+            "reverted",
+            'Blockchain transaction failed. Ensure you have on-chain OCX tokens and sufficient ETH for gas.',
+            true,
+          )
         }
 
-        setUpgradeStatus('Transaction confirmed on blockchain! Syncing...')
+        upgradeTx.send({ type: "MINED", note: "Transaction confirmed on blockchain! Syncing..." })
         const syncResp = await fetch('/api/submarine/sync-tier', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -211,7 +244,7 @@ export default function SubmarineHangarClient({
         }
 
         await fetchBalance()
-        setUpgradeStatus('Upgrade complete! Loading your new submarine...')
+        upgradeTx.send({ type: "SUCCEED", txHash: txResult.txHash, note: UPGRADE_COMPLETE_NOTE })
         await new Promise(resolve => setTimeout(resolve, 1500))
         router.push('/game')
         router.refresh()
@@ -219,31 +252,17 @@ export default function SubmarineHangarClient({
       }
 
       // ── Insufficient balance on both paths ────────────────────────────────────
-      throw new Error(
+      throw txError(
+        "insufficient_balance",
         `Insufficient OCX. You need ${costNum} OCX to upgrade to Tier ${targetTier}, ` +
-        `but you only have ${dbBalance.toFixed(0)} OCX. ` +
+        `but you only have ${earnedBalance.toFixed(0)} OCX. ` +
         `Mine resources and trade them in the game to earn more OCX.`
       )
     } catch (error) {
       console.error('Purchase failed:', error)
-
-      let errorMessage = 'Purchase failed'
-      if (error instanceof Error) {
-        errorMessage = error.message
-      }
-
-      if (errorMessage.includes('user rejected') || errorMessage.includes('ACTION_REJECTED')) {
-        errorMessage = 'Transaction cancelled by user'
-      } else if (errorMessage.includes('insufficient funds')) {
-        errorMessage = 'Insufficient ETH for gas fees'
-      } else if (errorMessage.includes('No Web3 wallet') || errorMessage.includes('MetaMask')) {
-        errorMessage = 'Please install MetaMask or another Web3 wallet'
-      }
-
-      setUpgradeError(errorMessage)
-      setUpgradeStatus(null)
-    } finally {
-      setIsUpgrading(false)
+      // One classifier for every wallet/RPC/server failure (rejected, no gas,
+      // revert, ...) instead of ad-hoc string matching per screen.
+      upgradeTx.send({ type: "FAIL", error: classifyTxError(error, 'Purchase failed') })
     }
   }
 
@@ -282,7 +301,7 @@ export default function SubmarineHangarClient({
             currentTier={currentTier}
             walletAddress={walletAddress}
             onClose={handleClose}
-            onRefreshBalance={fetchBalance}
+            onRefreshBalance={() => { void fetchBalance() }}
           />
           {/* Hangar Header */}
           <HangarHeader currentTier={currentTier} />
@@ -304,6 +323,16 @@ export default function SubmarineHangarClient({
                   <div className="flex items-center gap-3">
                     <div className="w-4 h-4 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin" />
                     <span className="text-cyan-300 font-medium">{upgradeStatus}</span>
+                    {upgradeTxUrl && (
+                      <a
+                        href={upgradeTxUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="ml-auto text-sm text-cyan-400 underline hover:text-cyan-300"
+                      >
+                        View transaction
+                      </a>
+                    )}
                   </div>
                 </div>
               )}
